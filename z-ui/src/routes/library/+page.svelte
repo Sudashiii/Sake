@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import type { LibraryBook } from "$lib/types/Library/Book";
 	import type { LibraryBookDetail } from "$lib/types/Library/BookDetail";
+	import type { LibraryShelf } from "$lib/types/Library/Shelf";
 	import type { BookProgressHistoryEntry } from "$lib/types/Library/BookProgressHistory";
 	import type { ApiError } from "$lib/types/ApiError";
 	import Loading from "$lib/components/Loading.svelte";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import BookDetailModalShell from "$lib/components/BookDetailModalShell.svelte";
 	import { ZUI } from "$lib/client/zui";
 
@@ -45,6 +48,7 @@
 	}
 
 	let books = $state<LibraryBook[]>([]);
+	let shelves = $state<LibraryShelf[]>([]);
 	let trashBooks = $state<LibraryBook[]>([]);
 	let isLoading = $state(true);
 	let error = $state<ApiError | null>(null);
@@ -55,6 +59,7 @@
 	let visualMode = $state<LibraryVisualMode>("grid");
 	let showFilters = $state(false);
 	let showSortMenu = $state(false);
+	let showShelfAssign = $state<number | null>(null);
 
 	let showConfirmModal = $state(false);
 	let bookToReset = $state<LibraryBook | null>(null);
@@ -75,10 +80,13 @@
 	let isUpdatingReadState = $state(false);
 	let isUpdatingArchiveState = $state(false);
 	let isUpdatingNewBooksExclusion = $state(false);
+	let isUpdatingShelves = $state(false);
 	let isEditingMetadata = $state(false);
 	let isSavingMetadata = $state(false);
 	let restoringBookId = $state<number | null>(null);
 	let deletingTrashBookId = $state<number | null>(null);
+	let pendingDeleteTrashBook = $state<LibraryBook | null>(null);
+	let showDeleteTrashModal = $state(false);
 	let detailError = $state<string | null>(null);
 	let progressHistoryError = $state<string | null>(null);
 	let progressHistory = $state<BookProgressHistoryEntry[]>([]);
@@ -107,19 +115,38 @@
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
 	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortBy));
 	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortBy));
+	let selectedShelfId = $derived.by(() => {
+		if ($page.url.pathname !== "/library") {
+			return null;
+		}
+		const raw = $page.url.searchParams.get("shelf");
+		if (!raw) {
+			return null;
+		}
+		const parsed = Number.parseInt(raw, 10);
+		return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+	});
+	let shelfScopedLibraryBooks = $derived(
+		selectedShelfId === null
+			? sortedBooks
+			: sortedBooks.filter((book) => matchesBookShelf(book, selectedShelfId))
+	);
 	let filteredLibraryBooks = $derived(
 		sortedBooks.filter(
-			(book) => matchesBookQuery(book, searchQuery) && matchesBookStatus(book, statusFilter)
+			(book) =>
+				matchesBookQuery(book, searchQuery) &&
+				matchesBookStatus(book, statusFilter) &&
+				matchesBookShelf(book, selectedShelfId)
 		)
 	);
 	let filteredArchivedBooks = $derived(
 		sortedArchivedBooks.filter((book) => matchesBookQuery(book, searchQuery))
 	);
 	let libraryStats = $derived({
-		total: sortedBooks.length,
-		reading: sortedBooks.filter((book) => getBookStatus(book) === "reading").length,
-		unread: sortedBooks.filter((book) => getBookStatus(book) === "unread").length,
-		read: sortedBooks.filter((book) => getBookStatus(book) === "read").length
+		total: shelfScopedLibraryBooks.length,
+		reading: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === "reading").length,
+		unread: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === "unread").length,
+		read: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === "read").length
 	});
 	const DETAIL_PROGRESS_PREVIEW_COUNT = 5;
 	let hasMoreProgressHistory = $derived(
@@ -132,6 +159,13 @@
 	);
 
 	onMount(() => {
+		const handleShelvesChanged = () => {
+			void loadShelves();
+		};
+		if (typeof window !== "undefined") {
+			window.addEventListener("shelves:changed", handleShelvesChanged);
+		}
+
 		(async () => {
 			if (typeof localStorage !== "undefined") {
 				const stored = localStorage.getItem(LIBRARY_SORT_KEY);
@@ -168,6 +202,7 @@
 			}
 
 			await loadLibrary();
+			await loadShelves();
 
 			if (!Number.isNaN(openBookId)) {
 				const candidate = books.find(
@@ -180,6 +215,12 @@
 				}
 			}
 		})();
+
+		return () => {
+			if (typeof window !== "undefined") {
+				window.removeEventListener("shelves:changed", handleShelvesChanged);
+			}
+		};
 	});
 
 	function updateLibraryUrl(openBookId?: number | null): void {
@@ -215,6 +256,34 @@
 		isLoading = false;
 	}
 
+	async function loadShelves(): Promise<void> {
+		const result = await ZUI.getLibraryShelves();
+		if (!result.ok) {
+			toastStore.add(`Failed to load shelves: ${result.error.message}`, "error");
+			return;
+		}
+
+		shelves = result.value.shelves;
+		if (selectedShelfId !== null && !shelves.some((shelf) => shelf.id === selectedShelfId)) {
+			updateShelfUrl(null);
+		}
+	}
+
+	function updateShelfUrl(shelfId: number | null): void {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const params = new URLSearchParams(window.location.search);
+		if (shelfId === null) {
+			params.delete("shelf");
+		} else {
+			params.set("shelf", String(shelfId));
+		}
+
+		const query = params.toString();
+		const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+		window.history.replaceState(window.history.state, "", next);
+	}
 
 	async function loadTrash() {
 		isLoading = true;
@@ -242,6 +311,7 @@
 	}
 
 	async function openDetailModal(book: LibraryBook) {
+		await loadShelves();
 		detailModalView = currentView;
 		updateLibraryUrl(book.id);
 		selectedBook = book;
@@ -291,6 +361,7 @@
 		isUpdatingReadState = false;
 		isUpdatingArchiveState = false;
 		isUpdatingNewBooksExclusion = false;
+		isUpdatingShelves = false;
 		isEditingMetadata = false;
 		isSavingMetadata = false;
 		progressHistoryError = null;
@@ -772,15 +843,26 @@
 		await loadTrash();
 	}
 
-	async function handleDeleteTrashedBook(book: LibraryBook): Promise<void> {
-		if (restoringBookId !== null || deletingTrashBookId !== null) {
+	function requestDeleteTrashedBook(book: LibraryBook): void {
+		pendingDeleteTrashBook = book;
+		showDeleteTrashModal = true;
+	}
+
+	function cancelDeleteTrashedBook(): void {
+		if (deletingTrashBookId !== null) {
+			return;
+		}
+		showDeleteTrashModal = false;
+		pendingDeleteTrashBook = null;
+	}
+
+	async function confirmDeleteTrashedBook(): Promise<void> {
+		const book = pendingDeleteTrashBook;
+		if (!book) {
 			return;
 		}
 
-		const confirmed = window.confirm(
-			`Delete "${book.title}" permanently? This removes it from the database and R2 storage.`
-		);
-		if (!confirmed) {
+		if (restoringBookId !== null || deletingTrashBookId !== null) {
 			return;
 		}
 
@@ -796,6 +878,8 @@
 		toastStore.add(`Deleted "${book.title}" permanently`, "success");
 		await loadLibrary();
 		await loadTrash();
+		showDeleteTrashModal = false;
+		pendingDeleteTrashBook = null;
 	}
 
 	function openLibraryUploadPicker(): void {
@@ -931,6 +1015,13 @@
 		return filter === "all" ? true : getBookStatus(book) === filter;
 	}
 
+	function matchesBookShelf(book: LibraryBook, shelfId: number | null): boolean {
+		if (shelfId === null) {
+			return true;
+		}
+		return (book.shelfIds ?? []).includes(shelfId);
+	}
+
 	function getDetailStatusLabel(detail: LibraryBookDetail): "Unread" | "Reading" | "Read" {
 		if (detail.isRead || (detail.progressPercent ?? 0) >= 99.9) {
 			return "Read";
@@ -980,6 +1071,77 @@
 	function formatProgress(percent: number | null): string {
 		if (percent === null) return "No progress yet";
 		return `${percent.toFixed(1)}%`;
+	}
+
+	function setBookShelfIdsState(bookId: number, shelfIds: number[]): void {
+		const normalized = [...new Set(shelfIds)].sort((a, b) => a - b);
+		const index = books.findIndex((book) => book.id === bookId);
+		if (index !== -1) {
+			const updatedBook: LibraryBook = {
+				...books[index],
+				shelfIds: normalized
+			};
+			books = [...books.slice(0, index), updatedBook, ...books.slice(index + 1)];
+			if (selectedBook?.id === bookId) {
+				selectedBook = updatedBook;
+			}
+		}
+
+		if (selectedBookDetail && selectedBookDetail.bookId === bookId) {
+			selectedBookDetail = {
+				...selectedBookDetail,
+				shelfIds: normalized
+			};
+		}
+	}
+
+	async function handleToggleBookShelf(bookId: number, shelfId: number): Promise<void> {
+		if (isUpdatingShelves) {
+			return;
+		}
+
+		const book = books.find((item) => item.id === bookId);
+		if (!book) {
+			return;
+		}
+
+		const currentIds = [...new Set(book.shelfIds ?? [])];
+		const nextIds = currentIds.includes(shelfId)
+			? currentIds.filter((id) => id !== shelfId)
+			: [...currentIds, shelfId];
+
+		isUpdatingShelves = true;
+		const result = await ZUI.setLibraryBookShelves(bookId, nextIds);
+		isUpdatingShelves = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to update shelves: ${result.error.message}`, "error");
+			return;
+		}
+
+		setBookShelfIdsState(bookId, result.value.shelfIds);
+	}
+
+	async function handleToggleShelfAssignment(shelfId: number): Promise<void> {
+		if (!selectedBook || !selectedBookDetail || isUpdatingShelves) {
+			return;
+		}
+
+		const currentIds = [...new Set(selectedBookDetail.shelfIds ?? [])];
+		const nextIds = currentIds.includes(shelfId)
+			? currentIds.filter((id) => id !== shelfId)
+			: [...currentIds, shelfId];
+
+		isUpdatingShelves = true;
+		const result = await ZUI.setLibraryBookShelves(selectedBook.id, nextIds);
+		isUpdatingShelves = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to update shelves: ${result.error.message}`, "error");
+			return;
+		}
+
+		setBookShelfIdsState(selectedBook.id, result.value.shelfIds);
 	}
 
 	function formatDateTime(dateStr: string): string {
@@ -1174,6 +1336,7 @@
 				<h2 class="accent-read">{libraryStats.read}</h2>
 			</div>
 		</section>
+
 	{/if}
 
 	<section class="toolbar-row">
@@ -1330,7 +1493,7 @@
 							<button class="detail-refetch-btn" onclick={() => handleRestoreBook(book)} disabled={restoringBookId !== null || deletingTrashBookId !== null}>
 								{restoringBookId === book.id ? "Restoring..." : "Restore"}
 							</button>
-							<button class="detail-remove-btn" onclick={() => handleDeleteTrashedBook(book)} disabled={restoringBookId !== null || deletingTrashBookId !== null}>
+							<button class="detail-remove-btn" onclick={() => requestDeleteTrashedBook(book)} disabled={restoringBookId !== null || deletingTrashBookId !== null}>
 								{deletingTrashBookId === book.id ? "Deleting..." : "Delete"}
 							</button>
 						</div>
@@ -1354,65 +1517,211 @@
 			{#if visualMode === "grid"}
 				<div class="book-grid">
 					{#each (currentView === "library" ? filteredLibraryBooks : filteredArchivedBooks) as book (book.id)}
-						<button type="button" class="book-tile" aria-label={`Show details for ${book.title}`} onclick={() => openDetailModal(book)}>
-							<div class="book-tile-cover">
-								{#if book.cover}
-									<img src={book.cover} alt={book.title} loading="lazy" />
-								{:else}
-									<div class="no-cover">
-										<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
-									</div>
-								{/if}
-								{#if book.extension}
-									<span class={`tile-format ${getFormatBadgeClass(book.extension)}`}>{book.extension.toUpperCase()}</span>
-								{/if}
-								{#if getProgressPercent(book) > 0 && getProgressPercent(book) < 100}
-									<div class="tile-progress-track">
-										<div class="tile-progress-fill" style={`width: ${getProgressPercent(book)}%`}></div>
-									</div>
-								{/if}
-							</div>
-							<div class="book-tile-meta">
-								<p class="tile-title" title={book.title}>{book.title}</p>
-								<p class="tile-author">{book.author || "Unknown author"}</p>
-								<div class="tile-rating">
-									{#each [1, 2, 3, 4, 5] as star}
-										<span class:active={star <= getRoundedRating(book.rating)}>★</span>
-									{/each}
+						<div class="book-tile-wrap">
+							<button type="button" class="book-tile" aria-label={`Show details for ${book.title}`} onclick={() => openDetailModal(book)}>
+								<div class="book-tile-cover">
+									{#if book.cover}
+										<img src={book.cover} alt={book.title} loading="lazy" />
+									{:else}
+										<div class="no-cover">
+											<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
+										</div>
+									{/if}
+									{#if book.extension}
+										<span class={`tile-format ${getFormatBadgeClass(book.extension)}`}>{book.extension.toUpperCase()}</span>
+									{/if}
+									{#if getProgressPercent(book) > 0 && getProgressPercent(book) < 100}
+										<div class="tile-progress-track">
+											<div class="tile-progress-fill" style={`width: ${getProgressPercent(book)}%`}></div>
+										</div>
+									{/if}
 								</div>
-							</div>
-						</button>
+								<div class="book-tile-meta">
+									<p class="tile-title" title={book.title}>{book.title}</p>
+									<p class="tile-author">{book.author || "Unknown author"}</p>
+									<div class="tile-meta-bottom">
+										<div class="tile-rating">
+											{#each [1, 2, 3, 4, 5] as star}
+												<span class:active={star <= getRoundedRating(book.rating)}>★</span>
+											{/each}
+										</div>
+										{#if (book.shelfIds?.length ?? 0) > 0}
+											<div class="tile-shelf-preview">
+												{#each (book.shelfIds ?? []).slice(0, 2) as shelfId}
+													{@const shelf = shelves.find((item) => item.id === shelfId)}
+													{#if shelf}
+														<span title={shelf.name}>{shelf.icon}</span>
+													{/if}
+												{/each}
+												{#if (book.shelfIds?.length ?? 0) > 2}
+													<span class="tile-shelf-overflow">+{(book.shelfIds?.length ?? 0) - 2}</span>
+												{/if}
+											</div>
+										{/if}
+									</div>
+								</div>
+							</button>
+							{#if currentView === "library"}
+								<div class="shelf-assign-trigger shelf-assign-trigger-grid">
+									<div class="shelf-assign-wrap">
+										<button
+											type="button"
+											class="shelf-assign-btn"
+											title="Add to shelf"
+											onclick={(event) => {
+												event.stopPropagation();
+												showShelfAssign = showShelfAssign === book.id ? null : book.id;
+											}}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+												<line x1="12" y1="8" x2="12" y2="13"></line>
+												<line x1="9.5" y1="10.5" x2="14.5" y2="10.5"></line>
+											</svg>
+										</button>
+										{#if showShelfAssign === book.id}
+											<button
+												type="button"
+												class="menu-backdrop"
+												aria-label="Close shelf menu"
+												onclick={(event) => {
+													event.stopPropagation();
+													showShelfAssign = null;
+												}}
+											></button>
+											<div class="shelf-assign-menu shelf-assign-menu-grid">
+												<div class="shelf-assign-menu-head">Add to Shelf</div>
+												{#if shelves.length === 0}
+													<div class="shelf-assign-empty">No shelves yet</div>
+												{:else}
+													{#each shelves as shelf (shelf.id)}
+														{@const isOnShelf = (book.shelfIds ?? []).includes(shelf.id)}
+														<button
+															type="button"
+															class="shelf-assign-item"
+															class:on-shelf={isOnShelf}
+															onclick={(event) => {
+																event.stopPropagation();
+																void handleToggleBookShelf(book.id, shelf.id);
+															}}
+														>
+															<span>{shelf.icon}</span>
+															<span class="shelf-assign-item-name">{shelf.name}</span>
+															{#if isOnShelf}
+																<span class="shelf-assign-check">✓</span>
+															{/if}
+														</button>
+													{/each}
+												{/if}
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/if}
+						</div>
 					{/each}
 				</div>
 			{:else}
 				<div class="book-list">
 					{#each (currentView === "library" ? filteredLibraryBooks : filteredArchivedBooks) as book (book.id)}
-						<button type="button" class="book-list-item" aria-label={`Show details for ${book.title}`} onclick={() => openDetailModal(book)}>
-							<div class="book-list-cover">
-								{#if book.cover}
-									<img src={book.cover} alt={book.title} loading="lazy" />
-								{:else}
-									<div class="no-cover">
-										<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
-									</div>
-								{/if}
-							</div>
-							<div class="book-list-main">
-								<p class="tile-title" title={book.title}>{book.title}</p>
-								<p class="tile-author">{book.author || "Unknown author"}</p>
-							</div>
-							<div class="book-list-meta">
-								<div class="tile-rating">
-									{#each [1, 2, 3, 4, 5] as star}
-										<span class:active={star <= getRoundedRating(book.rating)}>★</span>
-									{/each}
+						<div class="book-list-item-wrap">
+							<button type="button" class="book-list-item" aria-label={`Show details for ${book.title}`} onclick={() => openDetailModal(book)}>
+								<div class="book-list-cover">
+									{#if book.cover}
+										<img src={book.cover} alt={book.title} loading="lazy" />
+									{:else}
+										<div class="no-cover">
+											<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
+										</div>
+									{/if}
 								</div>
-								{#if book.extension}
-									<span class={`list-format ${getFormatBadgeClass(book.extension)}`}>{book.extension.toUpperCase()}</span>
-								{/if}
-								<span class="list-progress-chip">{getProgressPercent(book).toFixed(1)}%</span>
-							</div>
-						</button>
+								<div class="book-list-main">
+									<p class="tile-title" title={book.title}>{book.title}</p>
+									<p class="tile-author">{book.author || "Unknown author"}</p>
+									{#if (book.shelfIds?.length ?? 0) > 0}
+										<div class="list-shelf-preview">
+											{#each (book.shelfIds ?? []).slice(0, 3) as shelfId}
+												{@const shelf = shelves.find((item) => item.id === shelfId)}
+												{#if shelf}
+													<span class="list-shelf-chip">{shelf.icon} {shelf.name}</span>
+												{/if}
+											{/each}
+											{#if (book.shelfIds?.length ?? 0) > 3}
+												<span class="list-shelf-overflow">+{(book.shelfIds?.length ?? 0) - 3}</span>
+											{/if}
+										</div>
+									{/if}
+								</div>
+								<div class="book-list-meta">
+									<div class="tile-rating">
+										{#each [1, 2, 3, 4, 5] as star}
+											<span class:active={star <= getRoundedRating(book.rating)}>★</span>
+										{/each}
+									</div>
+									{#if book.extension}
+										<span class={`list-format ${getFormatBadgeClass(book.extension)}`}>{book.extension.toUpperCase()}</span>
+									{/if}
+									<span class="list-progress-chip">{getProgressPercent(book).toFixed(1)}%</span>
+								</div>
+							</button>
+							{#if currentView === "library"}
+								<div class="shelf-assign-trigger shelf-assign-trigger-list">
+									<div class="shelf-assign-wrap">
+										<button
+											type="button"
+											class="shelf-assign-btn shelf-assign-btn-list"
+											title="Add to shelf"
+											onclick={(event) => {
+												event.stopPropagation();
+												showShelfAssign = showShelfAssign === book.id ? null : book.id;
+											}}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+												<line x1="12" y1="8" x2="12" y2="13"></line>
+												<line x1="9.5" y1="10.5" x2="14.5" y2="10.5"></line>
+											</svg>
+										</button>
+										{#if showShelfAssign === book.id}
+											<button
+												type="button"
+												class="menu-backdrop"
+												aria-label="Close shelf menu"
+												onclick={(event) => {
+													event.stopPropagation();
+													showShelfAssign = null;
+												}}
+											></button>
+											<div class="shelf-assign-menu shelf-assign-menu-list">
+												<div class="shelf-assign-menu-head">Add to Shelf</div>
+												{#if shelves.length === 0}
+													<div class="shelf-assign-empty">No shelves yet</div>
+												{:else}
+													{#each shelves as shelf (shelf.id)}
+														{@const isOnShelf = (book.shelfIds ?? []).includes(shelf.id)}
+														<button
+															type="button"
+															class="shelf-assign-item"
+															class:on-shelf={isOnShelf}
+															onclick={(event) => {
+																event.stopPropagation();
+																void handleToggleBookShelf(book.id, shelf.id);
+															}}
+														>
+															<span>{shelf.icon}</span>
+															<span class="shelf-assign-item-name">{shelf.name}</span>
+															{#if isOnShelf}
+																<span class="shelf-assign-check">✓</span>
+															{/if}
+														</button>
+													{/each}
+												{/if}
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/if}
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -1425,15 +1734,20 @@
 					</svg>
 				</div>
 				{#if currentView === "library"}
-					<h3>Your library is empty</h3>
-					<p>Search and download books from Z-Library to build your collection.</p>
-					<a href="/search" class="link-btn">
-						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="11" cy="11" r="8"></circle>
-							<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-						</svg>
-						Go to Search
-					</a>
+					{#if selectedShelfId !== null}
+						<h3>No books on this shelf yet</h3>
+						<p>Add books using the bookmark icon on each book.</p>
+					{:else}
+						<h3>Your library is empty</h3>
+						<p>Search and download books from Z-Library to build your collection.</p>
+						<a href="/search" class="link-btn">
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="11" cy="11" r="8"></circle>
+								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+							</svg>
+							Go to Search
+						</a>
+					{/if}
 				{:else}
 					<h3>No archived books</h3>
 					<p>Archive books from the detail view to keep them out of New Books downloads.</p>
@@ -1442,6 +1756,18 @@
 		{/if}
 	{/if}
 </div>
+
+<ConfirmModal
+	open={showDeleteTrashModal}
+	title="Delete permanently?"
+	message={`Delete "${pendingDeleteTrashBook?.title ?? "this book"}" permanently? This removes it from the database and R2 storage.`}
+	confirmLabel="Delete Permanently"
+	cancelLabel="Cancel"
+	danger={true}
+	pending={deletingTrashBookId !== null}
+	onConfirm={confirmDeleteTrashedBook}
+	onCancel={cancelDeleteTrashedBook}
+/>
 
 {#if showDetailModal && selectedBook}
 	<BookDetailModalShell
@@ -1642,6 +1968,31 @@
 									<span>({(selectedBookDetail.externalRatingCount ?? 0).toLocaleString()} ratings)</span>
 								</div>
 							{/if}
+
+							<div class="detail-v2-shelves">
+								<div class="detail-v2-shelves-head">
+									<p class="detail-v2-caption">Shelves</p>
+									<span>{selectedBookDetail.shelfIds.length} selected</span>
+								</div>
+								{#if shelves.length === 0}
+									<p class="detail-muted">Create a shelf above to organize this book.</p>
+								{:else}
+									<div class="detail-v2-shelf-list">
+										{#each shelves as shelf (shelf.id)}
+											<button
+												type="button"
+												class="detail-v2-shelf-item"
+												class:active={selectedBookDetail.shelfIds.includes(shelf.id)}
+												onclick={() => void handleToggleShelfAssignment(shelf.id)}
+												disabled={isUpdatingShelves}
+											>
+												<span class="detail-v2-shelf-icon">{shelf.icon}</span>
+												<span>{shelf.name}</span>
+											</button>
+										{/each}
+									</div>
+								{/if}
+							</div>
 
 							<div class="detail-v2-actions">
 								<button class="detail-v2-btn detail-v2-btn-secondary" onclick={handleDownloadFromLibrary} disabled={isDownloadingLibraryFile}>
@@ -2105,6 +2456,10 @@
 		gap: 1rem;
 	}
 
+	.book-tile-wrap {
+		position: relative;
+	}
+
 	.book-tile {
 		background: #161921;
 		border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2228,6 +2583,13 @@
 		text-overflow: ellipsis;
 	}
 
+	.tile-meta-bottom {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem;
+	}
+
 	.tile-rating {
 		display: inline-flex;
 		align-items: center;
@@ -2243,9 +2605,146 @@
 		color: #c9a962;
 	}
 
+	.tile-shelf-preview {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.16rem;
+		font-size: 0.72rem;
+		color: var(--color-text-muted);
+	}
+
+	.tile-shelf-overflow {
+		font-size: 0.64rem;
+		color: var(--color-text-muted);
+	}
+
+	.shelf-assign-trigger {
+		position: absolute;
+		z-index: 12;
+	}
+
+	.shelf-assign-trigger-grid {
+		left: 0.5rem;
+		top: 0.5rem;
+	}
+
+	.shelf-assign-trigger-list {
+		right: 0.55rem;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	.shelf-assign-wrap {
+		position: relative;
+	}
+
+	.shelf-assign-btn {
+		width: 1.52rem;
+		height: 1.52rem;
+		border-radius: 0.42rem;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(22, 25, 33, 0.88);
+		color: var(--color-text-secondary);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.book-tile-wrap:hover .shelf-assign-btn,
+	.book-list-item-wrap:hover .shelf-assign-btn {
+		opacity: 1;
+	}
+
+	.shelf-assign-btn:hover {
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.3);
+	}
+
+	.shelf-assign-btn-list {
+		background: #161921;
+	}
+
+	.shelf-assign-menu {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		min-width: 11.2rem;
+		padding: 0.35rem;
+		border-radius: 0.5rem;
+		border: 1px solid var(--color-border);
+		background: var(--color-surface);
+		box-shadow: 0 18px 36px rgba(0, 0, 0, 0.42);
+		z-index: 50;
+		display: grid;
+		gap: 0.15rem;
+	}
+
+	.shelf-assign-menu-grid {
+		left: 0;
+	}
+
+	.shelf-assign-menu-list {
+		right: 0;
+	}
+
+	.shelf-assign-menu-head {
+		padding: 0.25rem 0.4rem 0.35rem;
+		font-size: 0.66rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-text-muted);
+	}
+
+	.shelf-assign-empty {
+		padding: 0.38rem 0.4rem;
+		font-size: 0.72rem;
+		color: var(--color-text-muted);
+	}
+
+	.shelf-assign-item {
+		width: 100%;
+		border: 1px solid transparent;
+		background: transparent;
+		border-radius: 0.38rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.38rem 0.45rem;
+		font-size: 0.74rem;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+	}
+
+	.shelf-assign-item:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--color-text-primary);
+	}
+
+	.shelf-assign-item.on-shelf {
+		background: color-mix(in oklab, var(--color-primary), transparent 90%);
+		border-color: color-mix(in oklab, var(--color-primary), transparent 68%);
+		color: var(--color-text-primary);
+	}
+
+	.shelf-assign-item-name {
+		flex: 1;
+		text-align: left;
+	}
+
+	.shelf-assign-check {
+		font-size: 0.68rem;
+		color: var(--color-primary);
+	}
+
 	.book-list {
 		display: grid;
 		gap: 0.62rem;
+	}
+
+	.book-list-item-wrap {
+		position: relative;
 	}
 
 	.book-list-item {
@@ -2287,6 +2786,30 @@
 		min-width: 0;
 		display: grid;
 		gap: 0.1rem;
+	}
+
+	.list-shelf-preview {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.24rem;
+		flex-wrap: wrap;
+		margin-top: 0.16rem;
+	}
+
+	.list-shelf-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		padding: 0.15rem 0.35rem;
+		border-radius: 999px;
+		font-size: 0.62rem;
+		background: rgba(255, 255, 255, 0.05);
+		color: var(--color-text-muted);
+	}
+
+	.list-shelf-overflow {
+		font-size: 0.64rem;
+		color: var(--color-text-muted);
 	}
 
 	.book-list-meta {
@@ -2945,6 +3468,58 @@
 	.detail-v2-external-rating span:nth-child(3) {
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+	}
+
+	.detail-v2-shelves {
+		display: grid;
+		gap: 0.55rem;
+	}
+
+	.detail-v2-shelves-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.detail-v2-shelves-head span {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.detail-v2-shelf-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.detail-v2-shelf-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.42rem 0.68rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: #1a1f2d;
+		color: var(--color-text-secondary);
+		font-size: 0.78rem;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	.detail-v2-shelf-item.active {
+		background: color-mix(in oklab, var(--color-primary), transparent 88%);
+		border-color: color-mix(in oklab, var(--color-primary), transparent 65%);
+		color: var(--color-primary);
+	}
+
+	.detail-v2-shelf-item:disabled {
+		opacity: 0.6;
+		cursor: wait;
+	}
+
+	.detail-v2-shelf-icon {
+		font-size: 0.84rem;
 	}
 
 	.detail-v2-actions {

@@ -245,6 +245,8 @@
 		.book-card {
 			padding: 0.7rem;
 			gap: 0.72rem;
+			flex-wrap: wrap;
+			align-items: flex-start;
 		}
 
 		.book-cover {
@@ -252,19 +254,38 @@
 			height: 4.8rem;
 		}
 
-		.book-title,
-		.book-author {
+		.book-content {
+			min-width: 0;
+			flex: 1 1 calc(100% - 4.12rem);
+		}
+
+		.book-title {
+			font-size: 0.78rem;
+			line-height: 1.28;
+			display: -webkit-box;
+			line-clamp: 3;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
 			white-space: normal;
 		}
 
+		.book-author {
+			white-space: normal;
+			line-height: 1.25;
+		}
+
 		.book-actions {
+			order: 3;
 			flex-direction: row;
 			width: 100%;
+			margin-top: 0.2rem;
 		}
 
 		.action-btn {
 			flex: 1;
 			min-width: 0;
+			padding: 0.5rem 0.65rem;
 		}
 	}
 </style>

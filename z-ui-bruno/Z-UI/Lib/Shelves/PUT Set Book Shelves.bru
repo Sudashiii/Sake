@@ -1,0 +1,25 @@
+meta {
+  name: PUT Set Book Shelves
+  type: http
+}
+
+put {
+  url: {{base_url}}/api/library/{{book_id}}/shelves
+  body: json
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+body:json {
+  {
+    "shelfIds": [{{shelf_id}}]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

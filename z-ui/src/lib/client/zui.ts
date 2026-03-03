@@ -42,6 +42,11 @@ import { getLibraryBookProgressHistory } from './routes/getLibraryBookProgressHi
 import type { BookProgressHistoryResponse } from '$lib/types/Library/BookProgressHistory';
 import { getReadingActivityStats } from './routes/getReadingActivityStats';
 import type { ReadingActivityStats } from '$lib/types/Stats/ReadingActivityStats';
+import { getLibraryShelves, type GetLibraryShelvesResponse } from './routes/getLibraryShelves';
+import { createLibraryShelf, type CreateLibraryShelfResponse } from './routes/createLibraryShelf';
+import { updateLibraryShelf, type UpdateLibraryShelfResponse } from './routes/updateLibraryShelf';
+import { deleteLibraryShelf, type DeleteLibraryShelfResponse } from './routes/deleteLibraryShelf';
+import { setLibraryBookShelves, type SetLibraryBookShelvesResponse } from './routes/setLibraryBookShelves';
 
 /**
  * Facade for all Z-Library UI client operations.
@@ -121,7 +126,27 @@ export const ZUI = {
 	updateLibraryBookMetadata: (
 		bookId: number,
 		request: UpdateLibraryBookMetadataRequest
-	) => updateLibraryBookMetadata(bookId, request)
+	) => updateLibraryBookMetadata(bookId, request),
+
+	getLibraryShelves: (): Promise<Result<GetLibraryShelvesResponse, ApiError>> => getLibraryShelves(),
+
+	createLibraryShelf: (
+		request: { name: string; icon?: string }
+	): Promise<Result<CreateLibraryShelfResponse, ApiError>> => createLibraryShelf(request),
+
+	updateLibraryShelf: (
+		shelfId: number,
+		request: { name: string; icon?: string }
+	): Promise<Result<UpdateLibraryShelfResponse, ApiError>> => updateLibraryShelf(shelfId, request),
+
+	deleteLibraryShelf: (
+		shelfId: number
+	): Promise<Result<DeleteLibraryShelfResponse, ApiError>> => deleteLibraryShelf(shelfId),
+
+	setLibraryBookShelves: (
+		bookId: number,
+		shelfIds: number[]
+	): Promise<Result<SetLibraryBookShelvesResponse, ApiError>> => setLibraryBookShelves(bookId, shelfIds)
 } as const;
 
 export type ZUIClient = typeof ZUI;

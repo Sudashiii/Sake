@@ -6,6 +6,7 @@
 	import { ZLibAuthService } from "$lib/client/services/zlibAuthService";
 	import Sidebar from "$lib/components/Sidebar.svelte";
 	import type { ApiError } from "$lib/types/ApiError";
+	import type { LibraryShelf } from "$lib/types/Library/Shelf";
 	import type { Snippet } from "svelte";
 
 	interface Props {
@@ -25,12 +26,23 @@
 	let error = $state<ApiError | null>(null);
 	let sidebarCollapsed = $state(false);
 	let sidebarMobileOpen = $state(false);
+	let shelves = $state<LibraryShelf[]>([]);
 
 	// Check if we're on the login page (don't show sidebar there)
 	let isLoginPage = $derived($page.url.pathname === "/");
 	let currentSection = $derived.by(() => {
 		const path = $page.url.pathname;
-		if (path === "/library") return "Library";
+		if (path === "/library") {
+			const raw = $page.url.searchParams.get("shelf");
+			if (!raw) {
+				return "Library";
+			}
+			const shelfId = Number.parseInt(raw, 10);
+			if (!Number.isInteger(shelfId) || shelfId <= 0) {
+				return "Library";
+			}
+			return shelves.find((shelf) => shelf.id === shelfId)?.name ?? "Library";
+		}
 		if (path === "/queue") return "Queue";
 		if (path === "/search") return "Search";
 		if (path === "/stats") return "Stats";
@@ -112,7 +124,22 @@
 		event.stopPropagation();
 	}
 
-	onMount(async () => {
+	async function loadShelves(): Promise<void> {
+		const result = await ZUI.getLibraryShelves();
+		if (result.ok) {
+			shelves = result.value.shelves;
+		}
+	}
+
+	onMount(() => {
+		const handleShelvesChanged = () => {
+			void loadShelves();
+		};
+		if (typeof window !== "undefined") {
+			window.addEventListener("shelves:changed", handleShelvesChanged);
+		}
+
+		(async () => {
 		if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
 			void navigator.serviceWorker
 				.register("/service-worker.js", { type: "module" })
@@ -129,10 +156,19 @@
 				localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 		}
 
+		await loadShelves();
+
 		const result = await ZUI.authCheck();
 		if (!result.ok) {
 			goto("/");
 		}
+		})();
+
+		return () => {
+			if (typeof window !== "undefined") {
+				window.removeEventListener("shelves:changed", handleShelvesChanged);
+			}
+		};
 	});
 	import ToastContainer from "$lib/components/ToastContainer.svelte";
 </script>
