@@ -5,6 +5,7 @@
 	import { ZUI } from "$lib/client/zui";
 	import { ZLibAuthService } from "$lib/client/services/zlibAuthService";
 	import Sidebar from "$lib/components/Sidebar.svelte";
+	import ToastContainer from "$lib/components/ToastContainer.svelte";
 	import type { ApiError } from "$lib/types/ApiError";
 	import type { LibraryShelf } from "$lib/types/Library/Shelf";
 	import type { Snippet } from "svelte";
@@ -170,7 +171,6 @@
 			}
 		};
 	});
-	import ToastContainer from "$lib/components/ToastContainer.svelte";
 </script>
 
 <svelte:head>
