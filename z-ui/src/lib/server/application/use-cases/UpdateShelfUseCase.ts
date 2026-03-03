@@ -1,5 +1,6 @@
 import type { ShelfRepositoryPort } from '$lib/server/application/ports/ShelfRepositoryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 
 interface UpdateShelfInput {
 	shelfId: number;
@@ -13,6 +14,7 @@ interface UpdateShelfResult {
 		id: number;
 		name: string;
 		icon: string;
+		ruleGroup: RuleGroup;
 		createdAt: string;
 		updatedAt: string;
 	};
@@ -46,7 +48,8 @@ export class UpdateShelfUseCase {
 
 		const shelf = await this.shelfRepository.update(input.shelfId, {
 			name,
-			icon: normalizeShelfIcon(input.icon)
+			icon: normalizeShelfIcon(input.icon),
+			ruleGroup: existing.ruleGroup
 		});
 
 		if (!shelf) {

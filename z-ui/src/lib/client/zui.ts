@@ -47,6 +47,11 @@ import { createLibraryShelf, type CreateLibraryShelfResponse } from './routes/cr
 import { updateLibraryShelf, type UpdateLibraryShelfResponse } from './routes/updateLibraryShelf';
 import { deleteLibraryShelf, type DeleteLibraryShelfResponse } from './routes/deleteLibraryShelf';
 import { setLibraryBookShelves, type SetLibraryBookShelvesResponse } from './routes/setLibraryBookShelves';
+import {
+	updateLibraryShelfRules,
+	type UpdateLibraryShelfRulesResponse
+} from './routes/updateLibraryShelfRules';
+import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 
 /**
  * Facade for all Z-Library UI client operations.
@@ -138,6 +143,12 @@ export const ZUI = {
 		shelfId: number,
 		request: { name: string; icon?: string }
 	): Promise<Result<UpdateLibraryShelfResponse, ApiError>> => updateLibraryShelf(shelfId, request),
+
+	updateLibraryShelfRules: (
+		shelfId: number,
+		ruleGroup: RuleGroup
+	): Promise<Result<UpdateLibraryShelfRulesResponse, ApiError>> =>
+		updateLibraryShelfRules(shelfId, ruleGroup),
 
 	deleteLibraryShelf: (
 		shelfId: number

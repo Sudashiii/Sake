@@ -1,5 +1,6 @@
 import type { ShelfRepositoryPort } from '$lib/server/application/ports/ShelfRepositoryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import { createEmptyRuleGroup, type RuleGroup } from '$lib/types/Library/ShelfRule';
 
 interface CreateShelfInput {
 	name: string;
@@ -12,6 +13,7 @@ interface CreateShelfResult {
 		id: number;
 		name: string;
 		icon: string;
+		ruleGroup: RuleGroup;
 		createdAt: string;
 		updatedAt: string;
 	};
@@ -40,7 +42,8 @@ export class CreateShelfUseCase {
 
 		const shelf = await this.shelfRepository.create({
 			name,
-			icon: normalizeShelfIcon(input.icon)
+			icon: normalizeShelfIcon(input.icon),
+			ruleGroup: createEmptyRuleGroup()
 		});
 
 		return apiOk({

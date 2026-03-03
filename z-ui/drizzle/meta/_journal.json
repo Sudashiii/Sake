@@ -92,6 +92,13 @@
       "when": 1777800000000,
       "tag": "0012_clean_shelves_basics",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1778600000000,
+      "tag": "0013_smooth_shelf_rules",
+      "breakpoints": true
     }
   ]
 }

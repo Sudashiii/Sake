@@ -3,10 +3,13 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+	import ShelfRulesModal from '$lib/components/ShelfRulesModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
 	import { ZUI } from '$lib/client/zui';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
+	import type { RuleGroup } from '$lib/types/Library/ShelfRule';
+	import { countRuleConditions } from '$lib/types/Library/ShelfRule';
 	import { menuItems, type MenuItem } from '$lib/types/Navigation';
 
 	interface Props {
@@ -40,6 +43,8 @@
 	let editShelfInputEl = $state<HTMLInputElement | null>(null);
 	let showDeleteShelfModal = $state(false);
 	let pendingDeleteShelfId = $state<number | null>(null);
+	let rulesModalShelfId = $state<number | null>(null);
+	let isSavingShelfRules = $state(false);
 
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== '/library') {
@@ -92,6 +97,10 @@
 		showEditEmojiPicker = false;
 		shelfMenuId = null;
 		shelfMenuPos = null;
+	}
+
+	function getShelfRuleCount(shelf: LibraryShelf): number {
+		return countRuleConditions(shelf.ruleGroup);
 	}
 
 	async function loadShelves(): Promise<void> {
@@ -227,9 +236,37 @@
 		shelfMenuId = shelfMenuId === shelfId ? null : shelfId;
 	}
 
-	function handleRulesShelf(): void {
-		toastStore.add('Shelf rules are planned and will be added in a later step.', 'info');
+	function openRulesModal(shelfId: number): void {
+		rulesModalShelfId = shelfId;
 		closeAllShelfMenus();
+	}
+
+	function closeRulesModal(): void {
+		if (!isSavingShelfRules) {
+			rulesModalShelfId = null;
+		}
+	}
+
+	async function handleSaveShelfRules(ruleGroup: RuleGroup): Promise<void> {
+		if (rulesModalShelfId === null || isSavingShelfRules) {
+			return;
+		}
+
+		isSavingShelfRules = true;
+		const result = await ZUI.updateLibraryShelfRules(rulesModalShelfId, ruleGroup);
+		isSavingShelfRules = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to update shelf rules: ${result.error.message}`, 'error');
+			return;
+		}
+
+		shelves = shelves.map((shelf) =>
+			shelf.id === result.value.shelf.id ? result.value.shelf : shelf
+		);
+		emitShelvesChanged();
+		rulesModalShelfId = null;
+		toastStore.add(`Rules updated for "${result.value.shelf.name}"`, 'success');
 	}
 
 	onMount(() => {
@@ -473,6 +510,9 @@
 											>
 												<span class="shelf-icon">{shelf.icon}</span>
 												<span class="shelf-name">{shelf.name}</span>
+												{#if getShelfRuleCount(shelf) > 0}
+													<span class="shelf-rule-indicator" aria-hidden="true"></span>
+												{/if}
 											</button>
 											<button
 												type="button"
@@ -585,12 +625,15 @@
 			<button
 				type="button"
 				class="shelf-context-item"
-				onclick={handleRulesShelf}
+				onclick={() => openRulesModal(menuShelf.id)}
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
 					<polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4"></polygon>
 				</svg>
 				Rules
+				{#if getShelfRuleCount(menuShelf) > 0}
+					<span class="shelf-context-count">{getShelfRuleCount(menuShelf)}</span>
+				{/if}
 			</button>
 			<div class="shelf-context-separator"></div>
 			<button
@@ -622,6 +665,21 @@
 	onConfirm={confirmDeleteShelf}
 	onCancel={cancelDeleteShelf}
 />
+
+{#if rulesModalShelfId !== null}
+	{@const rulesShelf = shelves.find((shelf) => shelf.id === rulesModalShelfId)}
+	{#if rulesShelf}
+		<ShelfRulesModal
+			open={true}
+			shelfName={rulesShelf.name}
+			shelfIcon={rulesShelf.icon}
+			initialRuleGroup={rulesShelf.ruleGroup}
+			pending={isSavingShelfRules}
+			onClose={closeRulesModal}
+			onSave={handleSaveShelfRules}
+		/>
+	{/if}
+{/if}
 
 <style>
 	.sidebar {
@@ -730,23 +788,23 @@
 		display: flex;
 		align-items: center;
 		gap: 0.65rem;
-		padding: 0.62rem 0.68rem;
-		border-radius: 0.58rem;
+		padding: 0.62rem 0.75rem;
+		border-radius: 0.5rem;
 		border: 1px solid transparent;
 		text-decoration: none;
 		color: var(--color-text-secondary);
-		font-size: 0.85rem;
+		font-size: 0.875rem;
 		font-weight: 500;
 		transition: background 0.16s ease, color 0.16s ease;
 	}
 
 	.sidebar-nav a:hover {
-		background: rgba(255, 255, 255, 0.018);
+		background: rgba(255, 255, 255, 0.035);
 		color: var(--color-text-primary);
 	}
 
 	.sidebar-nav a.active {
-		background: rgba(255, 255, 255, 0.045);
+		background: rgba(255, 255, 255, 0.09);
 		color: var(--color-text-primary);
 		border-color: transparent;
 	}
@@ -763,9 +821,9 @@
 	}
 
 	.library-expand-btn {
-		width: 1.6rem;
-		height: 1.9rem;
-		border-radius: 0.45rem;
+		width: 1.8rem;
+		height: 1.8rem;
+		border-radius: 0.4rem;
 		border: 1px solid transparent;
 		background: transparent;
 		color: var(--color-text-muted);
@@ -777,7 +835,7 @@
 	}
 
 	.library-expand-btn:hover {
-		background: rgba(255, 255, 255, 0.018);
+		background: rgba(255, 255, 255, 0.035);
 		color: var(--color-text-primary);
 	}
 
@@ -790,12 +848,12 @@
 	}
 
 	.shelves-subnav {
-		margin: 0.25rem 0 0.2rem 1.15rem;
-		width: calc(100% - 1.15rem);
-		padding-left: 0.5rem;
-		border-left: 1px solid rgba(255, 255, 255, 0.07);
+		margin: 0.25rem 0 0 1rem;
+		width: calc(100% - 1rem);
+		padding-left: 0.75rem;
+		border-left: 1px solid rgba(255, 255, 255, 0.1);
 		display: grid;
-		gap: 0.3rem;
+		gap: 0.25rem;
 		box-sizing: border-box;
 	}
 
@@ -835,18 +893,24 @@
 
 	.shelves-list {
 		display: grid;
-		gap: 0.22rem;
+		gap: 0.125rem;
+		min-width: 0;
 	}
 
 	.shelf-row {
 		display: flex;
 		align-items: center;
-		gap: 0.16rem;
+		gap: 0.35rem;
 		position: relative;
+		width: 100%;
+		min-width: 0;
+		height: 1.9rem;
+		box-sizing: border-box;
 	}
 
 	.shelf-link-btn {
 		width: 100%;
+		min-width: 0;
 		border: none;
 		background: transparent;
 		font-family: inherit;
@@ -857,26 +921,29 @@
 	.shelf-link {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.34rem 0.45rem;
-		border-radius: 0.46rem;
-		color: var(--color-text-muted);
+		gap: 0.45rem;
+		height: 100%;
+		padding: 0 0.5rem;
+		border-radius: 0.5rem;
+		color: color-mix(in oklab, var(--color-text-primary), transparent 30%);
 		text-decoration: none;
-		font-size: 0.74rem;
+		font-size: 0.75rem;
+		line-height: 1;
+		transition: background 0.16s ease, color 0.16s ease;
 	}
 
 	.shelf-link:hover {
-		background: rgba(255, 255, 255, 0.018);
+		background: rgba(255, 255, 255, 0.035);
 		color: var(--color-text-primary);
 	}
 
 	.shelf-link.active {
-		background: rgba(255, 255, 255, 0.05);
+		background: rgba(255, 255, 255, 0.09);
 		color: var(--color-text-primary);
 	}
 
 	.shelf-icon {
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 		flex-shrink: 0;
 	}
 
@@ -886,17 +953,26 @@
 		white-space: nowrap;
 	}
 
+	.shelf-rule-indicator {
+		width: 0.28rem;
+		height: 0.28rem;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--color-primary), transparent 45%);
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+
 	.shelf-row-btn {
-		width: 1.35rem;
-		height: 1.35rem;
-		border-radius: 0.38rem;
+		width: 1.5rem;
+		height: 1.5rem;
+		border-radius: 0.4rem;
 		border: 1px solid transparent;
 		background: transparent;
 		color: var(--color-text-muted);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		cursor: pointer;
 		opacity: 0;
-		transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+		transition: opacity 0.16s ease, background 0.16s ease, color 0.16s ease;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -907,7 +983,7 @@
 	}
 
 	.shelf-row-btn:hover {
-		background: rgba(255, 255, 255, 0.03);
+		background: rgba(255, 255, 255, 0.08);
 		color: var(--color-text-primary);
 	}
 
@@ -920,10 +996,16 @@
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
-		padding: 0.24rem 0.3rem;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		height: 1.9rem;
+		box-sizing: border-box;
+		padding: 0 0.32rem;
 		border-radius: 0.42rem;
 		background: rgba(255, 255, 255, 0.04);
 		border: 1px solid rgba(255, 255, 255, 0.06);
+		overflow: hidden;
 	}
 
 	.shelf-emoji-picker-wrap {
@@ -931,8 +1013,8 @@
 	}
 
 	.shelf-emoji-btn {
-		width: 1.35rem;
-		height: 1.35rem;
+		width: 1.28rem;
+		height: 1.28rem;
 		border-radius: 0.3rem;
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		background: rgba(255, 255, 255, 0.04);
@@ -985,6 +1067,7 @@
 	.shelf-edit-input {
 		flex: 1;
 		min-width: 0;
+		width: 0;
 		background: transparent;
 		border: none;
 		outline: none;
@@ -996,14 +1079,25 @@
 	.shelf-inline-btn {
 		border: none;
 		background: transparent;
-		padding: 0;
+		padding: 0.18rem 0.35rem;
+		min-width: 1.55rem;
+		height: 1.28rem;
 		color: var(--color-text-muted);
 		font-size: 0.64rem;
 		cursor: pointer;
+		flex-shrink: 0;
+		line-height: 1;
+		border-radius: 0.3rem;
+		white-space: nowrap;
 	}
 
 	.shelf-inline-btn.save {
 		color: var(--color-primary);
+	}
+
+	.shelf-inline-btn:hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--color-text-primary);
 	}
 
 	.shelf-inline-btn.cancel:hover {
@@ -1013,14 +1107,14 @@
 	.shelf-context-menu {
 		position: fixed;
 		z-index: 145;
-		min-width: 8rem;
-		padding: 0.24rem;
-		border-radius: 0.45rem;
+		min-width: 8.125rem;
+		padding: 0.25rem;
+		border-radius: 0.5rem;
 		border: 1px solid var(--color-border);
-		background: color-mix(in oklab, var(--color-surface), white 5%);
-		box-shadow: 0 18px 32px rgba(0, 0, 0, 0.42);
+		background: color-mix(in oklab, var(--color-surface), white 4%);
+		box-shadow: 0 14px 26px rgba(0, 0, 0, 0.42);
 		display: grid;
-		gap: 0.12rem;
+		gap: 0.08rem;
 	}
 
 	.shelf-context-item {
@@ -1028,17 +1122,23 @@
 		background: transparent;
 		display: inline-flex;
 		align-items: center;
-		gap: 0.42rem;
+		gap: 0.5rem;
 		text-align: left;
-		padding: 0.42rem 0.5rem;
-		border-radius: 0.35rem;
+		padding: 0.375rem 0.75rem;
+		border-radius: 0.4rem;
 		color: var(--color-text-primary);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		cursor: pointer;
 	}
 
+	.shelf-context-count {
+		margin-left: auto;
+		font-size: 0.62rem;
+		color: color-mix(in oklab, var(--color-primary), white 10%);
+	}
+
 	.shelf-context-item:hover {
-		background: rgba(255, 255, 255, 0.07);
+		background: rgba(255, 255, 255, 0.08);
 		color: var(--color-text-primary);
 	}
 

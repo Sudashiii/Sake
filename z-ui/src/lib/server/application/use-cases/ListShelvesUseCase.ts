@@ -1,5 +1,6 @@
 import type { ShelfRepositoryPort } from '$lib/server/application/ports/ShelfRepositoryPort';
 import { apiOk, type ApiResult } from '$lib/server/http/api';
+import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 
 interface ListShelvesResult {
 	success: true;
@@ -7,6 +8,7 @@ interface ListShelvesResult {
 		id: number;
 		name: string;
 		icon: string;
+		ruleGroup: RuleGroup;
 		createdAt: string;
 		updatedAt: string;
 	}[];

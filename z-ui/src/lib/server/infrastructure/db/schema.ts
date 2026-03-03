@@ -92,6 +92,9 @@ export const shelves = sqliteTable('Shelves', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	icon: text('icon').notNull().default('📚'),
+	ruleGroupJson: text('rule_group_json')
+		.notNull()
+		.default('{"id":"root","type":"group","connector":"AND","children":[]}'),
 	createdAt: text('created_at').notNull(),
 	updatedAt: text('updated_at').notNull()
 });
