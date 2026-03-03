@@ -116,6 +116,7 @@
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
 	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortBy));
 	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortBy));
+	let shelvesById = $derived(new Map(shelves.map((shelf) => [shelf.id, shelf] as const)));
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== "/library") {
 			return null;
@@ -1055,9 +1056,9 @@
 
 		switch (condition.operator) {
 			case "equals":
-				return bookString === ruleString;
+				return isNumeric ? bookNumber === ruleNumber : bookString === ruleString;
 			case "not_equals":
-				return bookString !== ruleString;
+				return isNumeric ? bookNumber !== ruleNumber : bookString !== ruleString;
 			case "contains":
 				return bookString.includes(ruleString);
 			case "not_contains":
@@ -1100,7 +1101,7 @@
 		}
 
 		const manualMatch = book.shelfIds.includes(shelfId);
-		const shelf = shelves.find((item) => item.id === shelfId);
+		const shelf = shelvesById.get(shelfId);
 		if (!shelf) {
 			return manualMatch;
 		}

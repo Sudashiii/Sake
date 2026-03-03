@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import ShelfRulesTreeNode from '$lib/components/ShelfRulesTreeNode.svelte';
 	import {
 		countRuleConditions,
@@ -28,12 +29,72 @@
 	}: Props = $props();
 
 	let ruleGroup = $state<RuleGroup>(createEmptyRuleGroup());
+	let panelEl = $state<HTMLElement | null>(null);
+	let previouslyFocusedElement = $state<HTMLElement | null>(null);
 	let totalConditions = $derived(countRuleConditions(ruleGroup));
 
 	$effect(() => {
 		if (open) {
 			ruleGroup = JSON.parse(JSON.stringify(initialRuleGroup)) as RuleGroup;
 		}
+	});
+
+	$effect(() => {
+		if (!open) {
+			return;
+		}
+
+		previouslyFocusedElement =
+			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+
+		void tick().then(() => {
+			panelEl?.focus();
+		});
+
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (!open) {
+				return;
+			}
+
+			if (event.key === 'Escape' && !pending) {
+				event.preventDefault();
+				onClose();
+				return;
+			}
+
+			if (event.key !== 'Tab' || !panelEl) {
+				return;
+			}
+
+			const focusableElements = Array.from(
+				panelEl.querySelectorAll<HTMLElement>(
+					'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+				)
+			);
+
+			if (focusableElements.length === 0) {
+				event.preventDefault();
+				return;
+			}
+
+			const first = focusableElements[0];
+			const last = focusableElements[focusableElements.length - 1];
+			const activeElement = document.activeElement as HTMLElement | null;
+
+			if (event.shiftKey && activeElement === first) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && activeElement === last) {
+				event.preventDefault();
+				first.focus();
+			}
+		};
+
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			window.removeEventListener('keydown', onKeyDown);
+			previouslyFocusedElement?.focus();
+		};
 	});
 
 	function addRootCondition(): void {
@@ -93,8 +154,24 @@
 
 {#if open}
 	<div class="rules-modal">
-		<button type="button" class="rules-backdrop" aria-label="Close rules modal" onclick={onClose}></button>
-		<div class="rules-panel">
+		<button
+			type="button"
+			class="rules-backdrop"
+			aria-label="Close rules modal"
+			onclick={() => {
+				if (!pending) {
+					onClose();
+				}
+			}}
+		></button>
+		<div
+			class="rules-panel"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="shelf-rules-title"
+			tabindex="-1"
+			bind:this={panelEl}
+		>
 			<header class="rules-head">
 				<div class="rules-title-wrap">
 					<div class="rules-icon" aria-hidden="true">
@@ -103,7 +180,7 @@
 						</svg>
 					</div>
 					<div>
-						<h2>Shelf Rules</h2>
+						<h2 id="shelf-rules-title">Shelf Rules</h2>
 						<p>{shelfIcon} {shelfName}</p>
 					</div>
 				</div>

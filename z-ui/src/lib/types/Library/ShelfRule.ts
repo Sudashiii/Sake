@@ -27,6 +27,18 @@ export type RuleField = (typeof RULE_FIELDS)[number];
 export type RuleOperator = (typeof RULE_OPERATORS)[number];
 export type RuleConnector = (typeof RULE_CONNECTORS)[number];
 
+export const RULE_FIELD_OPTIONS: readonly { value: RuleField; label: string; type: 'string' | 'number' }[] = [
+	{ value: 'title', label: 'Title', type: 'string' },
+	{ value: 'author', label: 'Author', type: 'string' },
+	{ value: 'format', label: 'Format', type: 'string' },
+	{ value: 'language', label: 'Language', type: 'string' },
+	{ value: 'status', label: 'Status', type: 'string' },
+	{ value: 'rating', label: 'Rating', type: 'number' },
+	{ value: 'readingProgress', label: 'Progress', type: 'number' },
+	{ value: 'year', label: 'Year', type: 'number' },
+	{ value: 'pages', label: 'Pages', type: 'number' }
+] as const;
+
 export interface ShelfCondition {
 	id: string;
 	type: 'condition';
@@ -119,4 +131,3 @@ export function parseRuleGroup(value: unknown): { ok: true; value: RuleGroup } |
 
 	return { ok: true, value };
 }
-

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ShelfRulesTreeNode from '$lib/components/ShelfRulesTreeNode.svelte';
+	import ShelfRulesTreeNode from './ShelfRulesTreeNode.svelte';
 	import type {
 		RuleConnector,
 		RuleField,
@@ -8,7 +8,7 @@
 		RuleOperator,
 		ShelfCondition
 	} from '$lib/types/Library/ShelfRule';
-	import { countRuleConditions } from '$lib/types/Library/ShelfRule';
+	import { countRuleConditions, RULE_FIELD_OPTIONS } from '$lib/types/Library/ShelfRule';
 
 	interface Props {
 		group: RuleGroup;
@@ -17,18 +17,6 @@
 		onChange: (updated: RuleGroup) => void;
 		onRemove?: () => void;
 	}
-
-	const FIELD_OPTIONS: { value: RuleField; label: string; type: 'string' | 'number' }[] = [
-		{ value: 'title', label: 'Title', type: 'string' },
-		{ value: 'author', label: 'Author', type: 'string' },
-		{ value: 'format', label: 'Format', type: 'string' },
-		{ value: 'language', label: 'Language', type: 'string' },
-		{ value: 'status', label: 'Status', type: 'string' },
-		{ value: 'rating', label: 'Rating', type: 'number' },
-		{ value: 'readingProgress', label: 'Progress', type: 'number' },
-		{ value: 'year', label: 'Year', type: 'number' },
-		{ value: 'pages', label: 'Pages', type: 'number' }
-	];
 
 	const STRING_OPERATORS: { value: RuleOperator; label: string }[] = [
 		{ value: 'equals', label: 'equals' },
@@ -72,7 +60,7 @@
 	}
 
 	function getFieldType(field: RuleField): 'string' | 'number' {
-		const option = FIELD_OPTIONS.find((item) => item.value === field);
+		const option = RULE_FIELD_OPTIONS.find((item) => item.value === field);
 		return option?.type ?? 'string';
 	}
 
@@ -196,7 +184,7 @@
 										});
 									}}
 								>
-									{#each FIELD_OPTIONS as option}
+									{#each RULE_FIELD_OPTIONS as option}
 										<option value={option.value}>{option.label}</option>
 									{/each}
 								</select>
