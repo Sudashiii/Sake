@@ -5,6 +5,7 @@
 	import type { LibraryBook } from "$lib/types/Library/Book";
 	import type { LibraryBookDetail } from "$lib/types/Library/BookDetail";
 	import type { LibraryShelf } from "$lib/types/Library/Shelf";
+	import type { RuleGroup, RuleNode, ShelfCondition } from "$lib/types/Library/ShelfRule";
 	import type { BookProgressHistoryEntry } from "$lib/types/Library/BookProgressHistory";
 	import type { ApiError } from "$lib/types/ApiError";
 	import Loading from "$lib/components/Loading.svelte";
@@ -1015,11 +1016,99 @@
 		return filter === "all" ? true : getBookStatus(book) === filter;
 	}
 
+	function getRuleFieldValue(book: LibraryBook, field: ShelfCondition["field"]): string | number | null {
+		switch (field) {
+			case "title":
+				return book.title;
+			case "author":
+				return book.author;
+			case "format":
+				return book.extension;
+			case "language":
+				return book.language;
+			case "status":
+				return getBookStatus(book);
+			case "rating":
+				return book.rating;
+			case "readingProgress":
+				return getProgressPercent(book);
+			case "year":
+				return book.year;
+			case "pages":
+				return book.pages ?? null;
+			default:
+				return null;
+		}
+	}
+
+	function evaluateCondition(book: LibraryBook, condition: ShelfCondition): boolean {
+		const raw = getRuleFieldValue(book, condition.field);
+		if (raw === null || raw === undefined) {
+			return false;
+		}
+
+		const bookString = String(raw).toLowerCase();
+		const ruleString = condition.value.toLowerCase();
+		const bookNumber = Number(raw);
+		const ruleNumber = Number(condition.value);
+		const isNumeric = !Number.isNaN(bookNumber) && !Number.isNaN(ruleNumber);
+
+		switch (condition.operator) {
+			case "equals":
+				return bookString === ruleString;
+			case "not_equals":
+				return bookString !== ruleString;
+			case "contains":
+				return bookString.includes(ruleString);
+			case "not_contains":
+				return !bookString.includes(ruleString);
+			case "gt":
+				return isNumeric && bookNumber > ruleNumber;
+			case "lt":
+				return isNumeric && bookNumber < ruleNumber;
+			case "gte":
+				return isNumeric && bookNumber >= ruleNumber;
+			case "lte":
+				return isNumeric && bookNumber <= ruleNumber;
+			default:
+				return false;
+		}
+	}
+
+	function evaluateRuleNode(book: LibraryBook, node: RuleNode): boolean {
+		if (node.type === "condition") {
+			return evaluateCondition(book, node);
+		}
+		if (node.children.length === 0) {
+			return false;
+		}
+		return node.connector === "AND"
+			? node.children.every((child) => evaluateRuleNode(book, child))
+			: node.children.some((child) => evaluateRuleNode(book, child));
+	}
+
+	function evaluateRuleGroup(book: LibraryBook, group: RuleGroup): boolean {
+		if (group.children.length === 0) {
+			return false;
+		}
+		return evaluateRuleNode(book, group);
+	}
+
 	function matchesBookShelf(book: LibraryBook, shelfId: number | null): boolean {
 		if (shelfId === null) {
 			return true;
 		}
-		return (book.shelfIds ?? []).includes(shelfId);
+
+		const manualMatch = book.shelfIds.includes(shelfId);
+		const shelf = shelves.find((item) => item.id === shelfId);
+		if (!shelf) {
+			return manualMatch;
+		}
+
+		const rulesMatch =
+			shelf.ruleGroup.children.length > 0 ? evaluateRuleGroup(book, shelf.ruleGroup) : false;
+
+		return manualMatch || rulesMatch;
 	}
 
 	function getDetailStatusLabel(detail: LibraryBookDetail): "Unread" | "Reading" | "Read" {
@@ -1105,7 +1194,7 @@
 			return;
 		}
 
-		const currentIds = [...new Set(book.shelfIds ?? [])];
+		const currentIds = [...new Set(book.shelfIds)];
 		const nextIds = currentIds.includes(shelfId)
 			? currentIds.filter((id) => id !== shelfId)
 			: [...currentIds, shelfId];
@@ -1127,7 +1216,7 @@
 			return;
 		}
 
-		const currentIds = [...new Set(selectedBookDetail.shelfIds ?? [])];
+		const currentIds = [...new Set(selectedBookDetail.shelfIds)];
 		const nextIds = currentIds.includes(shelfId)
 			? currentIds.filter((id) => id !== shelfId)
 			: [...currentIds, shelfId];
@@ -1545,16 +1634,16 @@
 												<span class:active={star <= getRoundedRating(book.rating)}>★</span>
 											{/each}
 										</div>
-										{#if (book.shelfIds?.length ?? 0) > 0}
+										{#if book.shelfIds.length > 0}
 											<div class="tile-shelf-preview">
-												{#each (book.shelfIds ?? []).slice(0, 2) as shelfId}
+												{#each book.shelfIds.slice(0, 2) as shelfId}
 													{@const shelf = shelves.find((item) => item.id === shelfId)}
 													{#if shelf}
 														<span title={shelf.name}>{shelf.icon}</span>
 													{/if}
 												{/each}
-												{#if (book.shelfIds?.length ?? 0) > 2}
-													<span class="tile-shelf-overflow">+{(book.shelfIds?.length ?? 0) - 2}</span>
+												{#if book.shelfIds.length > 2}
+													<span class="tile-shelf-overflow">+{book.shelfIds.length - 2}</span>
 												{/if}
 											</div>
 										{/if}
@@ -1595,7 +1684,7 @@
 													<div class="shelf-assign-empty">No shelves yet</div>
 												{:else}
 													{#each shelves as shelf (shelf.id)}
-														{@const isOnShelf = (book.shelfIds ?? []).includes(shelf.id)}
+														{@const isOnShelf = book.shelfIds.includes(shelf.id)}
 														<button
 															type="button"
 															class="shelf-assign-item"
@@ -1638,16 +1727,16 @@
 								<div class="book-list-main">
 									<p class="tile-title" title={book.title}>{book.title}</p>
 									<p class="tile-author">{book.author || "Unknown author"}</p>
-									{#if (book.shelfIds?.length ?? 0) > 0}
+									{#if book.shelfIds.length > 0}
 										<div class="list-shelf-preview">
-											{#each (book.shelfIds ?? []).slice(0, 3) as shelfId}
+											{#each book.shelfIds.slice(0, 3) as shelfId}
 												{@const shelf = shelves.find((item) => item.id === shelfId)}
 												{#if shelf}
 													<span class="list-shelf-chip">{shelf.icon} {shelf.name}</span>
 												{/if}
 											{/each}
-											{#if (book.shelfIds?.length ?? 0) > 3}
-												<span class="list-shelf-overflow">+{(book.shelfIds?.length ?? 0) - 3}</span>
+											{#if book.shelfIds.length > 3}
+												<span class="list-shelf-overflow">+{book.shelfIds.length - 3}</span>
 											{/if}
 										</div>
 									{/if}
@@ -1698,7 +1787,7 @@
 													<div class="shelf-assign-empty">No shelves yet</div>
 												{:else}
 													{#each shelves as shelf (shelf.id)}
-														{@const isOnShelf = (book.shelfIds ?? []).includes(shelf.id)}
+														{@const isOnShelf = book.shelfIds.includes(shelf.id)}
 														<button
 															type="button"
 															class="shelf-assign-item"

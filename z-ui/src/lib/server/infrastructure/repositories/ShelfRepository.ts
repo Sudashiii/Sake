@@ -7,12 +7,18 @@ import type {
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { bookShelves, shelves } from '$lib/server/infrastructure/db/schema';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
+import {
+	createEmptyRuleGroup,
+	isRuleGroup,
+	type RuleGroup
+} from '$lib/types/Library/ShelfRule';
 import { eq, inArray } from 'drizzle-orm';
 
 function mapShelfRow(row: {
 	id: number;
 	name: string;
 	icon: string;
+	ruleGroupJson: string;
 	createdAt: string;
 	updatedAt: string;
 }): Shelf {
@@ -20,9 +26,22 @@ function mapShelfRow(row: {
 		id: row.id,
 		name: row.name,
 		icon: row.icon,
+		ruleGroup: deserializeRuleGroup(row.ruleGroupJson),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt
 	};
+}
+
+function deserializeRuleGroup(raw: string): RuleGroup {
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (isRuleGroup(parsed)) {
+			return parsed;
+		}
+	} catch {
+		// noop
+	}
+	return createEmptyRuleGroup();
 }
 
 export class ShelfRepository implements ShelfRepositoryPort {
@@ -34,6 +53,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			})
@@ -52,6 +72,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			})
@@ -66,6 +87,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			})
@@ -82,6 +104,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 			.values({
 				name: input.name,
 				icon: input.icon,
+				ruleGroupJson: JSON.stringify(input.ruleGroup),
 				createdAt: now,
 				updatedAt: now
 			})
@@ -89,6 +112,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			});
@@ -111,6 +135,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 			.set({
 				name: input.name,
 				icon: input.icon,
+				ruleGroupJson: JSON.stringify(input.ruleGroup),
 				updatedAt: new Date().toISOString()
 			})
 			.where(eq(shelves.id, id))
@@ -118,6 +143,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			});

@@ -28,7 +28,7 @@ export interface LibraryBook {
 	archived_at?: string | null;
 	exclude_from_new_books?: boolean;
 	progressPercent?: number | null;
-	shelfIds?: number[];
+	shelfIds: number[];
 	createdAt: string | null;
 	deleted_at?: string | null;
 	trash_expires_at?: string | null;
