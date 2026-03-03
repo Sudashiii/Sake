@@ -1,0 +1,34 @@
+meta {
+  name: POST Create Shelf
+  type: http
+}
+
+post {
+  url: {{base_url}}/api/library/shelves
+  body: json
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+body:json {
+  {
+    "name": "Favorites",
+    "icon": "⭐"
+  }
+}
+
+script:post-response {
+  const shelf = res.body?.shelf;
+  if (shelf?.id != null) {
+    bru.setEnvVar('shelf_id', String(shelf.id));
+    console.log(`Stored shelf_id=${shelf.id}`);
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -85,6 +85,13 @@
       "when": 1773000000000,
       "tag": "0011_solid_progress_history",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1777800000000,
+      "tag": "0012_clean_shelves_basics",
+      "breakpoints": true
     }
   ]
 }

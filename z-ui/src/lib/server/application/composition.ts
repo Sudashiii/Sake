@@ -1,6 +1,7 @@
 import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
 import { S3Storage } from '$lib/server/infrastructure/storage/S3Storage';
 import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
+import { ShelfRepository } from '$lib/server/infrastructure/repositories/ShelfRepository';
 import { DeviceDownloadRepository } from '$lib/server/infrastructure/repositories/DeviceDownloadRepository';
 import { DeviceProgressDownloadRepository } from '$lib/server/infrastructure/repositories/DeviceProgressDownloadRepository';
 import { BookProgressHistoryRepository } from '$lib/server/infrastructure/repositories/BookProgressHistoryRepository';
@@ -48,12 +49,18 @@ import { ListLibraryRatingsUseCase } from '$lib/server/application/use-cases/Lis
 import { UpdateLibraryBookStateUseCase } from '$lib/server/application/use-cases/UpdateLibraryBookStateUseCase';
 import { UpdateLibraryBookMetadataUseCase } from '$lib/server/application/use-cases/UpdateLibraryBookMetadataUseCase';
 import { GetReadingActivityStatsUseCase } from '$lib/server/application/use-cases/GetReadingActivityStatsUseCase';
+import { ListShelvesUseCase } from '$lib/server/application/use-cases/ListShelvesUseCase';
+import { CreateShelfUseCase } from '$lib/server/application/use-cases/CreateShelfUseCase';
+import { UpdateShelfUseCase } from '$lib/server/application/use-cases/UpdateShelfUseCase';
+import { DeleteShelfUseCase } from '$lib/server/application/use-cases/DeleteShelfUseCase';
+import { SetBookShelvesUseCase } from '$lib/server/application/use-cases/SetBookShelvesUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = new S3Storage();
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
 export const bookRepository = new BookRepository();
+export const shelfRepository = new ShelfRepository();
 export const deviceDownloadRepository = new DeviceDownloadRepository();
 export const deviceProgressDownloadRepository = new DeviceProgressDownloadRepository();
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
@@ -70,10 +77,11 @@ export const zlibraryTokenLoginUseCase = new ZLibraryTokenLoginUseCase(zlibraryC
 export const zlibraryPasswordLoginUseCase = new ZLibraryPasswordLoginUseCase(zlibraryClient);
 export const zlibraryLogoutUseCase = new ZLibraryLogoutUseCase();
 
-export const listLibraryUseCase = new ListLibraryUseCase(bookRepository);
+export const listLibraryUseCase = new ListLibraryUseCase(bookRepository, shelfRepository);
 export const getLibraryBookDetailUseCase = new GetLibraryBookDetailUseCase(
 	bookRepository,
-	deviceDownloadRepository
+	deviceDownloadRepository,
+	shelfRepository
 );
 export const refetchLibraryBookMetadataUseCase = new RefetchLibraryBookMetadataUseCase(
 	bookRepository
@@ -127,3 +135,8 @@ export const getReadingActivityStatsUseCase = new GetReadingActivityStatsUseCase
 	bookRepository,
 	bookProgressHistoryRepository
 );
+export const listShelvesUseCase = new ListShelvesUseCase(shelfRepository);
+export const createShelfUseCase = new CreateShelfUseCase(shelfRepository);
+export const updateShelfUseCase = new UpdateShelfUseCase(shelfRepository);
+export const deleteShelfUseCase = new DeleteShelfUseCase(shelfRepository);
+export const setBookShelvesUseCase = new SetBookShelvesUseCase(bookRepository, shelfRepository);

@@ -589,12 +589,22 @@
 			flex-direction: column;
 		}
 
+		.page-header h1 {
+			font-size: 1.22rem;
+		}
+
 		.search-bar {
 			grid-template-columns: auto minmax(0, 1fr);
+			padding: 0.4rem 0.45rem 0.45rem 0.55rem;
+			gap: 0.45rem;
 		}
 
 		.search-btn {
 			grid-column: 1 / -1;
+			justify-self: stretch;
+			width: 100%;
+			padding: 0.58rem 0.8rem;
+			font-size: 0.8rem;
 		}
 
 		.search-filters {

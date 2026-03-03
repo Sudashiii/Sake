@@ -1,0 +1,19 @@
+meta {
+  name: DELETE Shelf
+  type: http
+}
+
+delete {
+  url: {{base_url}}/api/library/shelves/{{shelf_id}}
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

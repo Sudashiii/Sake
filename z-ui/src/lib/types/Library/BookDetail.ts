@@ -23,4 +23,5 @@ export interface LibraryBookDetail {
 	archivedAt: string | null;
 	excludeFromNewBooks: boolean;
 	downloadedDevices: string[];
+	shelfIds: number[];
 }

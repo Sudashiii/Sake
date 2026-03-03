@@ -1,5 +1,6 @@
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
 import type { DeviceDownloadRepositoryPort } from '$lib/server/application/ports/DeviceDownloadRepositoryPort';
+import type { ShelfRepositoryPort } from '$lib/server/application/ports/ShelfRepositoryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 
 interface GetLibraryBookDetailInput {
@@ -31,12 +32,14 @@ export interface LibraryBookDetail {
 	archivedAt: string | null;
 	excludeFromNewBooks: boolean;
 	downloadedDevices: string[];
+	shelfIds: number[];
 }
 
 export class GetLibraryBookDetailUseCase {
 	constructor(
 		private readonly bookRepository: BookRepositoryPort,
-		private readonly deviceDownloadRepository: DeviceDownloadRepositoryPort
+		private readonly deviceDownloadRepository: DeviceDownloadRepositoryPort,
+		private readonly shelfRepository: ShelfRepositoryPort
 	) {}
 
 	async execute(input: GetLibraryBookDetailInput): Promise<ApiResult<LibraryBookDetail>> {
@@ -47,6 +50,7 @@ export class GetLibraryBookDetailUseCase {
 
 		const downloads = await this.deviceDownloadRepository.getByBookId(input.bookId);
 		const downloadedDevices = [...new Set(downloads.map((download) => download.deviceId))].sort();
+		const shelfIds = await this.shelfRepository.getBookShelfIds(input.bookId);
 
 		const progressPercent =
 			typeof book.progress_percent === 'number'
@@ -77,7 +81,8 @@ export class GetLibraryBookDetailUseCase {
 			isArchived: Boolean(book.archived_at),
 			archivedAt: book.archived_at,
 			excludeFromNewBooks: book.exclude_from_new_books || Boolean(book.archived_at),
-			downloadedDevices
+			downloadedDevices,
+			shelfIds
 		});
 	}
 }

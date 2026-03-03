@@ -1,0 +1,27 @@
+meta {
+  name: GET Shelves
+  type: http
+}
+
+get {
+  url: {{base_url}}/api/library/shelves
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+script:post-response {
+  const shelves = Array.isArray(res.body?.shelves) ? res.body.shelves : [];
+  if (shelves.length > 0 && shelves[0]?.id != null) {
+    bru.setEnvVar('shelf_id', String(shelves[0].id));
+    console.log(`Stored shelf_id=${shelves[0].id}`);
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

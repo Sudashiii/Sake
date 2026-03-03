@@ -87,3 +87,26 @@ export const bookProgressHistory = sqliteTable(
 	},
 	(table) => [uniqueIndex('book_progress_history_book_recorded_unique').on(table.bookId, table.recordedAt)]
 );
+
+export const shelves = sqliteTable('Shelves', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	icon: text('icon').notNull().default('📚'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
+export const bookShelves = sqliteTable(
+	'BookShelves',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		bookId: integer('book_id')
+			.notNull()
+			.references(() => books.id, { onDelete: 'cascade' }),
+		shelfId: integer('shelf_id')
+			.notNull()
+			.references(() => shelves.id, { onDelete: 'cascade' }),
+		createdAt: text('created_at').notNull()
+	},
+	(table) => [uniqueIndex('book_shelves_book_shelf_unique').on(table.bookId, table.shelfId)]
+);

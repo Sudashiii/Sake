@@ -1,0 +1,26 @@
+meta {
+  name: PUT Update Shelf
+  type: http
+}
+
+put {
+  url: {{base_url}}/api/library/shelves/{{shelf_id}}
+  body: json
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+body:json {
+  {
+    "name": "Favorites Updated",
+    "icon": "📚"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
