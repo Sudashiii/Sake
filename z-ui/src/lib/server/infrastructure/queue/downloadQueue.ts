@@ -5,6 +5,7 @@ import { QueueJobRepository } from '$lib/server/infrastructure/repositories/Queu
 import type { QueueJobRecord } from '$lib/server/infrastructure/repositories/QueueJobRepository';
 import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
 import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
+import { randomUUID } from 'node:crypto';
 
 export interface QueuedDownload {
 	id: string;
@@ -53,6 +54,7 @@ class DownloadQueue {
 	private queue: QueuedDownload[] = [];
 	private isProcessing = false;
 	private readonly defaultMaxAttempts = 3;
+	private readonly terminalRetentionMs = 90 * 24 * 60 * 60 * 1000;
 	private readonly queueLogger = createChildLogger({ component: 'downloadQueue' });
 	private readonly queueJobRepository = new QueueJobRepository();
 	private isInitialized = false;
@@ -64,15 +66,6 @@ class DownloadQueue {
 		() => DavUploadServiceFactory.createS3()
 	);
 
-	constructor() {
-		void this.ensureInitialized().catch((error: unknown) => {
-			this.queueLogger.error(
-				{ event: 'queue.init.failed', error: toLogError(error) },
-				'Queue initialization failed'
-			);
-		});
-	}
-
 	async enqueue(
 		task: Omit<
 			QueuedDownload,
@@ -81,7 +74,7 @@ class DownloadQueue {
 	): Promise<string> {
 		await this.ensureInitialized();
 
-		const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+		const id = randomUUID();
 		const now = new Date();
 
 		const queuedTask: QueuedDownload = {
@@ -144,6 +137,7 @@ class DownloadQueue {
 		try {
 			const nowIso = new Date().toISOString();
 			await this.queueJobRepository.requeueProcessingJobs(nowIso);
+			await this.cleanupOldTerminalJobs();
 			const queuedJobs = await this.queueJobRepository.listQueuedForRecovery();
 			this.queue = queuedJobs.map((job) => this.fromQueueJobRecord(job));
 			this.isInitialized = true;
@@ -169,22 +163,17 @@ class DownloadQueue {
 		this.isProcessing = true;
 		try {
 			while (true) {
-				const task = this.queue.find((candidate) => candidate.status === 'queued');
-				if (!task) {
-					break;
-				}
+					const task = this.queue.find((candidate) => candidate.status === 'queued');
+					if (!task) {
+						break;
+					}
 
-				task.status = 'processing';
-				task.updatedAt = new Date();
-				await this.queueJobRepository.updateProcessing(
-					task.id,
-					task.attempts,
-					task.updatedAt.toISOString()
-				);
-				this.queueLogger.info(
-					{ event: 'queue.task.processing', taskId: task.id, bookId: task.bookId, title: task.title },
-					'Processing queue task'
-				);
+					task.status = 'processing';
+					task.updatedAt = new Date();
+					this.queueLogger.info(
+						{ event: 'queue.task.processing', taskId: task.id, bookId: task.bookId, title: task.title },
+						'Processing queue task'
+					);
 
 				try {
 					await this.processTask(task);
@@ -228,14 +217,15 @@ class DownloadQueue {
 						},
 						'Queue task failed'
 					);
-				} finally {
-					this.queue = this.queue.filter((candidate) => candidate.id !== task.id);
+					} finally {
+						this.queue = this.queue.filter((candidate) => candidate.id !== task.id);
+					}
 				}
+				await this.cleanupOldTerminalJobs();
+			} finally {
+				this.isProcessing = false;
 			}
-		} finally {
-			this.isProcessing = false;
 		}
-	}
 
 	private async processTask(task: QueuedDownload): Promise<void> {
 		const firstAttempt = Math.max(1, task.attempts + 1);
@@ -337,6 +327,17 @@ class DownloadQueue {
 		await new Promise<void>((resolve) => {
 			setTimeout(() => resolve(), ms);
 		});
+	}
+
+	private async cleanupOldTerminalJobs(): Promise<void> {
+		const cutoffIso = new Date(Date.now() - this.terminalRetentionMs).toISOString();
+		const deleted = await this.queueJobRepository.purgeTerminalOlderThan(cutoffIso);
+		if (deleted > 0) {
+			this.queueLogger.info(
+				{ event: 'queue.cleanup.purged', deleted, cutoffIso },
+				'Purged old terminal queue jobs'
+			);
+		}
 	}
 
 	private fromQueueJobRecord(record: QueueJobRecord): QueuedDownload {
