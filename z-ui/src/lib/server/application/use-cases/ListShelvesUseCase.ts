@@ -8,6 +8,7 @@ interface ListShelvesResult {
 		id: number;
 		name: string;
 		icon: string;
+		sortOrder: number;
 		ruleGroup: RuleGroup;
 		createdAt: string;
 		updatedAt: string;

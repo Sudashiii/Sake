@@ -4,6 +4,7 @@ export interface Shelf {
 	id: number;
 	name: string;
 	icon: string;
+	sortOrder: number;
 	ruleGroup: RuleGroup;
 	createdAt: string;
 	updatedAt: string;

@@ -45,6 +45,10 @@ import type { ReadingActivityStats } from '$lib/types/Stats/ReadingActivityStats
 import { getLibraryShelves, type GetLibraryShelvesResponse } from './routes/getLibraryShelves';
 import { createLibraryShelf, type CreateLibraryShelfResponse } from './routes/createLibraryShelf';
 import { updateLibraryShelf, type UpdateLibraryShelfResponse } from './routes/updateLibraryShelf';
+import {
+	reorderLibraryShelves,
+	type ReorderLibraryShelvesResponse
+} from './routes/reorderLibraryShelves';
 import { deleteLibraryShelf, type DeleteLibraryShelfResponse } from './routes/deleteLibraryShelf';
 import { setLibraryBookShelves, type SetLibraryBookShelvesResponse } from './routes/setLibraryBookShelves';
 import {
@@ -143,6 +147,10 @@ export const ZUI = {
 		shelfId: number,
 		request: { name: string; icon?: string }
 	): Promise<Result<UpdateLibraryShelfResponse, ApiError>> => updateLibraryShelf(shelfId, request),
+
+	reorderLibraryShelves: (
+		shelfIds: number[]
+	): Promise<Result<ReorderLibraryShelvesResponse, ApiError>> => reorderLibraryShelves(shelfIds),
 
 	updateLibraryShelfRules: (
 		shelfId: number,
