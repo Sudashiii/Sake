@@ -11,6 +11,7 @@ Current important note: DB migrations are handled in `z-ui` (Drizzle), not `z-mg
 API route lookup is available at `GET /api/_routes` (JSON) and `GET /api/docs` (HTML) in `z-ui`.
 KOReader plugin download is exposed in `z-ui` via `GET /api/plugin/koreader/latest` and `GET /api/plugin/koreader/download`.
 KOReader plugin release metadata is stored in `z-ui` DB (`PluginReleases`) while plugin artifacts stay in R2.
+Drizzle migration names in `z-ui` must be explicit/descriptive (no random auto-generated slugs), and corresponding `drizzle/meta/_journal.json` tags must be updated when renamed.
 Implementation plans for non-trivial `z-ui` work are mandatory in `./z-ui/docs/implementation-plans/`.
 
 ## KOReader plugin logging

@@ -1,8 +1,10 @@
-import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
 import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
-import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
+import { QueueJobRepository } from '$lib/server/infrastructure/repositories/QueueJobRepository';
+import type { QueueJobRecord } from '$lib/server/infrastructure/repositories/QueueJobRepository';
+import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
+import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
 
 export interface QueuedDownload {
 	id: string;
@@ -26,6 +28,7 @@ export interface QueuedDownload {
 	userKey: string;
 	status: 'queued' | 'processing' | 'completed' | 'failed';
 	attempts: number;
+	maxAttempts: number;
 	error?: string;
 	createdAt: Date;
 	updatedAt: Date;
@@ -38,6 +41,8 @@ export interface QueuedDownloadSnapshot {
 	title: string;
 	status: 'queued' | 'processing' | 'completed' | 'failed';
 	attempts: number;
+	maxRetries: number;
+	author?: string;
 	error?: string;
 	createdAt: string;
 	updatedAt: string;
@@ -47,127 +52,206 @@ export interface QueuedDownloadSnapshot {
 class DownloadQueue {
 	private queue: QueuedDownload[] = [];
 	private isProcessing = false;
-	private readonly maxAttempts = 3;
-	private readonly completedTaskRetentionMs = 30 * 60 * 1000;
+	private readonly defaultMaxAttempts = 3;
 	private readonly queueLogger = createChildLogger({ component: 'downloadQueue' });
+	private readonly queueJobRepository = new QueueJobRepository();
+	private isInitialized = false;
+	private initializePromise: Promise<void> | null = null;
+
 	private readonly downloadBookUseCase = new DownloadBookUseCase(
 		new ZLibraryClient('https://1lib.sk'),
 		new BookRepository(),
 		() => DavUploadServiceFactory.createS3()
 	);
 
-	/**
-	 * Add a download task to the queue
-	 */
-	enqueue(task: Omit<QueuedDownload, 'id' | 'status' | 'attempts' | 'createdAt' | 'updatedAt' | 'finishedAt'>): string {
+	constructor() {
+		void this.ensureInitialized().catch((error: unknown) => {
+			this.queueLogger.error(
+				{ event: 'queue.init.failed', error: toLogError(error) },
+				'Queue initialization failed'
+			);
+		});
+	}
+
+	async enqueue(
+		task: Omit<
+			QueuedDownload,
+			'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
+		>
+	): Promise<string> {
+		await this.ensureInitialized();
+
 		const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 		const now = new Date();
-		
+
 		const queuedTask: QueuedDownload = {
 			...task,
 			id,
 			status: 'queued',
 			attempts: 0,
+			maxAttempts: this.defaultMaxAttempts,
 			createdAt: now,
 			updatedAt: now
 		};
 
 		this.queue.push(queuedTask);
+		await this.queueJobRepository.create(this.toQueueJobRecord(queuedTask));
 		this.queueLogger.info(
 			{ event: 'queue.task.enqueued', taskId: id, bookId: task.bookId, title: task.title },
 			'Queue task added'
 		);
 
-		// Start processing if not already running
-		this.processQueue();
-
+		void this.processQueue();
 		return id;
 	}
 
-	/**
-	 * Get current queue status
-	 */
-	getStatus(): { pending: number; processing: number } {
-		return {
-			pending: this.queue.filter(t => t.status === 'queued').length,
-			processing: this.queue.filter(t => t.status === 'processing').length
-		};
+	async getStatus(): Promise<{ pending: number; processing: number }> {
+		await this.ensureInitialized();
+		return this.queueJobRepository.getStatusCounts();
 	}
 
-	getTasks(): QueuedDownloadSnapshot[] {
-		return [...this.queue]
-			.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-			.map((task) => ({
-				id: task.id,
-				bookId: task.bookId,
-				title: task.title,
-				status: task.status,
-				attempts: task.attempts,
-				error: task.error,
-				createdAt: task.createdAt.toISOString(),
-				updatedAt: task.updatedAt.toISOString(),
-				finishedAt: task.finishedAt?.toISOString()
-			}));
+	async getTasks(): Promise<QueuedDownloadSnapshot[]> {
+		await this.ensureInitialized();
+		const tasks = await this.queueJobRepository.listRecent(300);
+		return tasks.map((task) => ({
+			id: task.id,
+			bookId: task.bookId,
+			title: task.title,
+			status: task.status,
+			attempts: task.attempts,
+			maxRetries: task.maxAttempts,
+			author: task.author ?? undefined,
+			error: task.error,
+			createdAt: task.createdAt,
+			updatedAt: task.updatedAt,
+			finishedAt: task.finishedAt
+		}));
 	}
 
-	/**
-	 * Process queued downloads one by one
-	 */
-	private async processQueue(): Promise<void> {
-		if (this.isProcessing) return;
-		
-		this.isProcessing = true;
-
-		while (true) {
-			const task = this.queue.find(t => t.status === 'queued');
-			if (!task) break;
-
-			task.status = 'processing';
-			task.updatedAt = new Date();
-			this.queueLogger.info(
-				{ event: 'queue.task.processing', taskId: task.id, bookId: task.bookId, title: task.title },
-				'Processing queue task'
-			);
-
-			try {
-				await this.processTask(task);
-				task.status = 'completed';
-				task.updatedAt = new Date();
-				task.finishedAt = task.updatedAt;
-				this.queueLogger.info(
-					{ event: 'queue.task.completed', taskId: task.id, bookId: task.bookId, title: task.title },
-					'Queue task completed'
-				);
-			} catch (error) {
-				task.status = 'failed';
-				task.error = error instanceof Error ? error.message : 'Unknown error';
-				task.updatedAt = new Date();
-				task.finishedAt = task.updatedAt;
-				this.queueLogger.error(
-					{
-						event: 'queue.task.failed',
-						taskId: task.id,
-						bookId: task.bookId,
-						title: task.title,
-						error: toLogError(error)
-					},
-					'Queue task failed'
-				);
-			}
-
-			this.cleanupFinishedTasks();
+	private async ensureInitialized(): Promise<void> {
+		if (this.isInitialized) {
+			return;
 		}
 
-		this.isProcessing = false;
+		if (!this.initializePromise) {
+			this.initializePromise = this.initialize();
+		}
+
+		await this.initializePromise;
 	}
 
-	/**
-	 * Process a single download task
-	 */
+	private async initialize(): Promise<void> {
+		try {
+			const nowIso = new Date().toISOString();
+			await this.queueJobRepository.requeueProcessingJobs(nowIso);
+			const queuedJobs = await this.queueJobRepository.listQueuedForRecovery();
+			this.queue = queuedJobs.map((job) => this.fromQueueJobRecord(job));
+			this.isInitialized = true;
+
+			if (queuedJobs.length > 0) {
+				this.queueLogger.info(
+					{ event: 'queue.recovered', recoveredJobs: queuedJobs.length },
+					'Recovered queued jobs from database'
+				);
+				void this.processQueue();
+			}
+		} catch (error: unknown) {
+			this.initializePromise = null;
+			throw error;
+		}
+	}
+
+	private async processQueue(): Promise<void> {
+		if (this.isProcessing) {
+			return;
+		}
+
+		this.isProcessing = true;
+		try {
+			while (true) {
+				const task = this.queue.find((candidate) => candidate.status === 'queued');
+				if (!task) {
+					break;
+				}
+
+				task.status = 'processing';
+				task.updatedAt = new Date();
+				await this.queueJobRepository.updateProcessing(
+					task.id,
+					task.attempts,
+					task.updatedAt.toISOString()
+				);
+				this.queueLogger.info(
+					{ event: 'queue.task.processing', taskId: task.id, bookId: task.bookId, title: task.title },
+					'Processing queue task'
+				);
+
+				try {
+					await this.processTask(task);
+					task.status = 'completed';
+					task.updatedAt = new Date();
+					task.finishedAt = task.updatedAt;
+					await this.queueJobRepository.updateCompleted(
+						task.id,
+						task.attempts,
+						task.updatedAt.toISOString(),
+						task.finishedAt.toISOString()
+					);
+					this.queueLogger.info(
+						{
+							event: 'queue.task.completed',
+							taskId: task.id,
+							bookId: task.bookId,
+							title: task.title
+						},
+						'Queue task completed'
+					);
+				} catch (error) {
+					task.status = 'failed';
+					task.error = error instanceof Error ? error.message : 'Unknown error';
+					task.updatedAt = new Date();
+					task.finishedAt = task.updatedAt;
+					await this.queueJobRepository.updateFailed(
+						task.id,
+						task.attempts,
+						task.error,
+						task.updatedAt.toISOString(),
+						task.finishedAt.toISOString()
+					);
+					this.queueLogger.error(
+						{
+							event: 'queue.task.failed',
+							taskId: task.id,
+							bookId: task.bookId,
+							title: task.title,
+							error: toLogError(error)
+						},
+						'Queue task failed'
+					);
+				} finally {
+					this.queue = this.queue.filter((candidate) => candidate.id !== task.id);
+				}
+			}
+		} finally {
+			this.isProcessing = false;
+		}
+	}
+
 	private async processTask(task: QueuedDownload): Promise<void> {
-		for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
+		const firstAttempt = Math.max(1, task.attempts + 1);
+		if (firstAttempt > task.maxAttempts) {
+			throw new Error('Maximum retry attempts exceeded');
+		}
+
+		for (let attempt = firstAttempt; attempt <= task.maxAttempts; attempt++) {
 			task.attempts = attempt;
 			task.updatedAt = new Date();
+			await this.queueJobRepository.updateProcessing(
+				task.id,
+				task.attempts,
+				task.updatedAt.toISOString()
+			);
+
 			const useCaseResult = await this.downloadBookUseCase.execute({
 				request: {
 					bookId: task.bookId,
@@ -199,8 +283,11 @@ class DownloadQueue {
 				return;
 			}
 
-			const canRetry = this.isRetryableFailure(useCaseResult.error.status, useCaseResult.error.message);
-			const isLastAttempt = attempt === this.maxAttempts;
+			const canRetry = this.isRetryableFailure(
+				useCaseResult.error.status,
+				useCaseResult.error.message
+			);
+			const isLastAttempt = attempt === task.maxAttempts;
 			if (!canRetry || isLastAttempt) {
 				throw new Error(useCaseResult.error.message, { cause: useCaseResult.error.cause });
 			}
@@ -221,6 +308,8 @@ class DownloadQueue {
 			);
 			await this.sleep(delayMs);
 		}
+
+		throw new Error('Queue task failed without terminal result');
 	}
 
 	private isRetryableFailure(statusCode: number, message: string): boolean {
@@ -250,14 +339,66 @@ class DownloadQueue {
 		});
 	}
 
-	private cleanupFinishedTasks(): void {
-		const cutoff = Date.now() - this.completedTaskRetentionMs;
-		this.queue = this.queue.filter((task) => {
-			if (task.status === 'queued' || task.status === 'processing') {
-				return true;
-			}
-			return (task.finishedAt?.getTime() ?? task.updatedAt.getTime()) >= cutoff;
-		});
+	private fromQueueJobRecord(record: QueueJobRecord): QueuedDownload {
+		return {
+			id: record.id,
+			bookId: record.bookId,
+			hash: record.hash,
+			title: record.title,
+			extension: record.extension,
+			author: record.author,
+			publisher: record.publisher,
+			series: record.series,
+			volume: record.volume,
+			edition: record.edition,
+			identifier: record.identifier,
+			pages: record.pages,
+			description: record.description,
+			cover: record.cover,
+			filesize: record.filesize,
+			language: record.language,
+			year: record.year,
+			userId: record.userId,
+			userKey: record.userKey,
+			status: record.status,
+			attempts: record.attempts,
+			maxAttempts: record.maxAttempts,
+			error: record.error,
+			createdAt: new Date(record.createdAt),
+			updatedAt: new Date(record.updatedAt),
+			finishedAt: record.finishedAt ? new Date(record.finishedAt) : undefined
+		};
+	}
+
+	private toQueueJobRecord(task: QueuedDownload): QueueJobRecord {
+		return {
+			id: task.id,
+			bookId: task.bookId,
+			hash: task.hash,
+			title: task.title,
+			extension: task.extension,
+			author: task.author,
+			publisher: task.publisher,
+			series: task.series,
+			volume: task.volume,
+			edition: task.edition,
+			identifier: task.identifier,
+			pages: task.pages,
+			description: task.description,
+			cover: task.cover,
+			filesize: task.filesize,
+			language: task.language,
+			year: task.year,
+			userId: task.userId,
+			userKey: task.userKey,
+			status: task.status,
+			attempts: task.attempts,
+			maxAttempts: task.maxAttempts,
+			error: task.error,
+			createdAt: task.createdAt.toISOString(),
+			updatedAt: task.updatedAt.toISOString(),
+			finishedAt: task.finishedAt?.toISOString()
+		};
 	}
 }
 
