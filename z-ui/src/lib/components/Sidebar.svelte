@@ -447,58 +447,61 @@
 							<div class="shelves-list">
 								{#each shelves as shelf (shelf.id)}
 									{#if editingShelfId === shelf.id}
-										<div class="shelf-edit-row">
-											<div class="shelf-emoji-picker-wrap">
-												<button
-													type="button"
-													class="shelf-emoji-btn"
-													onclick={() => (showEditEmojiPicker = !showEditEmojiPicker)}
-												>
-													{editShelfIcon}
-												</button>
-												{#if showEditEmojiPicker}
+										<div class="shelf-row shelf-row-editing">
+											<div class="shelf-edit-row">
+												<div class="shelf-emoji-picker-wrap">
+													<span class="shelf-icon shelf-icon-edit" aria-hidden="true">{editShelfIcon}</span>
 													<button
 														type="button"
-														class="menu-backdrop"
-														aria-label="Close emoji picker"
-														onclick={() => (showEditEmojiPicker = false)}
+														class="shelf-emoji-hitbox"
+														aria-label="Select shelf icon"
+														onclick={() => (showEditEmojiPicker = !showEditEmojiPicker)}
 													></button>
-													<div class="shelf-emoji-menu">
-														{#each EMOJI_OPTIONS as emoji}
-															<button
-																type="button"
-																class="shelf-emoji-option"
-																class:active={editShelfIcon === emoji}
-																onclick={() => {
-																	editShelfIcon = emoji;
-																	showEditEmojiPicker = false;
-																}}
-															>
-																{emoji}
-															</button>
-														{/each}
-													</div>
-												{/if}
+													{#if showEditEmojiPicker}
+														<button
+															type="button"
+															class="menu-backdrop"
+															aria-label="Close emoji picker"
+															onclick={() => (showEditEmojiPicker = false)}
+														></button>
+														<div class="shelf-emoji-menu">
+															{#each EMOJI_OPTIONS as emoji}
+																<button
+																	type="button"
+																	class="shelf-emoji-option"
+																	class:active={editShelfIcon === emoji}
+																	onclick={() => {
+																		editShelfIcon = emoji;
+																		showEditEmojiPicker = false;
+																	}}
+																>
+																	{emoji}
+																</button>
+															{/each}
+														</div>
+													{/if}
+												</div>
+												<input
+													bind:this={editShelfInputEl}
+													bind:value={editShelfName}
+													class="shelf-edit-input"
+													onkeydown={(event) => {
+														if (event.key === 'Enter') {
+															void handleRenameShelf(shelf.id);
+														}
+														if (event.key === 'Escape') {
+															cancelRenameShelf();
+														}
+													}}
+												/>
+												<button type="button" class="shelf-inline-btn save" onclick={() => void handleRenameShelf(shelf.id)}>
+													Save
+												</button>
+												<button type="button" class="shelf-inline-btn cancel" onclick={cancelRenameShelf}>
+													✕
+												</button>
 											</div>
-											<input
-												bind:this={editShelfInputEl}
-												bind:value={editShelfName}
-												class="shelf-edit-input"
-												onkeydown={(event) => {
-													if (event.key === 'Enter') {
-														void handleRenameShelf(shelf.id);
-													}
-													if (event.key === 'Escape') {
-														cancelRenameShelf();
-													}
-												}}
-											/>
-											<button type="button" class="shelf-inline-btn save" onclick={() => void handleRenameShelf(shelf.id)}>
-												Save
-											</button>
-											<button type="button" class="shelf-inline-btn cancel" onclick={cancelRenameShelf}>
-												✕
-											</button>
+											<span class="shelf-row-btn shelf-row-btn-placeholder" aria-hidden="true"></span>
 										</div>
 									{:else}
 										<div class="shelf-row">
@@ -511,7 +514,11 @@
 												<span class="shelf-icon">{shelf.icon}</span>
 												<span class="shelf-name">{shelf.name}</span>
 												{#if getShelfRuleCount(shelf) > 0}
-													<span class="shelf-rule-indicator" aria-hidden="true"></span>
+													<span class="shelf-rule-indicator" aria-hidden="true">
+														<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+															<polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4"></polygon>
+														</svg>
+													</span>
 												{/if}
 											</button>
 											<button
@@ -533,13 +540,13 @@
 								{#if showCreateShelf}
 									<div class="shelf-edit-row">
 										<div class="shelf-emoji-picker-wrap">
+											<span class="shelf-icon shelf-icon-edit" aria-hidden="true">{newShelfIcon}</span>
 											<button
 												type="button"
-												class="shelf-emoji-btn"
+												class="shelf-emoji-hitbox"
+												aria-label="Select shelf icon"
 												onclick={() => (showCreateEmojiPicker = !showCreateEmojiPicker)}
-											>
-												{newShelfIcon}
-											</button>
+											></button>
 											{#if showCreateEmojiPicker}
 												<button
 													type="button"
@@ -943,7 +950,13 @@
 	}
 
 	.shelf-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1rem;
+		height: 1rem;
 		font-size: 0.75rem;
+		line-height: 1;
 		flex-shrink: 0;
 	}
 
@@ -954,12 +967,15 @@
 	}
 
 	.shelf-rule-indicator {
-		width: 0.28rem;
-		height: 0.28rem;
-		border-radius: 999px;
-		background: color-mix(in oklab, var(--color-primary), transparent 45%);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 0.72rem;
+		height: 0.72rem;
 		margin-left: auto;
 		flex-shrink: 0;
+		color: color-mix(in oklab, var(--color-text-muted), var(--color-primary) 28%);
+		opacity: 0.52;
 	}
 
 	.shelf-row-btn {
@@ -995,42 +1011,60 @@
 	.shelf-edit-row {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.4rem;
 		width: 100%;
 		max-width: 100%;
 		min-width: 0;
 		height: 1.9rem;
 		box-sizing: border-box;
-		padding: 0 0.32rem;
+		padding: 0 0.5rem;
 		border-radius: 0.42rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		overflow: hidden;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid transparent;
+		overflow: visible;
+	}
+
+	.shelf-row-editing .shelf-edit-row {
+		flex: 1;
+		width: auto;
+	}
+
+	.shelf-row-btn-placeholder {
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.shelf-emoji-picker-wrap {
 		position: relative;
-	}
-
-	.shelf-emoji-btn {
-		width: 1.28rem;
-		height: 1.28rem;
-		border-radius: 0.3rem;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		background: rgba(255, 255, 255, 0.04);
-		color: var(--color-text-primary);
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.8rem;
+		width: 1rem;
+		height: 1rem;
+		flex-shrink: 0;
+	}
+
+	.shelf-emoji-hitbox {
+		position: absolute;
+		inset: 0;
+		border-radius: 0;
+		border: none;
+		background: transparent;
 		cursor: pointer;
+		padding: 0;
+		margin: 0;
+		appearance: none;
+	}
+
+	.shelf-icon-edit {
+		transform: none;
 	}
 
 	.shelf-emoji-menu {
 		position: absolute;
 		top: calc(100% + 0.3rem);
 		left: 0;
-		z-index: 70;
+		z-index: 160;
 		display: grid;
 		grid-template-columns: repeat(8, minmax(0, 1fr));
 		gap: 0.18rem;
@@ -1071,8 +1105,11 @@
 		background: transparent;
 		border: none;
 		outline: none;
+		padding: 0;
+		margin: 0;
 		color: var(--color-text-primary);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
+		line-height: 1;
 		font-family: inherit;
 	}
 

@@ -2548,9 +2548,12 @@
 
 	.book-tile-wrap {
 		position: relative;
+		width: 100%;
 	}
 
 	.book-tile {
+		display: block;
+		width: 100%;
 		background: #161921;
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 0.75rem;

@@ -1,0 +1,60 @@
+meta {
+  name: PUT Update Shelf Rules
+  type: http
+}
+
+put {
+  url: {{base_url}}/api/library/shelves/{{shelf_id}}/rules
+  body: json
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+body:json {
+  {
+    "ruleGroup": {
+      "id": "root",
+      "type": "group",
+      "connector": "AND",
+      "children": [
+        {
+          "id": "cond-status",
+          "type": "condition",
+          "field": "status",
+          "operator": "equals",
+          "value": "reading"
+        },
+        {
+          "id": "grp-rating",
+          "type": "group",
+          "connector": "OR",
+          "children": [
+            {
+              "id": "cond-rating",
+              "type": "condition",
+              "field": "rating",
+              "operator": "gte",
+              "value": "4"
+            },
+            {
+              "id": "cond-pages",
+              "type": "condition",
+              "field": "pages",
+              "operator": "lte",
+              "value": "500"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
