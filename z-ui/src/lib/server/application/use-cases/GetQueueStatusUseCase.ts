@@ -1,21 +1,8 @@
 import { apiOk, type ApiResult } from '$lib/server/http/api';
-
-interface QueueJobSnapshot {
-	id: string;
-	bookId: string;
-	title: string;
-	status: 'queued' | 'processing' | 'completed' | 'failed';
-	attempts: number;
-	error?: string;
-	createdAt: string;
-	updatedAt: string;
-	finishedAt?: string;
-}
-
-interface DownloadQueuePort {
-	getStatus(): { pending: number; processing: number };
-	getTasks(): QueueJobSnapshot[];
-}
+import type {
+	DownloadQueuePort,
+	QueueJobSnapshot
+} from '$lib/server/application/ports/DownloadQueuePort';
 
 interface GetQueueStatusResult {
 	success: true;
@@ -30,10 +17,12 @@ export class GetQueueStatusUseCase {
 	constructor(private readonly queue: DownloadQueuePort) {}
 
 	async execute(): Promise<ApiResult<GetQueueStatusResult>> {
+		const queueStatus = await this.queue.getStatus();
+		const jobs = await this.queue.getTasks();
 		return apiOk({
 			success: true,
-			queueStatus: this.queue.getStatus(),
-			jobs: this.queue.getTasks()
+			queueStatus,
+			jobs
 		});
 	}
 }

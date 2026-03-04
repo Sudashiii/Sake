@@ -99,6 +99,13 @@
       "when": 1778600000000,
       "tag": "0013_smooth_shelf_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1772648105626,
+      "tag": "0014_queue_jobs_history",
+      "breakpoints": true
     }
   ]
 }

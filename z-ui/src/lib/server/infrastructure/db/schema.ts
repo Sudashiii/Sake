@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const books = sqliteTable('Books', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -86,6 +86,44 @@ export const bookProgressHistory = sqliteTable(
 		recordedAt: text('recorded_at').notNull()
 	},
 	(table) => [uniqueIndex('book_progress_history_book_recorded_unique').on(table.bookId, table.recordedAt)]
+);
+
+export const queueJobs = sqliteTable(
+	'QueueJobs',
+	{
+		id: text('id').primaryKey(),
+		bookId: text('book_id').notNull(),
+		hash: text('hash').notNull(),
+		title: text('title').notNull(),
+		extension: text('extension').notNull(),
+		author: text('author'),
+		publisher: text('publisher'),
+		series: text('series'),
+		volume: text('volume'),
+		edition: text('edition'),
+		identifier: text('identifier'),
+		pages: integer('pages'),
+		description: text('description'),
+		cover: text('cover'),
+		filesize: integer('filesize'),
+		language: text('language'),
+		year: integer('year'),
+		userId: text('user_id').notNull(),
+		userKey: text('user_key').notNull(),
+		status: text('status', {
+			enum: ['queued', 'processing', 'completed', 'failed']
+		}).notNull(),
+		attempts: integer('attempts').notNull().default(0),
+		maxAttempts: integer('max_attempts').notNull().default(3),
+		error: text('error'),
+		createdAt: text('created_at').notNull(),
+		updatedAt: text('updated_at').notNull(),
+		finishedAt: text('finished_at')
+	},
+	(table) => [
+		index('queue_jobs_status_updated_idx').on(table.status, table.updatedAt),
+		index('queue_jobs_created_idx').on(table.createdAt)
+	]
 );
 
 export const shelves = sqliteTable('Shelves', {

@@ -1,31 +1,6 @@
 import { apiOk, type ApiResult } from '$lib/server/http/api';
+import type { DownloadQueuePort } from '$lib/server/application/ports/DownloadQueuePort';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
-
-interface QueueTask {
-	bookId: string;
-	hash: string;
-	title: string;
-	extension: string;
-	author: string | null;
-	publisher: string | null;
-	series: string | null;
-	volume: string | null;
-	edition: string | null;
-	identifier: string | null;
-	pages: number | null;
-	description: string | null;
-	cover: string | null;
-	filesize: number | null;
-	language: string | null;
-	year: number | null;
-	userId: string;
-	userKey: string;
-}
-
-interface DownloadQueuePort {
-	enqueue(task: QueueTask): string;
-	getStatus(): { pending: number; processing: number };
-}
 
 interface QueueDownloadInput {
 	request: ZDownloadBookRequest;
@@ -47,7 +22,7 @@ export class QueueDownloadUseCase {
 
 	async execute(input: QueueDownloadInput): Promise<ApiResult<QueueDownloadResult>> {
 		const { request, credentials } = input;
-		const taskId = this.queue.enqueue({
+		const taskId = await this.queue.enqueue({
 			bookId: request.bookId,
 			hash: request.hash,
 			title: request.title,
@@ -67,12 +42,13 @@ export class QueueDownloadUseCase {
 			userId: credentials.userId,
 			userKey: credentials.userKey
 		});
+		const queueStatus = await this.queue.getStatus();
 
 		return apiOk({
 			success: true,
 			taskId,
 			message: 'Download queued successfully',
-			queueStatus: this.queue.getStatus()
+			queueStatus
 		});
 	}
 }

@@ -76,6 +76,8 @@ Before finishing a change:
 - Every `--> statement-breakpoint` must separate two real SQL statements, not create an empty SQL segment.
 - For single-statement migrations, do not add a breakpoint at all.
 - Before handing off migration changes, run a quick file sanity pass to ensure no empty segments exist.
+- Migration file names must be explicit and descriptive (e.g. `0015_queue_jobs_cleanup.sql`), never random auto-generated slugs.
+- If `drizzle-kit generate` creates a random slug name, rename the SQL file immediately and update the matching `tag` in `drizzle/meta/_journal.json` in the same change.
 
 ## Change memory and implementation plans
 
