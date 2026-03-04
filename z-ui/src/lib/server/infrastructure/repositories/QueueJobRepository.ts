@@ -1,7 +1,7 @@
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { queueJobs } from '$lib/server/infrastructure/db/schema';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 export type QueueJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -124,6 +124,7 @@ export class QueueJobRepository {
 				status: 'completed',
 				attempts,
 				error: null,
+				userKey: '',
 				updatedAt,
 				finishedAt
 			})
@@ -143,6 +144,7 @@ export class QueueJobRepository {
 				status: 'failed',
 				attempts,
 				error,
+				userKey: '',
 				updatedAt,
 				finishedAt
 			})
@@ -192,5 +194,27 @@ export class QueueJobRepository {
 			.orderBy(desc(queueJobs.createdAt))
 			.limit(limit);
 		return rows.map((row) => mapQueueJobRow(row));
+	}
+
+	async purgeTerminalOlderThan(cutoffIso: string): Promise<number> {
+		const condition = and(
+			inArray(queueJobs.status, ['completed', 'failed']),
+			sql`coalesce(${queueJobs.finishedAt}, ${queueJobs.updatedAt}) < ${cutoffIso}`
+		);
+		const [countRow] = await drizzleDb
+			.select({ count: sql<number>`count(*)` })
+			.from(queueJobs)
+			.where(condition);
+		const count = Number(countRow?.count ?? 0);
+		if (count === 0) {
+			return 0;
+		}
+
+		await drizzleDb.delete(queueJobs).where(condition);
+		this.repoLogger.info(
+			{ event: 'queue_job.purged', count, cutoffIso },
+			'Purged old terminal queue jobs'
+		);
+		return count;
 	}
 }
