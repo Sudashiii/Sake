@@ -215,18 +215,26 @@ export class ShelfRepository implements ShelfRepositoryPort {
 	}
 
 	async reorder(shelfIds: number[]): Promise<void> {
+		if (shelfIds.length === 0) {
+			return;
+		}
+		if (!shelfIds.every((id) => Number.isInteger(id) && id > 0)) {
+			throw new Error('Invalid shelf IDs for reorder');
+		}
+
 		const now = new Date().toISOString();
-		await drizzleDb.transaction(async (tx) => {
-			for (let index = 0; index < shelfIds.length; index += 1) {
-				await tx
-					.update(shelves)
-					.set({
-						sortOrder: index,
-						updatedAt: now
-					})
-					.where(eq(shelves.id, shelfIds[index]));
-			}
-		});
+		const whenClauses = shelfIds
+			.map((id, index) => `WHEN ${id} THEN ${index}`)
+			.join(' ');
+		const idList = shelfIds.join(', ');
+		const escapedNow = now.replace(/'/g, "''");
+
+		await drizzleDb.$client.execute(
+			`UPDATE "Shelves"
+SET "sort_order" = CASE "id" ${whenClauses} ELSE "sort_order" END,
+    "updated_at" = '${escapedNow}'
+WHERE "id" IN (${idList})`
+		);
 		this.repoLogger.info(
 			{
 				event: 'shelf.reordered',
