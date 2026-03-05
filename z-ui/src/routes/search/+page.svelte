@@ -1023,11 +1023,11 @@
 	}
 
 	.filter-group.providers {
-		align-items: flex-start;
+		align-items: center;
 	}
 
 	.filter-group.years {
-		align-items: flex-start;
+		align-items: center;
 	}
 
 	.filter-group label {
