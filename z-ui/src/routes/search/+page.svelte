@@ -1,33 +1,219 @@
 <script lang="ts">
-	import type { ZBook } from "$lib/types/ZLibrary/ZBook";
-	import type { ZSearchBookRequest } from "$lib/types/ZLibrary/Requests/ZSearchBookRequest";
+	import { onMount, tick } from "svelte";
 	import type { ApiError } from "$lib/types/ApiError";
 	import type { LookupSearchBookMetadataResponse } from "$lib/client/routes/lookupSearchBookMetadata";
-	import DropDown from "$lib/components/DropDown.svelte";
+	import type { SearchProviderId } from "$lib/types/Search/Provider";
+	import type { SearchBooksRequest } from "$lib/types/Search/SearchBooksRequest";
+	import type { SearchResultBook } from "$lib/types/Search/SearchResultBook";
+	import MultiSelectDropdown from "$lib/components/MultiSelectDropdown.svelte";
 	import Loading from "$lib/components/Loading.svelte";
 	import BookCard from "$lib/components/BookCard.svelte";
 	import { ZUI } from "$lib/client/zui";
-
 	import { toastStore } from "$lib/client/stores/toastStore.svelte";
 
+	const SEARCH_PROVIDER_STORAGE_KEY = "sake.search.providers";
+	const SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY = "sake.search.provider-groups.collapsed";
+	const SEARCH_PROVIDER_OPTIONS = [
+		{ value: "zlibrary", label: "Z-Library" },
+		{ value: "openlibrary", label: "OpenLibrary" },
+		{ value: "gutenberg", label: "Gutenberg" }
+	];
+	const SEARCH_LANGUAGE_OPTIONS = [
+		{ value: "english", label: "English" },
+		{ value: "german", label: "German" },
+		{ value: "french", label: "French" },
+		{ value: "spanish", label: "Spanish" }
+	];
+	const SEARCH_FORMAT_OPTIONS = [
+		{ value: "epub", label: "epub" },
+		{ value: "mobi", label: "mobi" },
+		{ value: "pdf", label: "pdf" }
+	];
+	const SEARCH_SORT_OPTIONS = [
+		{ value: "relevance", label: "Relevance" },
+		{ value: "title_asc", label: "Title A-Z" },
+		{ value: "year_desc", label: "Year (newest)" },
+		{ value: "year_asc", label: "Year (oldest)" }
+	] as const;
+	type SearchSortValue = SearchBooksRequest["sort"];
+
 	let title = $state("");
-	let lang = $state("german");
-	let format = $state("epub");
-	let books = $state<ZBook[]>([]);
+	let selectedLanguages = $state<string[]>(["english", "german"]);
+	let selectedFormats = $state<string[]>(["epub"]);
+	let selectedProviders = $state<SearchProviderId[]>(["zlibrary"]);
+	let selectedSort = $state<SearchSortValue>("relevance");
+	let yearFromInput = $state("");
+	let yearToInput = $state("");
+	let onlyFilesAvailable = $state(false);
+	let collapsedProviderGroups = $state<Record<SearchProviderId, boolean>>({
+		zlibrary: false,
+		openlibrary: false,
+		gutenberg: false
+	});
+	let books = $state<SearchResultBook[]>([]);
 	let isLoading = $state(false);
 	let isDownloading = $state(false);
 	let downloadingBook = $state<string | null>(null);
 	let error = $state<ApiError | null>(null);
 	let showTitleAdjustModal = $state(false);
 	let pendingBookAction = $state<"download" | "library" | null>(null);
-	let pendingBook = $state<ZBook | null>(null);
+	let pendingBook = $state<SearchResultBook | null>(null);
 	let adjustedTitle = $state("");
-	let selectedBookForDetails = $state<ZBook | null>(null);
+	let selectedBookForDetails = $state<SearchResultBook | null>(null);
+	let searchDetailDialog = $state<HTMLDivElement | null>(null);
+	let searchDetailCloseButton = $state<HTMLButtonElement | null>(null);
+	let lastFocusedElement = $state<HTMLElement | null>(null);
 	let detailMetadataByBookId = $state<
-		Record<number, LookupSearchBookMetadataResponse["metadata"]>
+		Record<string, LookupSearchBookMetadataResponse["metadata"]>
 	>({});
-	let detailMetadataLoadingByBookId = $state<Record<number, boolean>>({});
-	let detailMetadataErrorByBookId = $state<Record<number, string | null>>({});
+	let detailMetadataLoadingByBookId = $state<Record<string, boolean>>({});
+	let detailMetadataErrorByBookId = $state<Record<string, string | null>>({});
+	const displayedBooks = $derived(
+		onlyFilesAvailable ? books.filter((book) => book.capabilities.filesAvailable) : books
+	);
+
+	function getBookCacheKey(book: SearchResultBook): string {
+		return `${book.provider}:${book.providerBookId}`;
+	}
+
+	function formatFileSize(sizeInBytes: number | null): string {
+		if (typeof sizeInBytes !== "number" || !Number.isFinite(sizeInBytes) || sizeInBytes <= 0) {
+			return "Not available";
+		}
+
+		if (sizeInBytes < 1024) {
+			return `${sizeInBytes} B`;
+		}
+		if (sizeInBytes < 1024 * 1024) {
+			return `${Math.round(sizeInBytes / 1024)} KB`;
+		}
+		return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	function providerLabel(providerId: SearchProviderId): string {
+		if (providerId === "zlibrary") {
+			return "Z-Library";
+		}
+		if (providerId === "openlibrary") {
+			return "OpenLibrary";
+		}
+		return "Gutenberg";
+	}
+
+	function parseYearInput(value: string | number | null | undefined): number | undefined {
+		if (typeof value === "number") {
+			if (!Number.isFinite(value) || value < 0) {
+				return undefined;
+			}
+			return Math.trunc(value);
+		}
+
+		if (typeof value !== "string") {
+			return undefined;
+		}
+
+		const trimmed = value.trim();
+		if (!trimmed) {
+			return undefined;
+		}
+		const parsed = Number.parseInt(trimmed, 10);
+		if (!Number.isFinite(parsed) || parsed < 0) {
+			return undefined;
+		}
+		return parsed;
+	}
+
+	function isProviderId(value: string): value is SearchProviderId {
+		return value === "zlibrary" || value === "openlibrary" || value === "gutenberg";
+	}
+
+	function persistSelectedProviders(): void {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		localStorage.setItem(SEARCH_PROVIDER_STORAGE_KEY, JSON.stringify(selectedProviders));
+	}
+
+	function persistCollapsedProviderGroups(): void {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		localStorage.setItem(
+			SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY,
+			JSON.stringify(collapsedProviderGroups)
+		);
+	}
+
+	onMount(() => {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+
+		const raw = localStorage.getItem(SEARCH_PROVIDER_STORAGE_KEY);
+		if (!raw) {
+			return;
+		}
+
+		try {
+			const parsed = JSON.parse(raw) as unknown;
+			if (!Array.isArray(parsed)) {
+				return;
+			}
+			const validProviders = parsed.filter(
+				(entry): entry is SearchProviderId =>
+					entry === "zlibrary" || entry === "openlibrary" || entry === "gutenberg"
+			);
+			if (validProviders.length > 0) {
+				selectedProviders = [...new Set(validProviders)];
+			}
+		} catch {
+			// Ignore invalid localStorage data.
+		}
+
+		const rawCollapsed = localStorage.getItem(SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY);
+		if (!rawCollapsed) {
+			return;
+		}
+
+		try {
+			const parsed = JSON.parse(rawCollapsed) as unknown;
+			if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+				return;
+			}
+			const value = parsed as Record<string, unknown>;
+
+			collapsedProviderGroups = {
+				zlibrary: value.zlibrary === true,
+				openlibrary: value.openlibrary === true,
+				gutenberg: value.gutenberg === true
+			};
+		} catch {
+			// Ignore invalid localStorage data.
+		}
+	});
+
+	function handleProviderSelection(nextValues: string[]): void {
+		const normalized = nextValues.filter((entry): entry is SearchProviderId => isProviderId(entry));
+		selectedProviders = normalized.length > 0 ? [...new Set(normalized)] : ["zlibrary"];
+		persistSelectedProviders();
+	}
+
+	function handleLanguageSelection(nextValues: string[]): void {
+		selectedLanguages = [...new Set(nextValues)];
+	}
+
+	function handleFormatSelection(nextValues: string[]): void {
+		selectedFormats = [...new Set(nextValues)];
+	}
+
+	function toggleProviderGroup(providerId: SearchProviderId): void {
+		const nextState = !(collapsedProviderGroups[providerId] ?? false);
+		collapsedProviderGroups = {
+			...collapsedProviderGroups,
+			[providerId]: nextState
+		};
+		persistCollapsedProviderGroups();
+	}
 
 	async function searchBooks() {
 		if (!title.trim()) return;
@@ -35,33 +221,52 @@
 		isLoading = true;
 		error = null;
 
-		const payload: ZSearchBookRequest = {
-			searchText: title,
-			languages: [lang],
-			extensions: [format],
+		const payload: SearchBooksRequest = {
+			query: title,
+			providers: selectedProviders,
+			filters: {
+				language: selectedLanguages.length > 0 ? selectedLanguages : undefined,
+				extension: selectedFormats.length > 0 ? selectedFormats : undefined,
+				yearFrom: parseYearInput(yearFromInput),
+				yearTo: parseYearInput(yearToInput),
+				limitPerProvider: 20
+			},
+			sort: selectedSort
 		};
 
-		const result = await ZUI.searchBook(payload);
+		const result = await ZUI.searchBooks(payload);
 
-		if (result.ok) {
-			books = result.value.books;
-		} else {
+		if (!result.ok) {
 			error = result.error;
 			books = [];
+			isLoading = false;
+			return;
+		}
+
+		books = result.value.books;
+		const failedProviders = result.value.meta.failedProviders;
+		if (failedProviders.length > 0) {
+			const failedMessage = failedProviders
+				.map((entry) => `${providerLabel(entry.provider)}: ${entry.error}`)
+				.join(" | ");
+			toastStore.add(`Some providers failed: ${failedMessage}`, "error");
+			if (result.value.books.length === 0) {
+				error = { type: "server", status: 502, message: failedMessage };
+			}
 		}
 
 		isLoading = false;
 	}
 
-	async function handleDownload(book: ZBook) {
+	async function handleDownload(book: SearchResultBook) {
 		isDownloading = true;
 		downloadingBook = book.title;
-		
-		const result = await ZUI.downloadBook(book, { downloadToDevice: true });
-		
+
+		const result = await ZUI.downloadSearchBook(book, { downloadToDevice: true });
+
 		isDownloading = false;
 		downloadingBook = null;
-		
+
 		if (!result.ok) {
 			error = result.error;
 			toastStore.add(`Download failed: ${result.error.message}`, "error");
@@ -70,25 +275,25 @@
 		}
 	}
 
-	async function handleShare(book: ZBook) {
-		// Queue the book for async download to library - returns immediately
-		const result = await ZUI.queueToLibrary(book);
-		
+	async function handleShare(book: SearchResultBook) {
+		const result = await ZUI.queueSearchBookToLibrary(book);
+
 		if (!result.ok) {
 			error = result.error;
-			toastStore.add(
-				`Failed to add to library: ${result.error.message}`,
-				"error",
-			);
+			toastStore.add(`Failed to add to library: ${result.error.message}`, "error");
 		} else {
-			const queueInfo = result.value.queueStatus.pending > 0 
-				? ` (${result.value.queueStatus.pending} in queue)`
-				: '';
-			toastStore.add(`"${book.title}" added to download queue${queueInfo}`, "success");
+			if (result.value.mode === "queued") {
+				const queueInfo = result.value.queueStatus.pending > 0
+					? ` (${result.value.queueStatus.pending} in queue)`
+					: "";
+				toastStore.add(`"${book.title}" added to download queue${queueInfo}`, "success");
+			} else {
+				toastStore.add(`"${book.title}" imported to library`, "success");
+			}
 		}
 	}
 
-	function openTitleAdjustModal(book: ZBook, action: "download" | "library"): void {
+	function openTitleAdjustModal(book: SearchResultBook, action: "download" | "library"): void {
 		selectedBookForDetails = null;
 		pendingBook = book;
 		pendingBookAction = action;
@@ -114,7 +319,7 @@
 			return;
 		}
 
-		const bookWithAdjustedTitle: ZBook = {
+		const bookWithAdjustedTitle: SearchResultBook = {
 			...pendingBook,
 			title: finalTitle
 		};
@@ -135,25 +340,51 @@
 		}
 	}
 
-	function openSearchBookDetails(book: ZBook): void {
+	async function openSearchBookDetails(book: SearchResultBook): Promise<void> {
+		if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+			lastFocusedElement = document.activeElement;
+		}
+
 		selectedBookForDetails = book;
-		if (!detailMetadataByBookId[book.id] && !detailMetadataLoadingByBookId[book.id]) {
+		await tick();
+		if (searchDetailCloseButton) {
+			searchDetailCloseButton.focus();
+		} else if (searchDetailDialog) {
+			searchDetailDialog.focus();
+		}
+
+		const cacheKey = getBookCacheKey(book);
+		if (!detailMetadataByBookId[cacheKey] && !detailMetadataLoadingByBookId[cacheKey]) {
 			void loadSearchBookMetadata(book);
 		}
 	}
 
 	function closeSearchBookDetails(): void {
 		selectedBookForDetails = null;
+		if (lastFocusedElement) {
+			lastFocusedElement.focus();
+			lastFocusedElement = null;
+		}
 	}
 
-	async function loadSearchBookMetadata(book: ZBook): Promise<void> {
+	function handleSearchDetailModalKeydown(event: KeyboardEvent): void {
+		if (event.key === "Escape") {
+			event.preventDefault();
+			closeSearchBookDetails();
+			return;
+		}
+		event.stopPropagation();
+	}
+
+	async function loadSearchBookMetadata(book: SearchResultBook): Promise<void> {
+		const cacheKey = getBookCacheKey(book);
 		detailMetadataLoadingByBookId = {
 			...detailMetadataLoadingByBookId,
-			[book.id]: true
+			[cacheKey]: true
 		};
 		detailMetadataErrorByBookId = {
 			...detailMetadataErrorByBookId,
-			[book.id]: null
+			[cacheKey]: null
 		};
 
 		const result = await ZUI.lookupSearchBookMetadata({
@@ -166,22 +397,22 @@
 		if (!result.ok) {
 			detailMetadataErrorByBookId = {
 				...detailMetadataErrorByBookId,
-				[book.id]: result.error.message
+				[cacheKey]: result.error.message
 			};
 			detailMetadataLoadingByBookId = {
 				...detailMetadataLoadingByBookId,
-				[book.id]: false
+				[cacheKey]: false
 			};
 			return;
 		}
 
 		detailMetadataByBookId = {
 			...detailMetadataByBookId,
-			[book.id]: result.value.metadata
+			[cacheKey]: result.value.metadata
 		};
 		detailMetadataLoadingByBookId = {
 			...detailMetadataLoadingByBookId,
-			[book.id]: false
+			[cacheKey]: false
 		};
 	}
 
@@ -263,7 +494,6 @@
 			toastStore.add(`Failed to copy ${label}`, "error");
 		}
 	}
-
 </script>
 
 <div class="search-page">
@@ -286,7 +516,7 @@
 
 	<header class="page-header">
 		<h1>Search Books</h1>
-		<p>Find and download books from Z-Library</p>
+		<p>Find books across multiple providers</p>
 	</header>
 
 	<div class="search-container">
@@ -307,21 +537,74 @@
 		</div>
 
 		<div class="search-filters">
-			<div class="filter-group">
-				<label for="search-language">Language</label>
-				<DropDown
-					id="search-language"
-					bind:selected={lang}
-					options={["english", "german", "french", "spanish"]}
+			<div class="filter-group providers">
+				<label for="search-providers">Providers</label>
+				<MultiSelectDropdown
+					id="search-providers"
+					selected={selectedProviders}
+					options={SEARCH_PROVIDER_OPTIONS}
+					placeholder="Select providers"
+					onchange={handleProviderSelection}
 				/>
 			</div>
 			<div class="filter-group">
-				<label for="search-format">Format</label>
-				<DropDown
-					id="search-format"
-					bind:selected={format}
-					options={["epub", "mobi", "pdf"]}
+				<label for="search-language">Languages</label>
+				<MultiSelectDropdown
+					id="search-language"
+					bind:selected={selectedLanguages}
+					options={SEARCH_LANGUAGE_OPTIONS}
+					placeholder="All languages"
+					onchange={handleLanguageSelection}
 				/>
+			</div>
+			<div class="filter-group">
+				<label for="search-format">Formats</label>
+				<MultiSelectDropdown
+					id="search-format"
+					bind:selected={selectedFormats}
+					options={SEARCH_FORMAT_OPTIONS}
+					placeholder="All formats"
+					onchange={handleFormatSelection}
+				/>
+			</div>
+			<div class="filter-group years">
+				<label for="search-year-from">Year</label>
+				<div class="year-range-inputs">
+					<input
+						id="search-year-from"
+						type="number"
+						min="0"
+						step="1"
+						placeholder="from"
+						bind:value={yearFromInput}
+					/>
+					<input
+						id="search-year-to"
+						type="number"
+						min="0"
+						step="1"
+						placeholder="to"
+						bind:value={yearToInput}
+					/>
+				</div>
+			</div>
+			<div class="filter-group">
+				<label for="search-sort">Sort</label>
+				<select id="search-sort" bind:value={selectedSort} class="single-filter-select">
+					{#each SEARCH_SORT_OPTIONS as option}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</div>
+			<div class="filter-group filter-toggle-group">
+				<label class="toggle-label" for="search-only-files">
+					<input
+						id="search-only-files"
+						type="checkbox"
+						bind:checked={onlyFilesAvailable}
+					/>
+					<span>Only files available</span>
+				</label>
 			</div>
 		</div>
 	</div>
@@ -338,20 +621,44 @@
 	{/if}
 
 	<div class="results">
-		{#if books.length > 0}
+		{#if displayedBooks.length > 0}
 			<div class="results-header">
-				<span class="results-count">{books.length} result{books.length !== 1 ? 's' : ''} found</span>
+				<span class="results-count">{displayedBooks.length} result{displayedBooks.length !== 1 ? 's' : ''} found</span>
 			</div>
-			<div class="book-list">
-				{#each books as book (book.id)}
-					<BookCard
-						{book}
-						onDownload={(selected) => openTitleAdjustModal(selected, "download")}
-						onShare={(selected) => openTitleAdjustModal(selected, "library")}
-						onOpenDetails={openSearchBookDetails}
-					/>
-				{/each}
-			</div>
+			{#each selectedProviders as providerId}
+				{@const providerBooks = displayedBooks.filter((book) => book.provider === providerId)}
+				{#if providerBooks.length > 0}
+					{@const groupCollapsed = collapsedProviderGroups[providerId] ?? false}
+					<section class="provider-results-group">
+						<button
+							type="button"
+							class="provider-group-toggle"
+							aria-expanded={!groupCollapsed}
+							aria-controls={`provider-group-${providerId}`}
+							onclick={() => toggleProviderGroup(providerId)}
+						>
+							<h3>{providerLabel(providerId)} ({providerBooks.length})</h3>
+							<span class="provider-group-chevron" class:collapsed={groupCollapsed}>⌄</span>
+						</button>
+						{#if !groupCollapsed}
+							<div class="book-list" id={`provider-group-${providerId}`}>
+								{#each providerBooks as book (getBookCacheKey(book))}
+									<BookCard
+										{book}
+										onDownload={book.capabilities.filesAvailable
+											? (selected) => openTitleAdjustModal(selected, "download")
+											: undefined}
+										onShare={book.capabilities.filesAvailable
+											? (selected) => openTitleAdjustModal(selected, "library")
+											: undefined}
+										onOpenDetails={openSearchBookDetails}
+									/>
+								{/each}
+							</div>
+						{/if}
+					</section>
+				{/if}
+			{/each}
 		{:else if !isLoading && title}
 			<div class="empty-state">
 				<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -422,9 +729,10 @@
 
 {#if selectedBookForDetails}
 	{@const detailBook = selectedBookForDetails}
-	{@const detailMetadata = detailMetadataByBookId[detailBook.id]}
-	{@const isDetailMetadataLoading = detailMetadataLoadingByBookId[detailBook.id] ?? false}
-	{@const detailMetadataError = detailMetadataErrorByBookId[detailBook.id]}
+	{@const detailBookKey = getBookCacheKey(detailBook)}
+	{@const detailMetadata = detailMetadataByBookId[detailBookKey]}
+	{@const isDetailMetadataLoading = detailMetadataLoadingByBookId[detailBookKey] ?? false}
+	{@const detailMetadataError = detailMetadataErrorByBookId[detailBookKey]}
 	{@const identifier = detailMetadata?.identifier ?? detailBook.identifier}
 	{@const isbn = extractIsbn(identifier)}
 	{@const googleBooksUrl = toGoogleBooksUrl(detailMetadata?.googleBooksId)}
@@ -444,15 +752,23 @@
 			aria-modal="true"
 			aria-labelledby="search-detail-heading"
 			tabindex="-1"
+			bind:this={searchDetailDialog}
 			onclick={(event) => event.stopPropagation()}
-			onkeydown={(event) => event.stopPropagation()}
+			onkeydown={handleSearchDetailModalKeydown}
 		>
 			<div class="search-detail-header">
 				<div>
 					<h3 id="search-detail-heading">{detailBook.title}</h3>
 					<p class="search-detail-author">by {displayValue(detailBook.author)}</p>
+					<p class="search-detail-provider">Provider: {providerLabel(detailBook.provider)}</p>
 				</div>
-				<button type="button" class="search-detail-close-btn" onclick={closeSearchBookDetails} aria-label="Close details">
+				<button
+					type="button"
+					class="search-detail-close-btn"
+					bind:this={searchDetailCloseButton}
+					onclick={closeSearchBookDetails}
+					aria-label="Close details"
+				>
 					✕
 				</button>
 			</div>
@@ -489,23 +805,23 @@
 				</div>
 				<div class="search-detail-row">
 					<span class="label">Filesize</span>
-					<span class="value">{displayValue(detailBook.filesizeString)}</span>
+					<span class="value">{formatFileSize(detailBook.filesize)}</span>
 				</div>
 				<div class="search-detail-row">
 					<span class="label">Publisher</span>
-					<span class="value">{displayValue(detailMetadata?.publisher ?? detailBook.publisher)}</span>
+					<span class="value">{displayValue(detailMetadata?.publisher)}</span>
 				</div>
 				<div class="search-detail-row">
 					<span class="label">Series</span>
-					<span class="value">{displayValue(detailMetadata?.series ?? detailBook.series)}</span>
+					<span class="value">{displayValue(detailMetadata?.series)}</span>
 				</div>
 				<div class="search-detail-row">
 					<span class="label">Volume</span>
-					<span class="value">{displayValue(detailMetadata?.volume ?? detailBook.volume)}</span>
+					<span class="value">{displayValue(detailMetadata?.volume)}</span>
 				</div>
 				<div class="search-detail-row">
 					<span class="label">Edition</span>
-					<span class="value">{displayValue(detailMetadata?.edition ?? detailBook.edition)}</span>
+					<span class="value">{displayValue(detailMetadata?.edition)}</span>
 				</div>
 				<div class="search-detail-row">
 					<span class="label">ISBN</span>
@@ -585,12 +901,19 @@
 			{/if}
 
 			<div class="search-detail-actions">
-				<button type="button" class="search-detail-primary" onclick={() => openTitleAdjustModal(detailBook, "download")}>
-					Download
-				</button>
-				<button type="button" class="search-detail-secondary" onclick={() => openTitleAdjustModal(detailBook, "library")}>
-					Add to Library
-				</button>
+				{#if detailBook.capabilities.filesAvailable}
+					<button type="button" class="search-detail-primary" onclick={() => openTitleAdjustModal(detailBook, "download")}>
+						Download
+					</button>
+				{/if}
+				{#if detailBook.capabilities.filesAvailable}
+					<button type="button" class="search-detail-secondary" onclick={() => openTitleAdjustModal(detailBook, "library")}>
+						Add to Library
+					</button>
+				{/if}
+				{#if !detailBook.capabilities.filesAvailable}
+					<span class="search-detail-info">This provider currently exposes metadata only.</span>
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -699,10 +1022,86 @@
 		gap: 0.45rem;
 	}
 
+	.filter-group.providers {
+		align-items: flex-start;
+	}
+
+	.filter-group.years {
+		align-items: flex-start;
+	}
+
 	.filter-group label {
 		font-size: 0.72rem;
 		color: var(--color-text-muted);
 		font-weight: 500;
+	}
+
+	.single-filter-select {
+		padding: 0.5rem 0.66rem;
+		border-radius: 0.5rem;
+		border: 1px solid var(--color-border);
+		background: var(--color-surface-2);
+		color: var(--color-text-secondary);
+		font-size: 0.78rem;
+		font-weight: 500;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	.single-filter-select:hover {
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.16);
+	}
+
+	.single-filter-select:focus {
+		outline: none;
+		border-color: rgba(201, 169, 98, 0.52);
+		box-shadow: 0 0 0 2px rgba(201, 169, 98, 0.16);
+	}
+
+	.year-range-inputs {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.36rem;
+	}
+
+	.year-range-inputs input {
+		width: 4.8rem;
+		padding: 0.5rem 0.56rem;
+		border-radius: 0.5rem;
+		border: 1px solid var(--color-border);
+		background: var(--color-surface-2);
+		color: var(--color-text-secondary);
+		font-size: 0.78rem;
+		font-family: inherit;
+	}
+
+	.year-range-inputs input:hover {
+		border-color: rgba(255, 255, 255, 0.16);
+		color: var(--color-text-primary);
+	}
+
+	.year-range-inputs input:focus {
+		outline: none;
+		border-color: rgba(201, 169, 98, 0.52);
+		box-shadow: 0 0 0 2px rgba(201, 169, 98, 0.16);
+	}
+
+	.filter-toggle-group {
+		align-items: center;
+	}
+
+	.toggle-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.42rem;
+		cursor: pointer;
+		user-select: none;
+	}
+
+	.toggle-label input {
+		margin: 0;
+		accent-color: var(--color-primary);
 	}
 
 	.results {
@@ -718,6 +1117,53 @@
 	.book-list {
 		display: grid;
 		gap: 0.55rem;
+	}
+
+	.provider-results-group {
+		display: grid;
+		gap: 0.52rem;
+	}
+
+	.provider-results-group h3 {
+		margin: 0;
+		font-size: 0.84rem;
+		color: var(--color-text-secondary);
+		font-weight: 600;
+	}
+
+	.provider-group-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		width: 100%;
+		padding: 0.36rem 0.46rem;
+		border-radius: 0.56rem;
+		border: 1px solid transparent;
+		background: transparent;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.provider-group-toggle:hover {
+		background: rgba(255, 255, 255, 0.03);
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.provider-group-toggle:focus-visible {
+		outline: 2px solid rgba(201, 169, 98, 0.52);
+		outline-offset: 1px;
+	}
+
+	.provider-group-chevron {
+		font-size: 0.9rem;
+		color: var(--color-text-muted);
+		transform: rotate(0deg);
+		transition: transform 0.14s ease;
+	}
+
+	.provider-group-chevron.collapsed {
+		transform: rotate(-90deg);
 	}
 
 	.empty-state {
@@ -834,6 +1280,12 @@
 		margin: 0.22rem 0 0;
 		font-size: 0.8rem;
 		color: var(--color-text-muted);
+	}
+
+	.search-detail-provider {
+		margin: 0.22rem 0 0;
+		font-size: 0.72rem;
+		color: var(--color-text-secondary);
 	}
 
 	.search-detail-close-btn {
@@ -976,6 +1428,12 @@
 	.search-detail-secondary {
 		background: var(--color-surface-2);
 		color: var(--color-text-secondary);
+	}
+
+	.search-detail-info {
+		align-self: center;
+		font-size: 0.74rem;
+		color: var(--color-text-muted);
 	}
 
 	.title-adjust-modal-content h3 {

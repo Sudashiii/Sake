@@ -1,5 +1,6 @@
 export const ZUIRoutes = {
-	searchBook: '/zlibrary/search',
+	searchBooks: '/search',
+	searchDownload: '/search/download',
 	searchBookMetadata: '/zlibrary/search/metadata',
 	passwordLogin: '/zlibrary/passwordLogin',
 	tokenLogin: '/zlibrary/login',

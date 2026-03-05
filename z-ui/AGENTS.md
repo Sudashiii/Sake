@@ -15,6 +15,8 @@ This file defines project-specific engineering rules for automated agents and co
 - Do not reintroduce migration ownership in external projects (old `z-mg` flow is decommissioned for migrations).
 - KOReader plugin distribution is startup-synced from local plugin files to R2 and exposed via API endpoints (`/api/plugin/koreader/latest`, `/api/plugin/koreader/download`).
 - KOReader plugin release metadata source-of-truth is the DB table `PluginReleases` (not an R2 `latest.json` manifest).
+- Book search is provider-agnostic via `POST /api/search` and `SearchProviderPort` implementations (e.g. Z-Library, OpenLibrary). New providers must return the normalized search response shape and explicit capability flags.
+- Non-Z-Library search-result downloads are handled through `POST /api/search/download` with provider-specific safe handling.
 
 ## Architecture rules
 

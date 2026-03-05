@@ -1,0 +1,8 @@
+export const SEARCH_PROVIDER_IDS = ['zlibrary', 'openlibrary', 'gutenberg'] as const;
+
+export type SearchProviderId = (typeof SEARCH_PROVIDER_IDS)[number];
+
+export interface SearchProviderCapabilities {
+	filesAvailable: boolean;
+	metadataCompleteness: 'low' | 'medium' | 'high';
+}

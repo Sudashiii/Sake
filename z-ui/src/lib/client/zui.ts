@@ -1,20 +1,18 @@
 import type { Result } from '$lib/types/Result';
 import type { ApiError } from '$lib/types/ApiError';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
-import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
 import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLoginRequest';
-import type { ZSearchBookResponse } from '$lib/types/ZLibrary/Responses/ZSearchBookResponse';
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
-import type { ZBook } from '$lib/types/ZLibrary/ZBook';
 import { authCheck } from './routes/authCheck';
-import { downloadBook } from './routes/downloadBook';
 import { passwordLogin } from './routes/passwordLogin';
-import { searchBook } from './routes/searchBook';
+import { searchBooks } from './routes/searchBooks';
 import {
 	lookupSearchBookMetadata,
 	type LookupSearchBookMetadataRequest,
 	type LookupSearchBookMetadataResponse
 } from './routes/lookupSearchBookMetadata';
+import { downloadSearchBook } from './routes/downloadSearchBook';
+import { queueSearchBookToLibrary, type QueueSearchBookResponse } from './routes/queueSearchBookToLibrary';
 import { tokenLogin } from './routes/tokenLogin';
 import { getLibrary, type LibraryResponse } from './routes/getLibrary';
 import { getLibraryTrash, type LibraryTrashResponse } from './routes/getLibraryTrash';
@@ -28,7 +26,6 @@ import { resetDownloadStatus } from './routes/resetDownloadStatus';
 import { moveLibraryBookToTrash } from './routes/moveLibraryBookToTrash';
 import { restoreLibraryBook } from './routes/restoreLibraryBook';
 import { deleteTrashedLibraryBook } from './routes/deleteTrashedLibraryBook';
-import { queueToLibrary, type QueueResponse } from './routes/queueToLibrary';
 import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 import { downloadLibraryBookFile } from './routes/downloadLibraryBookFile';
 import {
@@ -57,14 +54,17 @@ import {
 	type UpdateLibraryShelfRulesResponse
 } from './routes/updateLibraryShelfRules';
 import type { RuleGroup } from '$lib/types/Library/ShelfRule';
+import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
+import type { SearchBooksResponse } from '$lib/types/Search/SearchBooksResponse';
+import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 
 /**
  * Facade for all Z-Library UI client operations.
  * All methods return Result types for type-safe error handling.
  */
 export const ZUI = {
-	searchBook: (request: ZSearchBookRequest): Promise<Result<ZSearchBookResponse, ApiError>> =>
-		searchBook(request),
+	searchBooks: (request: SearchBooksRequest): Promise<Result<SearchBooksResponse, ApiError>> =>
+		searchBooks(request),
 
 	lookupSearchBookMetadata: (
 		request: LookupSearchBookMetadataRequest
@@ -79,11 +79,14 @@ export const ZUI = {
 
 	authCheck: (): Promise<Result<void, ApiError>> => authCheck(),
 
-	downloadBook: (book: ZBook, options?: { downloadToDevice?: boolean }): Promise<Result<void, ApiError>> =>
-		downloadBook(book, options),
+	downloadSearchBook: (
+		book: SearchResultBook,
+		options?: { downloadToDevice?: boolean }
+	): Promise<Result<void, ApiError>> => downloadSearchBook(book, options),
 
-	queueToLibrary: (book: ZBook): Promise<Result<QueueResponse, ApiError>> =>
-		queueToLibrary(book),
+	queueSearchBookToLibrary: (
+		book: SearchResultBook
+	): Promise<Result<QueueSearchBookResponse, ApiError>> => queueSearchBookToLibrary(book),
 
 	getQueueStatus: (): Promise<Result<QueueStatusResponse, ApiError>> =>
 		getQueueStatus(),

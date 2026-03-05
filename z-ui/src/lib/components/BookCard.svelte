@@ -1,16 +1,49 @@
 <script lang="ts">
 	import DownloadIcon from "$lib/assets/icons/DownloadIcon.svelte";
 	import ShareIcon from "$lib/assets/icons/ShareIcon.svelte";
-	import type { ZBook } from "$lib/types/ZLibrary/ZBook";
+	import type { SearchResultBook } from "$lib/types/Search/SearchResultBook";
 
 	interface Props {
-		book: ZBook;
-		onDownload: (book: ZBook) => void;
-		onShare: (book: ZBook) => void;
-		onOpenDetails: (book: ZBook) => void;
+		book: SearchResultBook;
+		onDownload?: (book: SearchResultBook) => void;
+		onShare?: (book: SearchResultBook) => void;
+		onOpenDetails?: (book: SearchResultBook) => void;
 	}
 
 	const { book, onDownload, onShare, onOpenDetails }: Props = $props();
+
+	function formatFileSize(sizeInBytes: number | null): string {
+		if (typeof sizeInBytes !== "number" || !Number.isFinite(sizeInBytes) || sizeInBytes <= 0) {
+			return "Unknown size";
+		}
+
+		if (sizeInBytes < 1024) {
+			return `${sizeInBytes} B`;
+		}
+
+		if (sizeInBytes < 1024 * 1024) {
+			return `${Math.round(sizeInBytes / 1024)} KB`;
+		}
+
+		return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	const providerLabel = $derived.by(() => {
+		switch (book.provider) {
+			case "zlibrary":
+				return "Z-Library";
+			case "openlibrary":
+				return "OpenLibrary";
+			case "gutenberg":
+				return "Gutenberg";
+			default:
+				return book.provider;
+		}
+	});
+	const filesAvailable = $derived(book.capabilities.filesAvailable);
+	const canDownload = $derived(Boolean(onDownload) && filesAvailable);
+	const canShare = $derived(Boolean(onShare) && filesAvailable);
+	const hasActions = $derived(canDownload || canShare);
 </script>
 
 <article class="book-card">
@@ -18,7 +51,7 @@
 		type="button"
 		class="book-main"
 		aria-label={`Open details for ${book.title}`}
-		onclick={() => onOpenDetails(book)}
+		onclick={() => onOpenDetails?.(book)}
 	>
 		<div class="book-cover">
 			{#if book.cover}
@@ -32,64 +65,53 @@
 		<div class="book-content">
 			<div class="book-header">
 				<h3 class="book-title" title={book.title}>{book.title}</h3>
-				<p class="book-author">by {book.author}</p>
+				<p class="book-author">by {book.author ?? "Unknown author"}</p>
 			</div>
 			<div class="book-meta">
-				<span class="meta-tag format">{book.extension?.toUpperCase()}</span>
-				<span class="meta-tag">{book.language}</span>
+				<span class="meta-tag provider">{providerLabel}</span>
+				{#if book.extension}
+					<span class="meta-tag format">{book.extension.toUpperCase()}</span>
+				{/if}
+				{#if book.language}
+					<span class="meta-tag">{book.language}</span>
+				{/if}
 				{#if book.year}
 					<span class="meta-tag">{book.year}</span>
 				{/if}
-				<span class="meta-tag">{book.filesizeString}</span>
-			</div>
-			{#if book.publisher}
-				<p class="book-publisher">Published by {book.publisher}</p>
-			{/if}
-			<div class="book-scores">
-				{#if book.interestScore}
-					<span class="score">
-						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-							<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-						</svg>
-						{book.interestScore}
-					</span>
-				{/if}
-				{#if book.qualityScore}
-					<span class="score quality">
-						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
-							<path d="m9 12 2 2 4-4"></path>
-						</svg>
-						{book.qualityScore}
-					</span>
-				{/if}
+				<span class="meta-tag">{formatFileSize(book.filesize)}</span>
 			</div>
 		</div>
 	</button>
-	<div class="book-actions">
-		<button
-			class="action-btn primary"
-			onclick={(event) => {
-				event.stopPropagation();
-				onDownload(book);
-			}}
-			title="Download to device"
-		>
-			<DownloadIcon />
-			<span class="action-label">Download</span>
-		</button>
-		<button
-			class="action-btn secondary"
-			onclick={(event) => {
-				event.stopPropagation();
-				onShare(book);
-			}}
-			title="Add to library"
-		>
-			<ShareIcon />
-			<span class="action-label">Library</span>
-		</button>
-	</div>
+	{#if hasActions}
+		<div class="book-actions">
+			{#if canDownload}
+				<button
+					class="action-btn primary"
+					onclick={(event) => {
+						event.stopPropagation();
+						onDownload?.(book);
+					}}
+					title="Download to device"
+				>
+					<DownloadIcon />
+					<span class="action-label">Download</span>
+				</button>
+			{/if}
+			{#if canShare}
+				<button
+					class="action-btn secondary"
+					onclick={(event) => {
+						event.stopPropagation();
+						onShare?.(book);
+					}}
+					title="Add to library"
+				>
+					<ShareIcon />
+					<span class="action-label">Library</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
 </article>
 
 <style>
@@ -221,28 +243,10 @@
 		border-color: rgba(96, 165, 250, 0.32);
 	}
 
-	.book-publisher {
-		margin: 0;
-		font-size: 0.7rem;
-		color: var(--color-text-muted);
-	}
-
-	.book-scores {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-	}
-
-	.score {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.2rem;
-		font-size: 0.7rem;
+	.meta-tag.provider {
+		background: rgba(201, 169, 98, 0.13);
 		color: var(--color-primary);
-	}
-
-	.score.quality {
-		color: var(--color-success);
+		border-color: rgba(201, 169, 98, 0.24);
 	}
 
 	.book-actions {
