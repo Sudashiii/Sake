@@ -1,0 +1,25 @@
+meta {
+  name: GET Crossref Book Search
+  type: http
+}
+
+get {
+  url: https://api.crossref.org/works?query.title={{crossref_title}}&rows=10&filter=type:book
+  body: none
+  auth: none
+}
+
+params:query {
+  query.title: {{crossref_title}}
+  rows: 10
+  filter: type:book
+}
+
+vars:pre-request {
+  crossref_title: Harry Potter and the Philosopher's Stone
+}
+
+settings {
+  encodeUrl: true
+  timeout: 30000
+}

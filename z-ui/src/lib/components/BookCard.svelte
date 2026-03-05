@@ -7,63 +7,85 @@
 		book: ZBook;
 		onDownload: (book: ZBook) => void;
 		onShare: (book: ZBook) => void;
+		onOpenDetails: (book: ZBook) => void;
 	}
 
-	const { book, onDownload, onShare }: Props = $props();
+	const { book, onDownload, onShare, onOpenDetails }: Props = $props();
 </script>
 
 <article class="book-card">
-	<div class="book-cover">
-		{#if book.cover}
-			<img src={book.cover} alt={book.title} loading="lazy" />
-		{:else}
-			<div class="no-cover">
-				<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
+	<button
+		type="button"
+		class="book-main"
+		aria-label={`Open details for ${book.title}`}
+		onclick={() => onOpenDetails(book)}
+	>
+		<div class="book-cover">
+			{#if book.cover}
+				<img src={book.cover} alt={book.title} loading="lazy" />
+			{:else}
+				<div class="no-cover">
+					<span class="extension">{book.extension?.toUpperCase() || "?"}</span>
+				</div>
+			{/if}
+		</div>
+		<div class="book-content">
+			<div class="book-header">
+				<h3 class="book-title" title={book.title}>{book.title}</h3>
+				<p class="book-author">by {book.author}</p>
 			</div>
-		{/if}
-	</div>
-	<div class="book-content">
-		<div class="book-header">
-			<h3 class="book-title" title={book.title}>{book.title}</h3>
-			<p class="book-author">by {book.author}</p>
-		</div>
-		<div class="book-meta">
-			<span class="meta-tag format">{book.extension?.toUpperCase()}</span>
-			<span class="meta-tag">{book.language}</span>
-			{#if book.year}
-				<span class="meta-tag">{book.year}</span>
+			<div class="book-meta">
+				<span class="meta-tag format">{book.extension?.toUpperCase()}</span>
+				<span class="meta-tag">{book.language}</span>
+				{#if book.year}
+					<span class="meta-tag">{book.year}</span>
+				{/if}
+				<span class="meta-tag">{book.filesizeString}</span>
+			</div>
+			{#if book.publisher}
+				<p class="book-publisher">Published by {book.publisher}</p>
 			{/if}
-			<span class="meta-tag">{book.filesizeString}</span>
+			<div class="book-scores">
+				{#if book.interestScore}
+					<span class="score">
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+							<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+						</svg>
+						{book.interestScore}
+					</span>
+				{/if}
+				{#if book.qualityScore}
+					<span class="score quality">
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+							<path d="m9 12 2 2 4-4"></path>
+						</svg>
+						{book.qualityScore}
+					</span>
+				{/if}
+			</div>
 		</div>
-		{#if book.publisher}
-			<p class="book-publisher">Published by {book.publisher}</p>
-		{/if}
-		<div class="book-scores">
-			{#if book.interestScore}
-				<span class="score">
-					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-						<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-					</svg>
-					{book.interestScore}
-				</span>
-			{/if}
-			{#if book.qualityScore}
-				<span class="score quality">
-					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
-						<path d="m9 12 2 2 4-4"></path>
-					</svg>
-					{book.qualityScore}
-				</span>
-			{/if}
-		</div>
-	</div>
+	</button>
 	<div class="book-actions">
-		<button class="action-btn primary" onclick={() => onDownload(book)} title="Download to device">
+		<button
+			class="action-btn primary"
+			onclick={(event) => {
+				event.stopPropagation();
+				onDownload(book);
+			}}
+			title="Download to device"
+		>
 			<DownloadIcon />
 			<span class="action-label">Download</span>
 		</button>
-		<button class="action-btn secondary" onclick={() => onShare(book)} title="Add to library">
+		<button
+			class="action-btn secondary"
+			onclick={(event) => {
+				event.stopPropagation();
+				onShare(book);
+			}}
+			title="Add to library"
+		>
 			<ShareIcon />
 			<span class="action-label">Library</span>
 		</button>
@@ -85,6 +107,28 @@
 
 	.book-card:hover {
 		border-color: rgba(201, 169, 98, 0.3);
+	}
+
+	.book-main {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: flex-start;
+		gap: 0.9rem;
+		background: transparent;
+		border: none;
+		padding: 0;
+		margin: 0;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.book-main:focus-visible {
+		outline: 2px solid rgba(201, 169, 98, 0.68);
+		outline-offset: 3px;
+		border-radius: 0.5rem;
 	}
 
 	.book-cover {
@@ -252,6 +296,10 @@
 		.book-cover {
 			width: 3.4rem;
 			height: 4.8rem;
+		}
+
+		.book-main {
+			flex: 1 1 calc(100% - 0rem);
 		}
 
 		.book-content {

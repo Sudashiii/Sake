@@ -10,6 +10,11 @@ import { authCheck } from './routes/authCheck';
 import { downloadBook } from './routes/downloadBook';
 import { passwordLogin } from './routes/passwordLogin';
 import { searchBook } from './routes/searchBook';
+import {
+	lookupSearchBookMetadata,
+	type LookupSearchBookMetadataRequest,
+	type LookupSearchBookMetadataResponse
+} from './routes/lookupSearchBookMetadata';
 import { tokenLogin } from './routes/tokenLogin';
 import { getLibrary, type LibraryResponse } from './routes/getLibrary';
 import { getLibraryTrash, type LibraryTrashResponse } from './routes/getLibraryTrash';
@@ -60,6 +65,11 @@ import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 export const ZUI = {
 	searchBook: (request: ZSearchBookRequest): Promise<Result<ZSearchBookResponse, ApiError>> =>
 		searchBook(request),
+
+	lookupSearchBookMetadata: (
+		request: LookupSearchBookMetadataRequest
+	): Promise<Result<LookupSearchBookMetadataResponse, ApiError>> =>
+		lookupSearchBookMetadata(request),
 
 	passwordLogin: (request: ZLoginRequest): Promise<Result<ZLoginResponse, ApiError>> =>
 		passwordLogin(request),

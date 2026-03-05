@@ -1,0 +1,24 @@
+meta {
+  name: GET ISBNdb Book By ISBN
+  type: http
+}
+
+get {
+  url: https://api2.isbndb.com/book/{{isbn}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: {{isbndb_api_key}}
+}
+
+vars:pre-request {
+  isbn: 9781408855652
+  isbndb_api_key: YOUR_ISBNDB_API_KEY
+}
+
+settings {
+  encodeUrl: true
+  timeout: 30000
+}

@@ -1,0 +1,30 @@
+meta {
+  name: POST Search Book Metadata
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/zlibrary/search/metadata
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{env.BASIC_AUTH_USERNAME}}
+  password: {{env.BASIC_AUTH_PASSWORD}}
+}
+
+body:json {
+  {
+    "title": "Erebos",
+    "author": "Ursula Poznanski",
+    "identifier": "978-3-7432-0054-9",
+    "language": "german"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
