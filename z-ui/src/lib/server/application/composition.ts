@@ -57,6 +57,11 @@ import { ReorderShelvesUseCase } from '$lib/server/application/use-cases/Reorder
 import { DeleteShelfUseCase } from '$lib/server/application/use-cases/DeleteShelfUseCase';
 import { SetBookShelvesUseCase } from '$lib/server/application/use-cases/SetBookShelvesUseCase';
 import { LookupSearchBookMetadataUseCase } from '$lib/server/application/use-cases/LookupSearchBookMetadataUseCase';
+import { SearchBooksUseCase } from '$lib/server/application/use-cases/SearchBooksUseCase';
+import { ZLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/ZLibrarySearchProvider';
+import { OpenLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/OpenLibrarySearchProvider';
+import { GutenbergSearchProvider } from '$lib/server/infrastructure/search-providers/GutenbergSearchProvider';
+import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = new S3Storage();
@@ -77,6 +82,12 @@ export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
 export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();
+export const searchBooksUseCase = new SearchBooksUseCase([
+	new ZLibrarySearchProvider(zlibraryClient),
+	new OpenLibrarySearchProvider(),
+	new GutenbergSearchProvider()
+]);
+export const downloadSearchBookUseCase = new DownloadSearchBookUseCase();
 export const zlibraryTokenLoginUseCase = new ZLibraryTokenLoginUseCase(zlibraryClient);
 export const zlibraryPasswordLoginUseCase = new ZLibraryPasswordLoginUseCase(zlibraryClient);
 export const zlibraryLogoutUseCase = new ZLibraryLogoutUseCase();

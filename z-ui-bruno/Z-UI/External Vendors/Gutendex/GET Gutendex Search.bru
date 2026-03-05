@@ -1,0 +1,15 @@
+meta {
+  name: GET Gutendex Search
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://gutendex.com/books?search=pride%20and%20prejudice
+  body: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

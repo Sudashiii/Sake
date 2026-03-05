@@ -1,0 +1,25 @@
+meta {
+  name: POST Generic Search Download
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/search/download
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "provider": "gutenberg",
+    "downloadRef": "https://www.gutenberg.org/ebooks/1342.epub.images",
+    "title": "Pride and Prejudice",
+    "extension": "epub"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,0 +1,28 @@
+meta {
+  name: POST Generic Search
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/api/search
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "query": "harry potter",
+    "providers": ["zlibrary", "openlibrary", "gutenberg"],
+    "filters": {
+      "language": ["german"],
+      "extension": ["epub"],
+      "limitPerProvider": 10
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
