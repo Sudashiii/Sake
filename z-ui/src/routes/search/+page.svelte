@@ -5,6 +5,7 @@
 	import type { SearchProviderId } from "$lib/types/Search/Provider";
 	import type { SearchBooksRequest } from "$lib/types/Search/SearchBooksRequest";
 	import type { SearchResultBook } from "$lib/types/Search/SearchResultBook";
+	import { extractIsbn } from "$lib/utils/isbn";
 	import MultiSelectDropdown from "$lib/components/MultiSelectDropdown.svelte";
 	import Loading from "$lib/components/Loading.svelte";
 	import BookCard from "$lib/components/BookCard.svelte";
@@ -71,6 +72,19 @@
 	const displayedBooks = $derived(
 		onlyFilesAvailable ? books.filter((book) => book.capabilities.filesAvailable) : books
 	);
+	const displayedBooksByProvider = $derived.by(() => {
+		const grouped: Record<SearchProviderId, SearchResultBook[]> = {
+			zlibrary: [],
+			openlibrary: [],
+			gutenberg: []
+		};
+
+		for (const book of displayedBooks) {
+			grouped[book.provider].push(book);
+		}
+
+		return grouped;
+	});
 
 	function getBookCacheKey(book: SearchResultBook): string {
 		return `${book.provider}:${book.providerBookId}`;
@@ -427,26 +441,6 @@
 		return trimmed.length > 0 ? trimmed : "Not available";
 	}
 
-	function extractIsbn(identifier: string | null | undefined): string | null {
-		if (!identifier) {
-			return null;
-		}
-
-		const matches = identifier.match(/(?:97[89][-\s]?(?:\d[-\s]?){10}|(?:\d[-\s]?){9}[\dXx])/g);
-		if (!matches) {
-			return null;
-		}
-
-		for (const match of matches) {
-			const normalized = match.replace(/[^0-9Xx]/g, "").toUpperCase();
-			if (normalized.length === 13 || normalized.length === 10) {
-				return normalized;
-			}
-		}
-
-		return null;
-	}
-
 	function toGoogleBooksUrl(googleBooksId: string | null | undefined): string | null {
 		const id = googleBooksId?.trim();
 		if (!id) {
@@ -538,9 +532,10 @@
 
 		<div class="search-filters">
 			<div class="filter-group providers">
-				<label for="search-providers">Providers</label>
+				<span id="search-providers-label" class="filter-label">Providers</span>
 				<MultiSelectDropdown
 					id="search-providers"
+					labelId="search-providers-label"
 					selected={selectedProviders}
 					options={SEARCH_PROVIDER_OPTIONS}
 					placeholder="Select providers"
@@ -548,9 +543,10 @@
 				/>
 			</div>
 			<div class="filter-group">
-				<label for="search-language">Languages</label>
+				<span id="search-language-label" class="filter-label">Languages</span>
 				<MultiSelectDropdown
 					id="search-language"
+					labelId="search-language-label"
 					bind:selected={selectedLanguages}
 					options={SEARCH_LANGUAGE_OPTIONS}
 					placeholder="All languages"
@@ -558,9 +554,10 @@
 				/>
 			</div>
 			<div class="filter-group">
-				<label for="search-format">Formats</label>
+				<span id="search-format-label" class="filter-label">Formats</span>
 				<MultiSelectDropdown
 					id="search-format"
+					labelId="search-format-label"
 					bind:selected={selectedFormats}
 					options={SEARCH_FORMAT_OPTIONS}
 					placeholder="All formats"
@@ -626,7 +623,7 @@
 				<span class="results-count">{displayedBooks.length} result{displayedBooks.length !== 1 ? 's' : ''} found</span>
 			</div>
 			{#each selectedProviders as providerId}
-				{@const providerBooks = displayedBooks.filter((book) => book.provider === providerId)}
+				{@const providerBooks = displayedBooksByProvider[providerId]}
 				{#if providerBooks.length > 0}
 					{@const groupCollapsed = collapsedProviderGroups[providerId] ?? false}
 					<section class="provider-results-group">
@@ -1031,6 +1028,12 @@
 	}
 
 	.filter-group label {
+		font-size: 0.72rem;
+		color: var(--color-text-muted);
+		font-weight: 500;
+	}
+
+	.filter-label {
 		font-size: 0.72rem;
 		color: var(--color-text-muted);
 		font-weight: 500;

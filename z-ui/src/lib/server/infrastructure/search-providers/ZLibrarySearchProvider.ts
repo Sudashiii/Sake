@@ -6,6 +6,7 @@ import type { ZLibraryPort } from '$lib/server/application/ports/ZLibraryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
+import { extractIsbn } from '$lib/utils/isbn';
 import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
 import type { ZBook } from '$lib/types/ZLibrary/ZBook';
 
@@ -23,26 +24,6 @@ function normalizeBookUrl(href: string): string | null {
 		return normalized;
 	}
 	return `https://1lib.sk${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
-}
-
-function extractIsbn(identifier: string | null | undefined): string | null {
-	if (!identifier) {
-		return null;
-	}
-
-	const matches = identifier.match(/(?:97[89][-\s]?(?:\d[-\s]?){10}|(?:\d[-\s]?){9}[\dXx])/g);
-	if (!matches) {
-		return null;
-	}
-
-	for (const match of matches) {
-		const normalized = match.replace(/[^0-9Xx]/g, '').toUpperCase();
-		if (normalized.length === 13 || normalized.length === 10) {
-			return normalized;
-		}
-	}
-
-	return null;
 }
 
 function mapSort(sort: SearchBooksRequest['sort']): string | undefined {

@@ -198,6 +198,9 @@ export class DownloadSearchBookUseCase {
 		if (!url) {
 			return apiError('Invalid Gutenberg download URL', 400);
 		}
+		if (url.protocol !== 'https:') {
+			return apiError('Unsupported Gutenberg download URL protocol', 400);
+		}
 		if (!isTrustedGutenbergHost(url.hostname)) {
 			return apiError('Untrusted Gutenberg download host', 400);
 		}
@@ -213,9 +216,8 @@ export class DownloadSearchBookUseCase {
 			}
 
 			const data = new Uint8Array(await response.arrayBuffer());
-			const extension =
-				normalizeExtension(input.extension) ??
-				(fileExtensionFromName(url.pathname) ?? 'epub');
+			const rawExtension = input.extension ?? fileExtensionFromName(url.pathname) ?? 'epub';
+			const extension = normalizeExtension(rawExtension);
 			const contentType = response.headers.get('content-type') ?? contentTypeForExtension(extension);
 			const fileName = `${sanitizeFileNamePart(input.title)}.${extension}`;
 

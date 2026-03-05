@@ -8,6 +8,7 @@
 		options?: Array<string | MultiSelectOption>;
 		selected?: string[];
 		id?: string;
+		labelId?: string;
 		placeholder?: string;
 		onchange?: (value: string[]) => void;
 	}
@@ -16,6 +17,7 @@
 		options = [],
 		selected = $bindable<string[]>([]),
 		id,
+		labelId,
 		placeholder = 'Select',
 		onchange
 	}: Props = $props();
@@ -93,7 +95,11 @@
 </script>
 
 <details class="multi-dropdown">
-	<summary id={id} class="multi-dropdown-summary">
+	<summary
+		id={id}
+		class="multi-dropdown-summary"
+		aria-labelledby={labelId}
+	>
 		<span class:placeholder={selected.length === 0}>{selectedSummary}</span>
 		<span class="arrow" aria-hidden="true">
 			<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -101,7 +107,7 @@
 			</svg>
 		</span>
 	</summary>
-	<div class="multi-dropdown-menu" role="listbox" aria-multiselectable="true">
+	<div class="multi-dropdown-menu" role="group" aria-labelledby={labelId}>
 		{#each normalizedOptions as option}
 			<label class="multi-dropdown-option">
 				<input
