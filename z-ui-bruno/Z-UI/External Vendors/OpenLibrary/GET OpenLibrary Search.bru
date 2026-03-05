@@ -1,37 +1,28 @@
 meta {
   name: GET OpenLibrary Search
   type: http
-  seq: 32
 }
 
 get {
-  url: https://openlibrary.org/search.json?q={{openlib_query_}}&limit=10&fields=key,title,author_name,isbn,publisher,first_sentence,number_of_pages_median,ratings_average,ratings_count,cover_i
+  url: https://openlibrary.org/search.json?q={{openlib_query}}&limit=10&fields=key,title,author_name,isbn,publisher,first_sentence,number_of_pages_median,ratings_average,ratings_count,cover_i
   body: none
   auth: none
 }
 
 params:query {
-  q: {{openlib_query_}}
+  q: {{openlib_query}}
   limit: 10
   fields: key,title,author_name,isbn,publisher,first_sentence,number_of_pages_median,ratings_average,ratings_count,cover_i
 }
 
 vars:pre-request {
   openlib_query: title:"Harry Potter und der Stein der Weisen"
-  openlib_query_: title:"Erebos"
-}
-
-script:pre-request {
-  const q = (bru.getVar('openlib_query') || '').trim();
-  if (!q) {
-    bru.setVar('openlib_query', 'title:"Harry Potter und der Stein der Weisen"');
-  }
 }
 
 script:post-response {
   const docs = Array.isArray(res.body?.docs) ? res.body.docs : [];
   const withPages = docs.find((d) => typeof d?.number_of_pages_median === 'number');
-  
+
   if (withPages) {
     console.log(`Found page count: ${withPages.number_of_pages_median} (key=${withPages.key || 'n/a'})`);
   } else {

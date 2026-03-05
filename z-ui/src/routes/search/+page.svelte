@@ -2,6 +2,7 @@
 	import type { ZBook } from "$lib/types/ZLibrary/ZBook";
 	import type { ZSearchBookRequest } from "$lib/types/ZLibrary/Requests/ZSearchBookRequest";
 	import type { ApiError } from "$lib/types/ApiError";
+	import type { LookupSearchBookMetadataResponse } from "$lib/client/routes/lookupSearchBookMetadata";
 	import DropDown from "$lib/components/DropDown.svelte";
 	import Loading from "$lib/components/Loading.svelte";
 	import BookCard from "$lib/components/BookCard.svelte";
@@ -21,6 +22,12 @@
 	let pendingBookAction = $state<"download" | "library" | null>(null);
 	let pendingBook = $state<ZBook | null>(null);
 	let adjustedTitle = $state("");
+	let selectedBookForDetails = $state<ZBook | null>(null);
+	let detailMetadataByBookId = $state<
+		Record<number, LookupSearchBookMetadataResponse["metadata"]>
+	>({});
+	let detailMetadataLoadingByBookId = $state<Record<number, boolean>>({});
+	let detailMetadataErrorByBookId = $state<Record<number, string | null>>({});
 
 	async function searchBooks() {
 		if (!title.trim()) return;
@@ -82,6 +89,7 @@
 	}
 
 	function openTitleAdjustModal(book: ZBook, action: "download" | "library"): void {
+		selectedBookForDetails = null;
 		pendingBook = book;
 		pendingBookAction = action;
 		adjustedTitle = book.title;
@@ -124,6 +132,135 @@
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === "Enter") {
 			searchBooks();
+		}
+	}
+
+	function openSearchBookDetails(book: ZBook): void {
+		selectedBookForDetails = book;
+		if (!detailMetadataByBookId[book.id] && !detailMetadataLoadingByBookId[book.id]) {
+			void loadSearchBookMetadata(book);
+		}
+	}
+
+	function closeSearchBookDetails(): void {
+		selectedBookForDetails = null;
+	}
+
+	async function loadSearchBookMetadata(book: ZBook): Promise<void> {
+		detailMetadataLoadingByBookId = {
+			...detailMetadataLoadingByBookId,
+			[book.id]: true
+		};
+		detailMetadataErrorByBookId = {
+			...detailMetadataErrorByBookId,
+			[book.id]: null
+		};
+
+		const result = await ZUI.lookupSearchBookMetadata({
+			title: book.title,
+			author: book.author,
+			identifier: book.identifier,
+			language: book.language
+		});
+
+		if (!result.ok) {
+			detailMetadataErrorByBookId = {
+				...detailMetadataErrorByBookId,
+				[book.id]: result.error.message
+			};
+			detailMetadataLoadingByBookId = {
+				...detailMetadataLoadingByBookId,
+				[book.id]: false
+			};
+			return;
+		}
+
+		detailMetadataByBookId = {
+			...detailMetadataByBookId,
+			[book.id]: result.value.metadata
+		};
+		detailMetadataLoadingByBookId = {
+			...detailMetadataLoadingByBookId,
+			[book.id]: false
+		};
+	}
+
+	function displayValue(value: string | number | null | undefined): string {
+		if (value === null || value === undefined) {
+			return "Not available";
+		}
+		if (typeof value === "number") {
+			return Number.isFinite(value) ? String(value) : "Not available";
+		}
+		const trimmed = value.trim();
+		return trimmed.length > 0 ? trimmed : "Not available";
+	}
+
+	function extractIsbn(identifier: string | null | undefined): string | null {
+		if (!identifier) {
+			return null;
+		}
+
+		const matches = identifier.match(/(?:97[89][-\s]?(?:\d[-\s]?){10}|(?:\d[-\s]?){9}[\dXx])/g);
+		if (!matches) {
+			return null;
+		}
+
+		for (const match of matches) {
+			const normalized = match.replace(/[^0-9Xx]/g, "").toUpperCase();
+			if (normalized.length === 13 || normalized.length === 10) {
+				return normalized;
+			}
+		}
+
+		return null;
+	}
+
+	function toGoogleBooksUrl(googleBooksId: string | null | undefined): string | null {
+		const id = googleBooksId?.trim();
+		if (!id) {
+			return null;
+		}
+		return `https://books.google.com/books?id=${encodeURIComponent(id)}`;
+	}
+
+	function toOpenLibraryUrl(openLibraryKey: string | null | undefined): string | null {
+		const key = openLibraryKey?.trim();
+		if (!key) {
+			return null;
+		}
+		const normalized = key.startsWith("/") ? key : `/${key}`;
+		return `https://openlibrary.org${normalized}`;
+	}
+
+	async function copyText(value: string, label: string): Promise<void> {
+		const text = value.trim();
+		if (!text) {
+			toastStore.add(`No ${label} to copy`, "error");
+			return;
+		}
+
+		try {
+			if (typeof navigator !== "undefined" && navigator.clipboard) {
+				await navigator.clipboard.writeText(text);
+			} else if (typeof document !== "undefined") {
+				const textarea = document.createElement("textarea");
+				textarea.value = text;
+				textarea.style.position = "fixed";
+				textarea.style.opacity = "0";
+				document.body.append(textarea);
+				textarea.select();
+				const ok = document.execCommand("copy");
+				document.body.removeChild(textarea);
+				if (!ok) {
+					throw new Error("copy command failed");
+				}
+			} else {
+				throw new Error("clipboard unavailable");
+			}
+			toastStore.add(`${label} copied`, "success");
+		} catch {
+			toastStore.add(`Failed to copy ${label}`, "error");
 		}
 	}
 
@@ -211,6 +348,7 @@
 						{book}
 						onDownload={(selected) => openTitleAdjustModal(selected, "download")}
 						onShare={(selected) => openTitleAdjustModal(selected, "library")}
+						onOpenDetails={openSearchBookDetails}
 					/>
 				{/each}
 			</div>
@@ -276,6 +414,182 @@
 					onclick={confirmTitleAdjustAction}
 				>
 					{pendingBookAction === "download" ? "Download" : "Add To Library"}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if selectedBookForDetails}
+	{@const detailBook = selectedBookForDetails}
+	{@const detailMetadata = detailMetadataByBookId[detailBook.id]}
+	{@const isDetailMetadataLoading = detailMetadataLoadingByBookId[detailBook.id] ?? false}
+	{@const detailMetadataError = detailMetadataErrorByBookId[detailBook.id]}
+	{@const identifier = detailMetadata?.identifier ?? detailBook.identifier}
+	{@const isbn = extractIsbn(identifier)}
+	{@const googleBooksUrl = toGoogleBooksUrl(detailMetadata?.googleBooksId)}
+	{@const openLibraryUrl = toOpenLibraryUrl(detailMetadata?.openLibraryKey)}
+	{@const amazonAsin = detailMetadata?.amazonAsin ?? null}
+	<div
+		class="search-detail-modal-overlay"
+		role="button"
+		tabindex="0"
+		aria-label="Close search result details"
+		onclick={closeSearchBookDetails}
+		onkeydown={(event) => event.key === "Escape" && closeSearchBookDetails()}
+	>
+		<div
+			class="search-detail-modal-content"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="search-detail-heading"
+			tabindex="-1"
+			onclick={(event) => event.stopPropagation()}
+			onkeydown={(event) => event.stopPropagation()}
+		>
+			<div class="search-detail-header">
+				<div>
+					<h3 id="search-detail-heading">{detailBook.title}</h3>
+					<p class="search-detail-author">by {displayValue(detailBook.author)}</p>
+				</div>
+				<button type="button" class="search-detail-close-btn" onclick={closeSearchBookDetails} aria-label="Close details">
+					✕
+				</button>
+			</div>
+
+			{#if isDetailMetadataLoading}
+				<div class="search-detail-meta-status">
+					<span>Fetching metadata from Google Books and OpenLibrary...</span>
+				</div>
+			{:else if detailMetadataError}
+				<div class="search-detail-meta-status search-detail-meta-status-error">
+					<span>{detailMetadataError}</span>
+					<button type="button" class="copy-btn" onclick={() => void loadSearchBookMetadata(detailBook)}>
+						Retry
+					</button>
+				</div>
+			{/if}
+
+			<div class="search-detail-grid">
+				<div class="search-detail-row">
+					<span class="label">Format</span>
+					<span class="value">{displayValue(detailBook.extension).toUpperCase()}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Language</span>
+					<span class="value">{displayValue(detailBook.language)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Year</span>
+					<span class="value">{displayValue(detailBook.year)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Pages</span>
+					<span class="value">{displayValue(detailMetadata?.pages ?? detailBook.pages)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Filesize</span>
+					<span class="value">{displayValue(detailBook.filesizeString)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Publisher</span>
+					<span class="value">{displayValue(detailMetadata?.publisher ?? detailBook.publisher)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Series</span>
+					<span class="value">{displayValue(detailMetadata?.series ?? detailBook.series)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Volume</span>
+					<span class="value">{displayValue(detailMetadata?.volume ?? detailBook.volume)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Edition</span>
+					<span class="value">{displayValue(detailMetadata?.edition ?? detailBook.edition)}</span>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">ISBN</span>
+					<div class="value with-action">
+						<span>{displayValue(isbn)}</span>
+						{#if isbn}
+							<button type="button" class="copy-btn" onclick={() => void copyText(isbn, "ISBN")}>
+								Copy
+							</button>
+						{/if}
+					</div>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Identifier</span>
+					<div class="value with-action">
+						<span>{displayValue(identifier)}</span>
+						{#if identifier}
+							<button type="button" class="copy-btn" onclick={() => void copyText(identifier, "Identifier")}>
+								Copy
+							</button>
+						{/if}
+					</div>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">Google Books</span>
+					<div class="value with-action">
+						<span>{displayValue(detailMetadata?.googleBooksId)}</span>
+						{#if googleBooksUrl}
+							<a class="external-link-btn" href={googleBooksUrl} target="_blank" rel="noopener noreferrer">
+								Open
+							</a>
+						{/if}
+					</div>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">OpenLibrary</span>
+					<div class="value with-action">
+						<span>{displayValue(detailMetadata?.openLibraryKey)}</span>
+						{#if openLibraryUrl}
+							<a class="external-link-btn" href={openLibraryUrl} target="_blank" rel="noopener noreferrer">
+								Open
+							</a>
+						{/if}
+					</div>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">ASIN</span>
+					<div class="value with-action">
+						<span>{displayValue(amazonAsin)}</span>
+						{#if amazonAsin}
+							<button type="button" class="copy-btn" onclick={() => void copyText(amazonAsin, "ASIN")}>
+								Copy
+							</button>
+						{/if}
+					</div>
+				</div>
+				<div class="search-detail-row">
+					<span class="label">External Rating</span>
+					<span class="value">
+						{#if detailMetadata?.externalRating !== null && detailMetadata?.externalRating !== undefined}
+							{detailMetadata.externalRating}
+							{#if detailMetadata.externalRatingCount !== null && detailMetadata.externalRatingCount !== undefined}
+								({detailMetadata.externalRatingCount} ratings)
+							{/if}
+						{:else}
+							Not available
+						{/if}
+					</span>
+				</div>
+			</div>
+
+			{#if detailMetadata?.description ?? detailBook.description}
+				<div class="search-detail-description">
+					<h4>Description</h4>
+					<p>{detailMetadata?.description ?? detailBook.description}</p>
+				</div>
+			{/if}
+
+			<div class="search-detail-actions">
+				<button type="button" class="search-detail-primary" onclick={() => openTitleAdjustModal(detailBook, "download")}>
+					Download
+				</button>
+				<button type="button" class="search-detail-secondary" onclick={() => openTitleAdjustModal(detailBook, "library")}>
+					Add to Library
 				</button>
 			</div>
 		</div>
@@ -449,6 +763,7 @@
 	}
 
 	.title-adjust-modal-overlay,
+	.search-detail-modal-overlay,
 	.download-overlay {
 		position: fixed;
 		inset: 0;
@@ -461,6 +776,7 @@
 	}
 
 	.title-adjust-modal-content,
+	.search-detail-modal-content,
 	.download-modal {
 		width: min(520px, 100%);
 		border-radius: 0.92rem;
@@ -473,6 +789,193 @@
 	.title-adjust-modal-content {
 		display: grid;
 		gap: 0.55rem;
+	}
+
+	.search-detail-modal-content {
+		width: min(760px, 100%);
+		max-height: min(86vh, 860px);
+		display: grid;
+		gap: 0.85rem;
+		overflow: auto;
+	}
+
+	.search-detail-header {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 0.8rem;
+	}
+
+	.search-detail-meta-status {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		padding: 0.5rem 0.62rem;
+		border-radius: 0.52rem;
+		border: 1px solid var(--color-border);
+		background: #1a1d27;
+		font-size: 0.76rem;
+		color: var(--color-text-secondary);
+	}
+
+	.search-detail-meta-status-error {
+		border-color: rgba(196, 68, 58, 0.45);
+		background: rgba(196, 68, 58, 0.12);
+		color: #ffb4ad;
+	}
+
+	.search-detail-header h3 {
+		margin: 0;
+		font-size: 1.04rem;
+	}
+
+	.search-detail-author {
+		margin: 0.22rem 0 0;
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+	}
+
+	.search-detail-close-btn {
+		width: 1.85rem;
+		height: 1.85rem;
+		border-radius: 0.45rem;
+		border: 1px solid var(--color-border);
+		background: var(--color-surface-2);
+		color: var(--color-text-muted);
+		cursor: pointer;
+	}
+
+	.search-detail-close-btn:hover {
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.18);
+	}
+
+	.search-detail-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem 0.8rem;
+	}
+
+	.search-detail-row {
+		display: grid;
+		gap: 0.2rem;
+		padding: 0.48rem 0.56rem;
+		border-radius: 0.5rem;
+		background: #1a1d27;
+		border: 1px solid var(--color-border);
+		min-width: 0;
+	}
+
+	.search-detail-row .label {
+		font-size: 0.7rem;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.search-detail-row .value {
+		font-size: 0.8rem;
+		color: var(--color-text-primary);
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.search-detail-row .value.with-action {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.search-detail-row .value.with-action span {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.copy-btn {
+		border: 1px solid var(--color-border);
+		background: var(--color-surface-2);
+		color: var(--color-text-secondary);
+		border-radius: 0.38rem;
+		padding: 0.18rem 0.44rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.copy-btn:hover {
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.18);
+	}
+
+	.external-link-btn {
+		border: 1px solid var(--color-border);
+		background: var(--color-surface-2);
+		color: var(--color-text-secondary);
+		border-radius: 0.38rem;
+		padding: 0.18rem 0.44rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		flex-shrink: 0;
+	}
+
+	.external-link-btn:hover {
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.18);
+	}
+
+	.search-detail-description {
+		display: grid;
+		gap: 0.28rem;
+		padding: 0.62rem 0.66rem;
+		border-radius: 0.58rem;
+		border: 1px solid var(--color-border);
+		background: #1a1d27;
+	}
+
+	.search-detail-description h4 {
+		margin: 0;
+		font-size: 0.82rem;
+	}
+
+	.search-detail-description p {
+		margin: 0;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		color: var(--color-text-secondary);
+		white-space: pre-wrap;
+	}
+
+	.search-detail-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.44rem;
+		justify-content: flex-end;
+	}
+
+	.search-detail-primary,
+	.search-detail-secondary {
+		padding: 0.46rem 0.7rem;
+		border-radius: 0.52rem;
+		border: 1px solid var(--color-border);
+		font-size: 0.74rem;
+		font-weight: 600;
+		text-decoration: none;
+		cursor: pointer;
+	}
+
+	.search-detail-primary {
+		background: var(--color-primary);
+		color: var(--color-primary-foreground);
+	}
+
+	.search-detail-secondary {
+		background: var(--color-surface-2);
+		color: var(--color-text-secondary);
 	}
 
 	.title-adjust-modal-content h3 {
@@ -618,6 +1121,25 @@
 
 		.title-adjust-actions {
 			flex-direction: column;
+		}
+
+		.search-detail-modal-content {
+			width: min(96vw, 760px);
+			max-height: min(90vh, 860px);
+		}
+
+		.search-detail-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.search-detail-actions {
+			justify-content: stretch;
+		}
+
+		.search-detail-primary,
+		.search-detail-secondary {
+			flex: 1 1 100%;
+			text-align: center;
 		}
 	}
 </style>

@@ -56,6 +56,7 @@ import { UpdateShelfRulesUseCase } from '$lib/server/application/use-cases/Updat
 import { ReorderShelvesUseCase } from '$lib/server/application/use-cases/ReorderShelvesUseCase';
 import { DeleteShelfUseCase } from '$lib/server/application/use-cases/DeleteShelfUseCase';
 import { SetBookShelvesUseCase } from '$lib/server/application/use-cases/SetBookShelvesUseCase';
+import { LookupSearchBookMetadataUseCase } from '$lib/server/application/use-cases/LookupSearchBookMetadataUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = new S3Storage();
@@ -75,6 +76,7 @@ export const downloadBookUseCase = new DownloadBookUseCase(
 export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
+export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();
 export const zlibraryTokenLoginUseCase = new ZLibraryTokenLoginUseCase(zlibraryClient);
 export const zlibraryPasswordLoginUseCase = new ZLibraryPasswordLoginUseCase(zlibraryClient);
 export const zlibraryLogoutUseCase = new ZLibraryLogoutUseCase();

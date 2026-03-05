@@ -1,0 +1,28 @@
+meta {
+  name: GET Google Books Search
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://www.googleapis.com/books/v1/volumes?q={{google_books_query}}&maxResults=10&printType=books&langRestrict={{google_books_lang}}
+  body: none
+  auth: none
+}
+
+params:query {
+  q: {{google_books_query}}
+  maxResults: 10
+  printType: books
+  langRestrict: {{google_books_lang}}
+}
+
+vars:pre-request {
+  google_books_query: intitle:"Harry Potter u"
+  google_books_lang: de
+}
+
+settings {
+  encodeUrl: true
+  timeout: 30000
+}

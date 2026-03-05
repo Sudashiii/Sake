@@ -1,0 +1,23 @@
+meta {
+  name: GET Google Books By ISBN
+  type: http
+}
+
+get {
+  url: https://www.googleapis.com/books/v1/volumes?q=isbn:{{isbn}}
+  body: none
+  auth: none
+}
+
+params:query {
+  q: isbn:{{isbn}}
+}
+
+vars:pre-request {
+  isbn: 9781408855652
+}
+
+settings {
+  encodeUrl: true
+  timeout: 30000
+}
