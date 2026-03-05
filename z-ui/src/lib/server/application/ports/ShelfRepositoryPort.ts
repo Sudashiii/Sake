@@ -6,6 +6,7 @@ export interface ShelfRepositoryPort {
 	getById(id: number): Promise<Shelf | undefined>;
 	create(input: CreateShelfInput): Promise<Shelf>;
 	update(id: number, input: UpdateShelfInput): Promise<Shelf | undefined>;
+	reorder(shelfIds: number[]): Promise<void>;
 	delete(id: number): Promise<void>;
 	getBookShelfIds(bookId: number): Promise<number[]>;
 	getBookShelfIdsForBooks(bookIds: number[]): Promise<Record<number, number[]>>;

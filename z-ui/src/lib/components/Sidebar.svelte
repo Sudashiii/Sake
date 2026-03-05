@@ -19,6 +19,8 @@
 	}
 
 	const EMOJI_OPTIONS = ['📚', '⭐', '🚀', '📌', '🔥', '💎', '🎯', '📖', '🌙', '🎨', '💡', '🏆', '❤️', '🌊', '⚡', '🦋'];
+	const SHELF_REORDER_LONG_PRESS_MS = 360;
+	const SHELF_DRAG_CANCEL_DISTANCE_PX = 8;
 
 	let {
 		collapsed = $bindable(false),
@@ -45,6 +47,17 @@
 	let pendingDeleteShelfId = $state<number | null>(null);
 	let rulesModalShelfId = $state<number | null>(null);
 	let isSavingShelfRules = $state(false);
+	let isReorderingShelves = $state(false);
+	let draggingShelfId = $state<number | null>(null);
+	let shelfDragOverId = $state<number | null>(null);
+
+	let pressedShelfId: number | null = null;
+	let pressedPointerId: number | null = null;
+	let pressedStartX = 0;
+	let pressedStartY = 0;
+	let shelfPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let shelfOrderBeforeDrag: LibraryShelf[] | null = null;
+	let blockShelfClickUntil = 0;
 
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== '/library') {
@@ -103,7 +116,183 @@
 		return countRuleConditions(shelf.ruleGroup);
 	}
 
+	function clearShelfPressTimer(): void {
+		if (shelfPressTimer !== null) {
+			clearTimeout(shelfPressTimer);
+			shelfPressTimer = null;
+		}
+	}
+
+	function setShelfDragDocumentState(active: boolean): void {
+		if (typeof document === 'undefined') {
+			return;
+		}
+		document.body.classList.toggle('shelf-reorder-active', active);
+	}
+
+	function resetShelfDragState(): void {
+		draggingShelfId = null;
+		shelfDragOverId = null;
+		shelfOrderBeforeDrag = null;
+		setShelfDragDocumentState(false);
+	}
+
+	function resetShelfPressState(): void {
+		clearShelfPressTimer();
+		pressedShelfId = null;
+		pressedPointerId = null;
+		pressedStartX = 0;
+		pressedStartY = 0;
+	}
+
+	function shouldIgnoreShelfClick(): boolean {
+		return Date.now() < blockShelfClickUntil || draggingShelfId !== null;
+	}
+
+	function getShelfIdFromPoint(clientX: number, clientY: number): number | null {
+		if (typeof document === 'undefined') {
+			return null;
+		}
+
+		const target = document.elementFromPoint(clientX, clientY);
+		if (!target) {
+			return null;
+		}
+
+		const shelfNode = target.closest('[data-shelf-id]') as HTMLElement | null;
+		const rawShelfId = shelfNode?.dataset.shelfId;
+		if (!rawShelfId) {
+			return null;
+		}
+
+		const parsedShelfId = Number.parseInt(rawShelfId, 10);
+		return Number.isInteger(parsedShelfId) && parsedShelfId > 0 ? parsedShelfId : null;
+	}
+
+	function reorderShelvesLocally(draggedShelfId: number, targetShelfId: number): void {
+		const fromIndex = shelves.findIndex((shelf) => shelf.id === draggedShelfId);
+		const toIndex = shelves.findIndex((shelf) => shelf.id === targetShelfId);
+		if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+			return;
+		}
+
+		const nextShelves = [...shelves];
+		const [draggedShelf] = nextShelves.splice(fromIndex, 1);
+		if (!draggedShelf) {
+			return;
+		}
+		nextShelves.splice(toIndex, 0, draggedShelf);
+		shelves = nextShelves;
+	}
+
+	async function persistShelfReorder(previousShelves: LibraryShelf[]): Promise<void> {
+		const shelfIds = shelves.map((shelf) => shelf.id);
+		isReorderingShelves = true;
+		const result = await ZUI.reorderLibraryShelves(shelfIds);
+		isReorderingShelves = false;
+		resetShelfDragState();
+
+		if (!result.ok) {
+			shelves = previousShelves;
+			toastStore.add(`Failed to reorder shelves: ${result.error.message}`, 'error');
+			return;
+		}
+
+		shelves = result.value.shelves;
+		emitShelvesChanged();
+	}
+
+	function startShelfDrag(shelfId: number): void {
+		if (draggingShelfId !== null || isMutatingShelves || isReorderingShelves) {
+			return;
+		}
+
+		draggingShelfId = shelfId;
+		shelfDragOverId = shelfId;
+		shelfOrderBeforeDrag = [...shelves];
+		blockShelfClickUntil = Date.now() + 500;
+		closeAllShelfMenus();
+		setShelfDragDocumentState(true);
+	}
+
+	function handleShelfPointerDown(event: PointerEvent, shelfId: number): void {
+		if (event.pointerType === 'mouse' && event.button !== 0) {
+			return;
+		}
+		if (isMutatingShelves || isReorderingShelves || editingShelfId !== null || showCreateShelf) {
+			return;
+		}
+
+		resetShelfPressState();
+		pressedShelfId = shelfId;
+		pressedPointerId = event.pointerId;
+		pressedStartX = event.clientX;
+		pressedStartY = event.clientY;
+		shelfPressTimer = setTimeout(() => {
+			if (pressedShelfId === shelfId && pressedPointerId === event.pointerId) {
+				startShelfDrag(shelfId);
+			}
+		}, SHELF_REORDER_LONG_PRESS_MS);
+	}
+
+	function handleGlobalPointerMove(event: PointerEvent): void {
+		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
+			return;
+		}
+
+		if (draggingShelfId === null) {
+			const movedX = Math.abs(event.clientX - pressedStartX);
+			const movedY = Math.abs(event.clientY - pressedStartY);
+			if (movedX > SHELF_DRAG_CANCEL_DISTANCE_PX || movedY > SHELF_DRAG_CANCEL_DISTANCE_PX) {
+				resetShelfPressState();
+			}
+			return;
+		}
+
+		event.preventDefault();
+		const targetShelfId = getShelfIdFromPoint(event.clientX, event.clientY);
+		if (targetShelfId === null) {
+			shelfDragOverId = null;
+			return;
+		}
+
+		shelfDragOverId = targetShelfId;
+		if (targetShelfId !== draggingShelfId) {
+			reorderShelvesLocally(draggingShelfId, targetShelfId);
+		}
+	}
+
+	function handleGlobalPointerUp(event: PointerEvent): void {
+		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
+			return;
+		}
+
+		clearShelfPressTimer();
+		const wasDragging = draggingShelfId !== null;
+		const previousShelves = shelfOrderBeforeDrag ? [...shelfOrderBeforeDrag] : null;
+		resetShelfPressState();
+
+		if (!wasDragging) {
+			return;
+		}
+
+		blockShelfClickUntil = Date.now() + 500;
+		const orderChanged =
+			previousShelves !== null &&
+			(previousShelves.length !== shelves.length ||
+				previousShelves.some((shelf, index) => shelf.id !== shelves[index]?.id));
+		if (!orderChanged || previousShelves === null) {
+			resetShelfDragState();
+			return;
+		}
+
+		void persistShelfReorder(previousShelves);
+	}
+
 	async function loadShelves(): Promise<void> {
+		if (draggingShelfId !== null) {
+			return;
+		}
 		const result = await ZUI.getLibraryShelves();
 		if (!result.ok) {
 			return;
@@ -115,6 +304,9 @@
 	}
 
 	function startCreateShelf(): void {
+		if (isReorderingShelves || draggingShelfId !== null) {
+			return;
+		}
 		showCreateShelf = true;
 		newShelfName = '';
 		newShelfIcon = '📚';
@@ -130,7 +322,7 @@
 
 	async function handleCreateShelf(): Promise<void> {
 		const name = newShelfName.trim();
-		if (!name || isMutatingShelves) {
+		if (!name || isMutatingShelves || isReorderingShelves) {
 			return;
 		}
 		isMutatingShelves = true;
@@ -148,6 +340,9 @@
 	}
 
 	function startRenameShelf(shelf: LibraryShelf): void {
+		if (draggingShelfId !== null || isReorderingShelves) {
+			return;
+		}
 		editingShelfId = shelf.id;
 		editShelfName = shelf.name;
 		editShelfIcon = shelf.icon;
@@ -165,7 +360,7 @@
 
 	async function handleRenameShelf(shelfId: number): Promise<void> {
 		const name = editShelfName.trim();
-		if (!name || isMutatingShelves) {
+		if (!name || isMutatingShelves || isReorderingShelves) {
 			return;
 		}
 		isMutatingShelves = true;
@@ -195,7 +390,7 @@
 	}
 
 	async function confirmDeleteShelf(): Promise<void> {
-		if (pendingDeleteShelfId === null || isMutatingShelves) {
+		if (pendingDeleteShelfId === null || isMutatingShelves || isReorderingShelves) {
 			return;
 		}
 
@@ -229,6 +424,9 @@
 	}
 
 	function openShelfMenu(event: MouseEvent, shelfId: number): void {
+		if (draggingShelfId !== null || isReorderingShelves) {
+			return;
+		}
 		event.stopPropagation();
 		const target = event.currentTarget as HTMLElement;
 		const rect = target.getBoundingClientRect();
@@ -237,6 +435,9 @@
 	}
 
 	function openRulesModal(shelfId: number): void {
+		if (draggingShelfId !== null || isReorderingShelves) {
+			return;
+		}
 		rulesModalShelfId = shelfId;
 		closeAllShelfMenus();
 	}
@@ -276,10 +477,18 @@
 		};
 		if (typeof window !== 'undefined') {
 			window.addEventListener('shelves:changed', handleShelvesChanged);
+			window.addEventListener('pointermove', handleGlobalPointerMove);
+			window.addEventListener('pointerup', handleGlobalPointerUp);
+			window.addEventListener('pointercancel', handleGlobalPointerUp);
 		}
 		return () => {
+			resetShelfPressState();
+			resetShelfDragState();
 			if (typeof window !== 'undefined') {
 				window.removeEventListener('shelves:changed', handleShelvesChanged);
+				window.removeEventListener('pointermove', handleGlobalPointerMove);
+				window.removeEventListener('pointerup', handleGlobalPointerUp);
+				window.removeEventListener('pointercancel', handleGlobalPointerUp);
 			}
 		};
 	});
@@ -431,13 +640,13 @@
 						<div class="shelves-subnav">
 							<div class="shelves-subnav-header">
 								<span class="shelves-title">Shelves</span>
-								<button
-									type="button"
-									class="shelf-add-btn"
-									onclick={startCreateShelf}
-									disabled={isMutatingShelves}
-									aria-label="Create shelf"
-								>
+									<button
+										type="button"
+										class="shelf-add-btn"
+										onclick={startCreateShelf}
+										disabled={isMutatingShelves || isReorderingShelves || draggingShelfId !== null}
+										aria-label="Create shelf"
+									>
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
 										<line x1="12" y1="5" x2="12" y2="19"></line>
 										<line x1="5" y1="12" x2="19" y2="12"></line>
@@ -504,12 +713,24 @@
 											<span class="shelf-row-btn shelf-row-btn-placeholder" aria-hidden="true"></span>
 										</div>
 									{:else}
-										<div class="shelf-row">
+										<div
+											class="shelf-row"
+											data-shelf-id={shelf.id}
+											class:dragging={draggingShelfId === shelf.id}
+											class:drag-over={draggingShelfId !== null && shelfDragOverId === shelf.id && draggingShelfId !== shelf.id}
+										>
 											<button
 												type="button"
 												class="shelf-link shelf-link-btn"
 												class:active={isLibraryActive && selectedShelfId === shelf.id}
-												onclick={() => void navigateToShelf(shelf.id)}
+												class:dragging={draggingShelfId === shelf.id}
+												onpointerdown={(event) => handleShelfPointerDown(event, shelf.id)}
+												onclick={() => {
+													if (shouldIgnoreShelfClick()) {
+														return;
+													}
+													void navigateToShelf(shelf.id);
+												}}
 											>
 												<span class="shelf-icon">{shelf.icon}</span>
 												<span class="shelf-name">{shelf.name}</span>
@@ -524,6 +745,7 @@
 											<button
 												type="button"
 												class="shelf-row-btn"
+												disabled={draggingShelfId !== null || isReorderingShelves}
 												onclick={(event) => openShelfMenu(event, shelf.id)}
 												aria-label={`Open menu for ${shelf.name}`}
 											>
@@ -915,6 +1137,15 @@
 		box-sizing: border-box;
 	}
 
+	.shelf-row.dragging {
+		opacity: 0.76;
+	}
+
+	.shelf-row.drag-over .shelf-link {
+		background: rgba(255, 255, 255, 0.085);
+		color: var(--color-text-primary);
+	}
+
 	.shelf-link-btn {
 		width: 100%;
 		min-width: 0;
@@ -923,6 +1154,10 @@
 		font-family: inherit;
 		cursor: pointer;
 		text-align: left;
+	}
+
+	.shelf-link-btn.dragging {
+		cursor: grabbing;
 	}
 
 	.shelf-link {
@@ -1006,6 +1241,12 @@
 	.shelf-row-btn:disabled {
 		opacity: 0.5;
 		cursor: wait;
+	}
+
+	:global(body.shelf-reorder-active) {
+		user-select: none;
+		-webkit-user-select: none;
+		cursor: grabbing;
 	}
 
 	.shelf-edit-row {

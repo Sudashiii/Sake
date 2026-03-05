@@ -1,0 +1,25 @@
+meta {
+  name: PATCH Reorder Shelves
+  type: http
+}
+
+patch {
+  url: {{base_url}}/api/library/shelves/reorder
+  body: json
+  auth: inherit
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+body:json {
+  {
+    "shelfIds": [{{shelf_id}}]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

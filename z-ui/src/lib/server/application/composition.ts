@@ -53,6 +53,7 @@ import { ListShelvesUseCase } from '$lib/server/application/use-cases/ListShelve
 import { CreateShelfUseCase } from '$lib/server/application/use-cases/CreateShelfUseCase';
 import { UpdateShelfUseCase } from '$lib/server/application/use-cases/UpdateShelfUseCase';
 import { UpdateShelfRulesUseCase } from '$lib/server/application/use-cases/UpdateShelfRulesUseCase';
+import { ReorderShelvesUseCase } from '$lib/server/application/use-cases/ReorderShelvesUseCase';
 import { DeleteShelfUseCase } from '$lib/server/application/use-cases/DeleteShelfUseCase';
 import { SetBookShelvesUseCase } from '$lib/server/application/use-cases/SetBookShelvesUseCase';
 import { LookupSearchBookMetadataUseCase } from '$lib/server/application/use-cases/LookupSearchBookMetadataUseCase';
@@ -153,5 +154,6 @@ export const listShelvesUseCase = new ListShelvesUseCase(shelfRepository);
 export const createShelfUseCase = new CreateShelfUseCase(shelfRepository);
 export const updateShelfUseCase = new UpdateShelfUseCase(shelfRepository);
 export const updateShelfRulesUseCase = new UpdateShelfRulesUseCase(shelfRepository);
+export const reorderShelvesUseCase = new ReorderShelvesUseCase(shelfRepository);
 export const deleteShelfUseCase = new DeleteShelfUseCase(shelfRepository);
 export const setBookShelvesUseCase = new SetBookShelvesUseCase(bookRepository, shelfRepository);
