@@ -12,12 +12,13 @@ import {
 	isRuleGroup,
 	type RuleGroup
 } from '$lib/types/Library/ShelfRule';
-import { eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 
 function mapShelfRow(row: {
 	id: number;
 	name: string;
 	icon: string;
+	sortOrder: number;
 	ruleGroupJson: string;
 	createdAt: string;
 	updatedAt: string;
@@ -26,6 +27,7 @@ function mapShelfRow(row: {
 		id: row.id,
 		name: row.name,
 		icon: row.icon,
+		sortOrder: row.sortOrder,
 		ruleGroup: deserializeRuleGroup(row.ruleGroupJson, onInvalidRuleGroup),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt
@@ -72,6 +74,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 		id: number;
 		name: string;
 		icon: string;
+		sortOrder: number;
 		ruleGroupJson: string;
 		createdAt: string;
 		updatedAt: string;
@@ -94,12 +97,13 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				sortOrder: shelves.sortOrder,
 				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			})
 			.from(shelves)
-			.orderBy(shelves.name);
+			.orderBy(shelves.sortOrder, shelves.name);
 		return rows.map((row) => this.mapRow(row));
 	}
 
@@ -113,12 +117,14 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				sortOrder: shelves.sortOrder,
 				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
 			})
 			.from(shelves)
-			.where(inArray(shelves.id, ids));
+			.where(inArray(shelves.id, ids))
+			.orderBy(shelves.sortOrder, shelves.name);
 		return rows.map((row) => this.mapRow(row));
 	}
 
@@ -128,6 +134,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				sortOrder: shelves.sortOrder,
 				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
@@ -140,11 +147,19 @@ export class ShelfRepository implements ShelfRepositoryPort {
 
 	async create(input: CreateShelfInput): Promise<Shelf> {
 		const now = new Date().toISOString();
+		const [lastShelf] = await drizzleDb
+			.select({ sortOrder: shelves.sortOrder })
+			.from(shelves)
+			.orderBy(desc(shelves.sortOrder))
+			.limit(1);
+		const nextSortOrder = (lastShelf?.sortOrder ?? -1) + 1;
+
 		const [created] = await drizzleDb
 			.insert(shelves)
 			.values({
 				name: input.name,
 				icon: input.icon,
+				sortOrder: nextSortOrder,
 				ruleGroupJson: JSON.stringify(input.ruleGroup),
 				createdAt: now,
 				updatedAt: now
@@ -153,6 +168,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				sortOrder: shelves.sortOrder,
 				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
@@ -184,6 +200,7 @@ export class ShelfRepository implements ShelfRepositoryPort {
 				id: shelves.id,
 				name: shelves.name,
 				icon: shelves.icon,
+				sortOrder: shelves.sortOrder,
 				ruleGroupJson: shelves.ruleGroupJson,
 				createdAt: shelves.createdAt,
 				updatedAt: shelves.updatedAt
@@ -195,6 +212,36 @@ export class ShelfRepository implements ShelfRepositoryPort {
 
 		this.repoLogger.info({ event: 'shelf.updated', shelfId: id, name: updated.name }, 'Shelf row updated');
 		return this.mapRow(updated);
+	}
+
+	async reorder(shelfIds: number[]): Promise<void> {
+		if (shelfIds.length === 0) {
+			return;
+		}
+		if (!shelfIds.every((id) => Number.isInteger(id) && id > 0)) {
+			throw new Error('Invalid shelf IDs for reorder');
+		}
+
+		const now = new Date().toISOString();
+		const whenClauses = shelfIds
+			.map((id, index) => `WHEN ${id} THEN ${index}`)
+			.join(' ');
+		const idList = shelfIds.join(', ');
+		const escapedNow = now.replace(/'/g, "''");
+
+		await drizzleDb.$client.execute(
+			`UPDATE "Shelves"
+SET "sort_order" = CASE "id" ${whenClauses} ELSE "sort_order" END,
+    "updated_at" = '${escapedNow}'
+WHERE "id" IN (${idList})`
+		);
+		this.repoLogger.info(
+			{
+				event: 'shelf.reordered',
+				shelfIds
+			},
+			'Shelf order updated'
+		);
 	}
 
 	async delete(id: number): Promise<void> {

@@ -13,6 +13,7 @@ interface UpdateShelfRulesResult {
 		id: number;
 		name: string;
 		icon: string;
+		sortOrder: number;
 		ruleGroup: RuleGroup;
 		createdAt: string;
 		updatedAt: string;
@@ -44,4 +45,3 @@ export class UpdateShelfRulesUseCase {
 		});
 	}
 }
-

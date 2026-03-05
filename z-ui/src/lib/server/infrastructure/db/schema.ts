@@ -130,6 +130,7 @@ export const shelves = sqliteTable('Shelves', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull(),
 	icon: text('icon').notNull().default('📚'),
+	sortOrder: integer('sort_order').notNull().default(0),
 	ruleGroupJson: text('rule_group_json')
 		.notNull()
 		.default('{"id":"root","type":"group","connector":"AND","children":[]}'),
