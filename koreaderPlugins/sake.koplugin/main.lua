@@ -6,36 +6,18 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local logger = require("logger")
 local _ = require("gettext")
 
-local Settings = require("settings")
-local has_sake_device, SakeDevice = pcall(require, "sake_device")
+local Settings = require("core/settings")
+local Utils = require("core/utils")
+local has_sake_device, SakeDevice = pcall(require, "core/device")
 local Menu = require("ui/menu")
 local Dialogs = require("ui/dialogs")
-local BookSync = require("services/book_sync")
-local ProgressSync = require("services/progress_sync")
+local BookSync = require("controllers/book_sync")
+local ProgressSync = require("controllers/progress_sync")
 
 local Sake = WidgetContainer:extend{
     name = "sake",
     is_doc_only = false,
 }
-
-local function isTransientNameResolutionError(err)
-    local msg = tostring(err or ""):lower()
-    if msg == "" then
-        return false
-    end
-
-    -- Device network stack right after wake can return transient DNS errors.
-    if msg:find("temporary failure", 1, true) and msg:find("resolution", 1, true) then
-        return true
-    end
-    if msg:find("name resolution", 1, true) then
-        return true
-    end
-    if msg:find("naming resolution", 1, true) then
-        return true
-    end
-    return false
-end
 
 local function getSakePluginDir()
     local src = debug.getinfo(1, "S").source or ""
@@ -207,6 +189,7 @@ function Sake:init()
     end
 
     self.books_downloaded_bg = 0
+    self.books_downloaded_bg_titles = {}
     self.bg_error_messages = {}
     self.progress_watcher_active = false
     self.updater = nil
@@ -272,13 +255,14 @@ function Sake:handleSuspend()
 
     UIManager:scheduleIn(1, function()
         logger.info("[Sake] Starting silent book sync...")
-        local count, err = self.bookSync:performSilentSync()
+        local count, err, titles = self.bookSync:performSilentSync()
         self.books_downloaded_bg = count
+        self.books_downloaded_bg_titles = titles or {}
         if err then
             table.insert(self.bg_error_messages, _("Book sync failed: ") .. tostring(err))
         end
         if count > 0 then
-            logger.info("[Sake] Silent sync downloaded " .. count .. " books.")
+            logger.info("[Sake] Silent sync downloaded " .. count .. " " .. Utils.bookWord(count) .. ".")
         else
             logger.info("[Sake] Silent sync finished. No new books.")
         end
@@ -290,11 +274,13 @@ function Sake:handleResume()
     logger.info("[Sake] Resume detected.")
     if self.books_downloaded_bg and self.books_downloaded_bg > 0 then
         logger.info("[Sake] Alerting user of " .. self.books_downloaded_bg .. " background downloads.")
+        local summary_text = Utils.downloadSummaryText(_("Welcome back!\nDownloaded"), self.books_downloaded_bg, self.books_downloaded_bg_titles, _(" while away."))
         UIManager:show(InfoMessage:new{ 
-            text = _("Welcome back!\nDownloaded " .. self.books_downloaded_bg .. " books while away."),
+            text = summary_text,
             timeout = 5
         })
         self.books_downloaded_bg = 0
+        self.books_downloaded_bg_titles = {}
     end
     if self.bg_error_messages and #self.bg_error_messages > 0 then
         UIManager:show(InfoMessage:new{
@@ -304,32 +290,16 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
-    local retry_delays = { 6.0, 15.0 }
-    local max_attempts = #retry_delays
+    local delay = 6.0
+    logger.info("[Sake] Scheduling resume progress sync in " .. tostring(delay) .. "s.")
+    UIManager:scheduleIn(delay, function()
+        local ok, err = self:runProgressSync()
+        if ok then
+            return
+        end
 
-    local function attemptProgressSync(attempt)
-        local delay = retry_delays[attempt] or retry_delays[max_attempts]
-        logger.info("[Sake] Scheduling resume progress sync attempt " .. tostring(attempt) .. " in " .. tostring(delay) .. "s.")
-        UIManager:scheduleIn(delay, function()
-            local ok, err = self:runProgressSync()
-            if ok then
-                if attempt > 1 then
-                    logger.info("[Sake] Resume progress sync succeeded on retry attempt " .. tostring(attempt) .. ".")
-                end
-                return
-            end
-
-            if attempt < max_attempts and isTransientNameResolutionError(err) then
-                logger.warn("[Sake] Resume progress sync hit transient DNS error. Retrying. Error: " .. tostring(err))
-                attemptProgressSync(attempt + 1)
-                return
-            end
-
-            logger.warn("[Sake] Resume progress sync failed on attempt " .. tostring(attempt) .. ". Error: " .. tostring(err))
-        end)
-    end
-
-    attemptProgressSync(1)
+        logger.warn("[Sake] Resume progress sync failed. Error: " .. tostring(err))
+    end)
 end
 
 function Sake:onReaderReady()

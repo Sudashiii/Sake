@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import ShelfRulesModal from '$lib/components/ShelfRulesModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
@@ -47,6 +47,9 @@
 	let pendingDeleteShelfId = $state<number | null>(null);
 	let rulesModalShelfId = $state<number | null>(null);
 	let isSavingShelfRules = $state(false);
+	let showSettingsModal = $state(false);
+	let settingsModalEl = $state<HTMLDivElement | null>(null);
+	let previouslyFocusedSettingsElement = $state<HTMLElement | null>(null);
 	let isReorderingShelves = $state(false);
 	let draggingShelfId = $state<number | null>(null);
 	let shelfDragOverId = $state<number | null>(null);
@@ -85,6 +88,23 @@
 		}
 	});
 
+	$effect(() => {
+		if (!showSettingsModal) {
+			return;
+		}
+
+		previouslyFocusedSettingsElement =
+			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+
+		void tick().then(() => {
+			settingsModalEl?.focus();
+		});
+
+		return () => {
+			previouslyFocusedSettingsElement?.focus();
+		};
+	});
+
 	function emitShelvesChanged(): void {
 		if (typeof window !== 'undefined') {
 			window.dispatchEvent(new CustomEvent('shelves:changed'));
@@ -98,6 +118,17 @@
 	function handleToggle() {
 		collapsed = !collapsed;
 		onToggle?.();
+	}
+
+	function closeSettingsModal(): void {
+		showSettingsModal = false;
+	}
+
+	function handleSettingsModalKeydown(event: KeyboardEvent): void {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			closeSettingsModal();
+		}
 	}
 
 	async function navigateToShelf(shelfId: number): Promise<void> {
@@ -824,9 +855,23 @@
 	</nav>
 
 	<div class="sidebar-footer">
-		{#if !collapsed}
-			<span class="version">v0.1.0</span>
-		{/if}
+		<button
+			type="button"
+			class="sidebar-footer-btn"
+			title={collapsed ? 'Settings' : undefined}
+			aria-label="Open settings"
+			onclick={() => (showSettingsModal = true)}
+		>
+			<span class="icon">
+				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="3"></circle>
+					<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+				</svg>
+			</span>
+			{#if !collapsed}
+				<span class="label">Settings</span>
+			{/if}
+		</button>
 	</div>
 </aside>
 
@@ -908,6 +953,32 @@
 			onSave={handleSaveShelfRules}
 		/>
 	{/if}
+{/if}
+
+{#if showSettingsModal}
+	<div class="settings-modal-overlay" role="presentation" onclick={closeSettingsModal}>
+		<div
+			bind:this={settingsModalEl}
+			class="settings-modal"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="settings-modal-title"
+			tabindex="-1"
+			onclick={(event) => event.stopPropagation()}
+			onkeydown={handleSettingsModalKeydown}
+		>
+			<div class="settings-modal-header">
+				<h3 id="settings-modal-title">Settings</h3>
+				<button type="button" class="settings-modal-close" aria-label="Close settings modal" onclick={closeSettingsModal}>
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="18" y1="6" x2="6" y2="18"></line>
+						<line x1="6" y1="6" x2="18" y2="18"></line>
+					</svg>
+				</button>
+			</div>
+			<p>Settings will live here soon.</p>
+		</div>
+	</div>
 {/if}
 
 <style>
@@ -1456,17 +1527,107 @@
 	}
 
 	.sidebar-footer {
-		height: 2.8rem;
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: stretch;
 		border-top: 1px solid rgba(255, 255, 255, 0.06);
-		padding: 0 0.6rem;
+		padding: 0.75rem;
 	}
 
-	.version {
-		font-size: 0.7rem;
+	.sidebar-footer-btn {
+		width: 100%;
+		border: none;
+		background: transparent;
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 0.62rem 0.75rem;
+		border-radius: 0.5rem;
+		color: var(--color-text-secondary);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.16s ease, color 0.16s ease;
+	}
+
+	.sidebar-footer-btn:hover {
+		background: rgba(255, 255, 255, 0.035);
+		color: var(--color-text-primary);
+	}
+
+	.sidebar.collapsed .sidebar-footer {
+		justify-content: center;
+		padding: 0.5rem;
+	}
+
+	.sidebar.collapsed .sidebar-footer-btn {
+		width: 2.35rem;
+		justify-content: center;
+		padding: 0.62rem;
+		gap: 0;
+	}
+
+	.settings-modal-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 1600;
+		display: grid;
+		place-items: center;
+		padding: 1rem;
+		background: rgba(0, 0, 0, 0.64);
+		backdrop-filter: blur(6px);
+	}
+
+	.settings-modal {
+		width: min(24rem, 100%);
+		border-radius: 0.9rem;
+		border: 1px solid var(--color-border);
+		background: color-mix(in oklab, var(--color-surface), white 2%);
+		box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+		padding: 1rem;
+		display: grid;
+		gap: 0.75rem;
+		outline: none;
+	}
+
+	.settings-modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.settings-modal-header h3 {
+		margin: 0;
+		font-size: 1rem;
+		color: var(--color-text-primary);
+	}
+
+	.settings-modal-close {
+		width: 1.9rem;
+		height: 1.9rem;
+		border-radius: 0.48rem;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.02);
 		color: var(--color-text-muted);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+	}
+
+	.settings-modal-close:hover {
+		background: rgba(255, 255, 255, 0.055);
+		color: var(--color-text-primary);
+		border-color: rgba(255, 255, 255, 0.14);
+	}
+
+	.settings-modal p {
+		margin: 0;
+		font-size: 0.9rem;
+		line-height: 1.5;
+		color: var(--color-text-secondary);
 	}
 
 	@media (max-width: 900px) {
