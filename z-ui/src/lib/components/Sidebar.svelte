@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import ShelfRulesModal from '$lib/components/ShelfRulesModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
@@ -49,6 +49,7 @@
 	let isSavingShelfRules = $state(false);
 	let showSettingsModal = $state(false);
 	let settingsModalEl = $state<HTMLDivElement | null>(null);
+	let previouslyFocusedSettingsElement = $state<HTMLElement | null>(null);
 	let isReorderingShelves = $state(false);
 	let draggingShelfId = $state<number | null>(null);
 	let shelfDragOverId = $state<number | null>(null);
@@ -88,9 +89,20 @@
 	});
 
 	$effect(() => {
-		if (showSettingsModal) {
-			settingsModalEl?.focus();
+		if (!showSettingsModal) {
+			return;
 		}
+
+		previouslyFocusedSettingsElement =
+			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+
+		void tick().then(() => {
+			settingsModalEl?.focus();
+		});
+
+		return () => {
+			previouslyFocusedSettingsElement?.focus();
+		};
 	});
 
 	function emitShelvesChanged(): void {

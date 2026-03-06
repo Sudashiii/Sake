@@ -63,8 +63,9 @@ function BookSync:startDownloadQueue(books, index)
     closePopup(self)
 
     if index > total then
+        local summary_text = Utils.downloadSummaryText(_("Success! Downloaded"), total, Utils.bookTitles(books), ".")
         UIManager:show(InfoMessage:new{
-            text = _(Utils.downloadSummaryText("Success! Downloaded", total, Utils.bookTitles(books), ".")),
+            text = summary_text,
         })
         return
     end

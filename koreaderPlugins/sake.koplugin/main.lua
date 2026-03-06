@@ -19,25 +19,6 @@ local Sake = WidgetContainer:extend{
     is_doc_only = false,
 }
 
-local function isTransientNameResolutionError(err)
-    local msg = tostring(err or ""):lower()
-    if msg == "" then
-        return false
-    end
-
-    -- Device network stack right after wake can return transient DNS errors.
-    if msg:find("temporary failure", 1, true) and msg:find("resolution", 1, true) then
-        return true
-    end
-    if msg:find("name resolution", 1, true) then
-        return true
-    end
-    if msg:find("naming resolution", 1, true) then
-        return true
-    end
-    return false
-end
-
 local function getSakePluginDir()
     local src = debug.getinfo(1, "S").source or ""
     local path = src:sub(1, 1) == "@" and src:sub(2) or src
@@ -293,8 +274,9 @@ function Sake:handleResume()
     logger.info("[Sake] Resume detected.")
     if self.books_downloaded_bg and self.books_downloaded_bg > 0 then
         logger.info("[Sake] Alerting user of " .. self.books_downloaded_bg .. " background downloads.")
+        local summary_text = Utils.downloadSummaryText(_("Welcome back!\nDownloaded"), self.books_downloaded_bg, self.books_downloaded_bg_titles, _(" while away."))
         UIManager:show(InfoMessage:new{ 
-            text = _(Utils.downloadSummaryText("Welcome back!\nDownloaded", self.books_downloaded_bg, self.books_downloaded_bg_titles, " while away.")),
+            text = summary_text,
             timeout = 5
         })
         self.books_downloaded_bg = 0
@@ -308,32 +290,16 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
-    local retry_delays = { 6.0 }
-    local max_attempts = #retry_delays
+    local delay = 6.0
+    logger.info("[Sake] Scheduling resume progress sync in " .. tostring(delay) .. "s.")
+    UIManager:scheduleIn(delay, function()
+        local ok, err = self:runProgressSync()
+        if ok then
+            return
+        end
 
-    local function attemptProgressSync(attempt)
-        local delay = retry_delays[attempt] or retry_delays[max_attempts]
-        logger.info("[Sake] Scheduling resume progress sync attempt " .. tostring(attempt) .. " in " .. tostring(delay) .. "s.")
-        UIManager:scheduleIn(delay, function()
-            local ok, err = self:runProgressSync()
-            if ok then
-                if attempt > 1 then
-                    logger.info("[Sake] Resume progress sync succeeded on retry attempt " .. tostring(attempt) .. ".")
-                end
-                return
-            end
-
-            if attempt < max_attempts and isTransientNameResolutionError(err) then
-                logger.warn("[Sake] Resume progress sync hit transient DNS error. Retrying. Error: " .. tostring(err))
-                attemptProgressSync(attempt + 1)
-                return
-            end
-
-            logger.warn("[Sake] Resume progress sync failed on attempt " .. tostring(attempt) .. ". Error: " .. tostring(err))
-        end)
-    end
-
-    attemptProgressSync(1)
+        logger.warn("[Sake] Resume progress sync failed. Error: " .. tostring(err))
+    end)
 end
 
 function Sake:onReaderReady()
