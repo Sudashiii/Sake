@@ -7,6 +7,7 @@ local logger = require("logger")
 local _ = require("gettext")
 
 local Settings = require("core/settings")
+local Utils = require("core/utils")
 local has_sake_device, SakeDevice = pcall(require, "core/device")
 local Menu = require("ui/menu")
 local Dialogs = require("ui/dialogs")
@@ -207,6 +208,7 @@ function Sake:init()
     end
 
     self.books_downloaded_bg = 0
+    self.books_downloaded_bg_titles = {}
     self.bg_error_messages = {}
     self.progress_watcher_active = false
     self.updater = nil
@@ -272,13 +274,14 @@ function Sake:handleSuspend()
 
     UIManager:scheduleIn(1, function()
         logger.info("[Sake] Starting silent book sync...")
-        local count, err = self.bookSync:performSilentSync()
+        local count, err, titles = self.bookSync:performSilentSync()
         self.books_downloaded_bg = count
+        self.books_downloaded_bg_titles = titles or {}
         if err then
             table.insert(self.bg_error_messages, _("Book sync failed: ") .. tostring(err))
         end
         if count > 0 then
-            logger.info("[Sake] Silent sync downloaded " .. count .. " books.")
+            logger.info("[Sake] Silent sync downloaded " .. count .. " " .. Utils.bookWord(count) .. ".")
         else
             logger.info("[Sake] Silent sync finished. No new books.")
         end
@@ -291,10 +294,11 @@ function Sake:handleResume()
     if self.books_downloaded_bg and self.books_downloaded_bg > 0 then
         logger.info("[Sake] Alerting user of " .. self.books_downloaded_bg .. " background downloads.")
         UIManager:show(InfoMessage:new{ 
-            text = _("Welcome back!\nDownloaded " .. self.books_downloaded_bg .. " books while away."),
+            text = _(Utils.downloadSummaryText("Welcome back!\nDownloaded", self.books_downloaded_bg, self.books_downloaded_bg_titles, " while away.")),
             timeout = 5
         })
         self.books_downloaded_bg = 0
+        self.books_downloaded_bg_titles = {}
     end
     if self.bg_error_messages and #self.bg_error_messages > 0 then
         UIManager:show(InfoMessage:new{

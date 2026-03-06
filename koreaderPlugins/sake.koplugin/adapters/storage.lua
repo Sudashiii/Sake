@@ -111,7 +111,7 @@ end
 
 function Storage:saveBook(storage_key, content)
     local paths = self:pathsForStorageKey(storage_key)
-    local ok, err = atomicWrite(paths.book_path, content, "wb", false)
+    local ok, err = atomicWrite(paths.book_path, content, "wb", true)
     if not ok then
         return false, err
     end

@@ -63,7 +63,9 @@ function BookSync:startDownloadQueue(books, index)
     closePopup(self)
 
     if index > total then
-        UIManager:show(InfoMessage:new{ text = _("Success! Downloaded " .. total .. " books.") })
+        UIManager:show(InfoMessage:new{
+            text = _(Utils.downloadSummaryText("Success! Downloaded", total, Utils.bookTitles(books), ".")),
+        })
         return
     end
 
@@ -96,25 +98,27 @@ end
 function BookSync:performSilentSync()
     local success, result_or_err = self.engine:fetchPendingBooks()
     if not success then
-        return 0, result_or_err
+        return 0, result_or_err, {}
     end
 
     local result = result_or_err
     if result.total == 0 then
-        return 0
+        return 0, nil, {}
     end
 
     local count = 0
+    local downloaded_titles = {}
     for _, book in ipairs(result.books) do
         local ok_book, err_book = self.engine:downloadBook(book)
         if ok_book then
             count = count + 1
+            table.insert(downloaded_titles, tostring(book.title or "Unknown"))
         else
-            return count, err_book
+            return count, err_book, downloaded_titles
         end
     end
 
-    return count
+    return count, nil, downloaded_titles
 end
 
 return BookSync
