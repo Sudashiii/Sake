@@ -4,7 +4,7 @@ local UIManager = require("ui/uimanager")
 local logger = require("logger")
 local _ = require("gettext")
 
-local Settings = require("settings")
+local Settings = require("core/settings")
 
 local Dialogs = {}
 

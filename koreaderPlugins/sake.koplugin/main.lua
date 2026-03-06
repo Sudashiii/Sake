@@ -6,12 +6,12 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local logger = require("logger")
 local _ = require("gettext")
 
-local Settings = require("settings")
-local has_sake_device, SakeDevice = pcall(require, "sake_device")
+local Settings = require("core/settings")
+local has_sake_device, SakeDevice = pcall(require, "core/device")
 local Menu = require("ui/menu")
 local Dialogs = require("ui/dialogs")
-local BookSync = require("services/book_sync")
-local ProgressSync = require("services/progress_sync")
+local BookSync = require("controllers/book_sync")
+local ProgressSync = require("controllers/progress_sync")
 
 local Sake = WidgetContainer:extend{
     name = "sake",
@@ -304,7 +304,7 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
-    local retry_delays = { 6.0, 15.0 }
+    local retry_delays = { 6.0 }
     local max_attempts = #retry_delays
 
     local function attemptProgressSync(attempt)

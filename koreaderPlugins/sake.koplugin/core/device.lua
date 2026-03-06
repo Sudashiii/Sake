@@ -1,5 +1,5 @@
 local logger = require("logger")
-local Settings = require("settings")
+local Settings = require("core/settings")
 
 local SakeDevice = {}
 

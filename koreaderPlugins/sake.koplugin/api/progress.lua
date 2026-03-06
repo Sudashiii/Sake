@@ -1,31 +1,11 @@
 local json = require("json")
 local ltn12 = require("ltn12")
-local socket = require("socket.url")
-local Client = require("api/client")
 local logger = require("logger")
 
 local ProgressApi = {}
 local LOG_PREFIX = "[Sake] "
-local API_PREFIX = "/api/library"
 
-local function normalizedBaseUrl(base_url)
-    local url = tostring(base_url or "")
-    url = url:gsub("^%s+", ""):gsub("%s+$", "")
-    url = url:gsub("/+$", "")
-    url = url:gsub("/api/library/?$", "")
-    return url
-end
-
-local function libraryBaseUrl(base_url)
-    return normalizedBaseUrl(base_url) .. API_PREFIX
-end
-
-function ProgressApi.uploadProgress(base_url, user, pass, filename, content, device_id, percent_finished)
-    local target_url = libraryBaseUrl(base_url) .. "/progress"
-
-    local auth_header = Client.authHeader(user, pass)
-    local response_chunks = {}
-
+function ProgressApi.uploadProgress(session, filename, content, device_id, percent_finished)
     local boundary = "SakeBoundary" .. os.time()
     local body_parts = {}
 
@@ -61,25 +41,23 @@ function ProgressApi.uploadProgress(base_url, user, pass, filename, content, dev
 
     logger.info(LOG_PREFIX .. "PUT progress for file: " .. tostring(filename))
 
-    local ok, statusCode, _, requestErr = Client.request{
-        url = target_url,
+    local ok, response = session:request{
+        path = "/progress",
         method = "PUT",
         headers = {
-            ["Authorization"] = auth_header,
             ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
             ["Content-Length"] = tostring(#request_body),
         },
         source = ltn12.source.string(request_body),
-        sink = ltn12.sink.table(response_chunks),
     }
 
     local function parseError()
-        local api_error = Client.errorFromBody(response_chunks)
+        local api_error = session:errorFromResponse(response)
         if api_error then
             return api_error
         end
 
-        local body = table.concat(response_chunks)
+        local body = response.body
         if body == "" then
             return "Empty response"
         end
@@ -94,143 +72,124 @@ function ProgressApi.uploadProgress(base_url, user, pass, filename, content, dev
     end
 
     if not ok then
-        logger.warn(LOG_PREFIX .. "PUT progress request failed: " .. tostring(requestErr))
-        return false, "Request failed: " .. tostring(requestErr)
-    elseif statusCode == 200 or statusCode == 201 or statusCode == 204 then
-        logger.info(LOG_PREFIX .. "PUT progress success. HTTP " .. tostring(statusCode))
+        logger.warn(LOG_PREFIX .. "PUT progress request failed: " .. tostring(response.request_error))
+        return false, "Request failed: " .. tostring(response.request_error)
+    elseif response.status_code == 200 or response.status_code == 201 or response.status_code == 204 then
+        logger.info(LOG_PREFIX .. "PUT progress success. HTTP " .. tostring(response.status_code))
         return true, "Success"
-    elseif statusCode == 409 then
+    elseif response.status_code == 409 then
         local err_msg = parseError()
         logger.warn(LOG_PREFIX .. "PUT progress conflict: " .. tostring(err_msg))
         return false, "Conflict: " .. err_msg
     else
         local err_msg = parseError()
-        logger.warn(LOG_PREFIX .. "PUT progress failed. HTTP " .. tostring(statusCode) .. " - " .. tostring(err_msg))
-        return false, "HTTP " .. tostring(statusCode) .. ": " .. err_msg
+        logger.warn(LOG_PREFIX .. "PUT progress failed. HTTP " .. tostring(response.status_code) .. " - " .. tostring(err_msg))
+        return false, "HTTP " .. tostring(response.status_code) .. ": " .. err_msg
     end
 end
 
-function ProgressApi.downloadProgress(base_url, user, pass, filename)
-    local safe_filename = socket.escape(filename)
-    local target_url = libraryBaseUrl(base_url) .. "/progress?fileName=" .. safe_filename
-
-    local auth_header = Client.authHeader(user, pass)
-    local response_chunks = {}
-
+function ProgressApi.downloadProgress(session, filename)
     logger.info(LOG_PREFIX .. "GET progress for file: " .. tostring(filename))
 
-    local ok, statusCode, _, requestErr = Client.request{
-        url = target_url,
+    local ok, response = session:request{
+        path = "/progress",
         method = "GET",
-        headers = {
-            ["Authorization"] = auth_header,
+        query = {
+            fileName = filename,
         },
-        sink = ltn12.sink.table(response_chunks),
     }
 
     if not ok then
-        logger.warn(LOG_PREFIX .. "GET progress request failed: " .. tostring(requestErr))
-        return false, "Request failed: " .. tostring(requestErr)
-    elseif statusCode == 200 then
-        local content = table.concat(response_chunks)
+        logger.warn(LOG_PREFIX .. "GET progress request failed: " .. tostring(response.request_error))
+        return false, "Request failed: " .. tostring(response.request_error)
+    elseif response.status_code == 200 then
+        local content = response.body
         logger.info(LOG_PREFIX .. "GET progress success. Bytes: " .. tostring(#content))
         return true, content
-    elseif statusCode == 404 then
-        local api_error = Client.errorFromBody(response_chunks)
+    elseif response.status_code == 404 then
+        local api_error = session:errorFromResponse(response)
         logger.info(LOG_PREFIX .. "GET progress not found for file: " .. tostring(filename))
         return false, api_error or "No progress found on server"
     else
-        local api_error = Client.errorFromBody(response_chunks)
+        local api_error = session:errorFromResponse(response)
         if api_error then
             logger.warn(LOG_PREFIX .. "GET progress failed with API error: " .. tostring(api_error))
             return false, api_error
         end
-        logger.warn(LOG_PREFIX .. "GET progress failed. HTTP " .. tostring(statusCode))
-        return false, "HTTP Error " .. tostring(statusCode)
+        logger.warn(LOG_PREFIX .. "GET progress failed. HTTP " .. tostring(response.status_code))
+        return false, "HTTP Error " .. tostring(response.status_code)
     end
 end
 
-function ProgressApi.getNewProgressForDevice(base_url, user, pass, device_id)
-    local safe_device_id = socket.escape(device_id or "")
-    local target_url = libraryBaseUrl(base_url) .. "/progress/new?deviceId=" .. safe_device_id
-    local auth_header = Client.authHeader(user, pass)
-    local response_chunks = {}
-
+function ProgressApi.getNewProgressForDevice(session, device_id)
     logger.info(LOG_PREFIX .. "GET new progress queue for device: " .. tostring(device_id))
 
-    local ok, statusCode, _, requestErr = Client.request{
-        url = target_url,
+    local ok, response = session:request{
+        path = "/progress/new",
         method = "GET",
-        headers = {
-            ["Authorization"] = auth_header,
+        query = {
+            deviceId = device_id or "",
         },
-        sink = ltn12.sink.table(response_chunks),
     }
 
     if not ok then
-        logger.warn(LOG_PREFIX .. "GET new progress queue request failed: " .. tostring(requestErr))
-        return false, "Request failed: " .. tostring(requestErr)
+        logger.warn(LOG_PREFIX .. "GET new progress queue request failed: " .. tostring(response.request_error))
+        return false, "Request failed: " .. tostring(response.request_error)
     end
 
-    if statusCode ~= 200 then
-        local api_error = Client.errorFromBody(response_chunks)
+    if response.status_code ~= 200 then
+        local api_error = session:errorFromResponse(response)
         if api_error then
             logger.warn(LOG_PREFIX .. "GET new progress queue failed with API error: " .. tostring(api_error))
             return false, api_error
         end
-        logger.warn(LOG_PREFIX .. "GET new progress queue failed. HTTP " .. tostring(statusCode))
-        return false, "HTTP Error " .. tostring(statusCode)
+        logger.warn(LOG_PREFIX .. "GET new progress queue failed. HTTP " .. tostring(response.status_code))
+        return false, "HTTP Error " .. tostring(response.status_code)
     end
 
-    local body = table.concat(response_chunks)
-    local ok_json, decoded = pcall(function() return json.decode(body) end)
-    if not ok_json or type(decoded) ~= "table" then
+    local ok_json, decoded_or_err = session:decodeJsonResponse(response)
+    if not ok_json or type(decoded_or_err) ~= "table" then
         logger.warn(LOG_PREFIX .. "GET new progress queue returned invalid JSON.")
-        return false, "Invalid JSON response"
+        return false, decoded_or_err or "Invalid JSON response"
     end
-    logger.info(LOG_PREFIX .. "GET new progress queue success. Items: " .. tostring(#decoded))
+    logger.info(LOG_PREFIX .. "GET new progress queue success. Items: " .. tostring(#decoded_or_err))
 
-    return true, decoded
+    return true, decoded_or_err
 end
 
-function ProgressApi.confirmProgressDownload(base_url, user, pass, device_id, book_id)
-    local target_url = libraryBaseUrl(base_url) .. "/progress/confirm"
-    local auth_header = Client.authHeader(user, pass)
+function ProgressApi.confirmProgressDownload(session, device_id, book_id)
     local body = json.encode({
         deviceId = device_id,
         bookId = book_id,
     })
-    local response_chunks = {}
 
     logger.info(LOG_PREFIX .. "POST progress confirm. Device: " .. tostring(device_id) .. " | Book: " .. tostring(book_id))
 
-    local ok, statusCode, _, requestErr = Client.request{
-        url = target_url,
+    local ok, response = session:request{
+        path = "/progress/confirm",
         method = "POST",
         headers = {
-            ["Authorization"] = auth_header,
             ["Content-Type"] = "application/json",
             ["Content-Length"] = tostring(#body),
         },
         source = ltn12.source.string(body),
-        sink = ltn12.sink.table(response_chunks),
     }
 
     if not ok then
-        logger.warn(LOG_PREFIX .. "POST progress confirm request failed: " .. tostring(requestErr))
-        return false, "Request failed: " .. tostring(requestErr)
+        logger.warn(LOG_PREFIX .. "POST progress confirm request failed: " .. tostring(response.request_error))
+        return false, "Request failed: " .. tostring(response.request_error)
     end
 
-    if statusCode ~= 200 and statusCode ~= 201 and statusCode ~= 204 then
-        local api_error = Client.errorFromBody(response_chunks)
+    if response.status_code ~= 200 and response.status_code ~= 201 and response.status_code ~= 204 then
+        local api_error = session:errorFromResponse(response)
         if api_error then
             logger.warn(LOG_PREFIX .. "POST progress confirm failed with API error: " .. tostring(api_error))
             return false, api_error
         end
-        logger.warn(LOG_PREFIX .. "POST progress confirm failed. HTTP " .. tostring(statusCode))
-        return false, "HTTP Error " .. tostring(statusCode)
+        logger.warn(LOG_PREFIX .. "POST progress confirm failed. HTTP " .. tostring(response.status_code))
+        return false, "HTTP Error " .. tostring(response.status_code)
     end
-    logger.info(LOG_PREFIX .. "POST progress confirm success. HTTP " .. tostring(statusCode))
+    logger.info(LOG_PREFIX .. "POST progress confirm success. HTTP " .. tostring(response.status_code))
 
     return true
 end
