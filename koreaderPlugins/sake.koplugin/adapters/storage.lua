@@ -18,10 +18,12 @@ local function ensureParentDir(path)
     return true
 end
 
-local function atomicWrite(path, content, mode)
-    local ok_parent, parent_err = ensureParentDir(path)
-    if not ok_parent then
-        return false, parent_err
+local function atomicWrite(path, content, mode, ensure_parent)
+    if ensure_parent then
+        local ok_parent, parent_err = ensureParentDir(path)
+        if not ok_parent then
+            return false, parent_err
+        end
     end
 
     local temp_path = path .. ".part"
@@ -100,7 +102,7 @@ function Storage:readText(path)
 end
 
 function Storage:writeText(path, content)
-    local ok, err = atomicWrite(path, content, "w")
+    local ok, err = atomicWrite(path, content, "w", true)
     if not ok then
         return false, err
     end
@@ -109,7 +111,7 @@ end
 
 function Storage:saveBook(storage_key, content)
     local paths = self:pathsForStorageKey(storage_key)
-    local ok, err = atomicWrite(paths.book_path, content, "wb")
+    local ok, err = atomicWrite(paths.book_path, content, "wb", false)
     if not ok then
         return false, err
     end
