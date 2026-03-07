@@ -12,7 +12,6 @@ export const ZUIRoutes = {
 	passwordLogin: '/zlibrary/passwordLogin',
 	tokenLogin: '/zlibrary/login',
 	downloadBook: '/zlibrary/download',
-	authCheck: '/auth-check',
 	library: '/library/list'
 } as const;
 

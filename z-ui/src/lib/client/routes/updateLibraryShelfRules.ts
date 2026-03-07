@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 
@@ -13,17 +12,11 @@ export async function updateLibraryShelfRules(
 	shelfId: number,
 	ruleGroup: RuleGroup
 ): Promise<Result<UpdateLibraryShelfRulesResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/shelves/${shelfId}/rules`, {
 			method: 'PUT',
 			headers: {
-				'Content-Type': 'application/json',
-				Authorization: authResult.value
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({ ruleGroup })
 		});
@@ -38,4 +31,3 @@ export async function updateLibraryShelfRules(
 		return err(ApiErrors.network('Network request failed', cause));
 	}
 }
-

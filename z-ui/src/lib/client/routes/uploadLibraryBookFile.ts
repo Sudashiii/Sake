@@ -1,13 +1,7 @@
 import { type Result, err, ok } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 
 export async function uploadLibraryBookFile(file: File): Promise<Result<void, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	const fileName = file.name?.trim();
 	if (!fileName) {
 		return err(ApiErrors.validation('File name is missing'));
@@ -17,7 +11,6 @@ export async function uploadLibraryBookFile(file: File): Promise<Result<void, Ap
 		const response = await fetch(`/api/library/${encodeURIComponent(fileName)}`, {
 			method: 'PUT',
 			headers: {
-				Authorization: authResult.value,
 				'Content-Type': file.type || 'application/octet-stream'
 			},
 			body: await file.arrayBuffer()

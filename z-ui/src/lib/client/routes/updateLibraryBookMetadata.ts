@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 
 export interface UpdateLibraryBookMetadataRequest {
 	title?: string;
@@ -31,17 +30,11 @@ export async function updateLibraryBookMetadata(
 	bookId: number,
 	request: UpdateLibraryBookMetadataRequest
 ): Promise<Result<UpdateLibraryBookMetadataResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/${bookId}/metadata`, {
 			method: 'PUT',
 			headers: {
-				'Content-Type': 'application/json',
-				Authorization: authResult.value
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify(request)
 		});

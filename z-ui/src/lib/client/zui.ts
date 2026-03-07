@@ -3,7 +3,6 @@ import type { ApiError } from '$lib/types/ApiError';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
 import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLoginRequest';
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
-import { authCheck } from './routes/authCheck';
 import { passwordLogin } from './routes/passwordLogin';
 import { getAuthApiKeys } from './routes/getAuthApiKeys';
 import { revokeAuthApiKey } from './routes/revokeAuthApiKey';
@@ -83,8 +82,6 @@ export const ZUI = {
 
 	tokenLogin: (request: ZTokenLoginRequest): Promise<Result<void, ApiError>> =>
 		tokenLogin(request),
-
-	authCheck: (): Promise<Result<void, ApiError>> => authCheck(),
 
 	getAuthApiKeys: (): Promise<Result<AuthApiKeysResponse, ApiError>> => getAuthApiKeys(),
 

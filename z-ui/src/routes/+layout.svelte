@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import { ZUI } from "$lib/client/zui";
@@ -50,6 +49,12 @@
 		if (path === "/archived") return "Archived";
 		if (path === "/trash") return "Trash";
 		return path === "/" ? "Login" : path.slice(1).replace(/-/g, " ");
+	});
+
+	$effect(() => {
+		if (!isLoginPage) {
+			void loadShelves();
+		}
 	});
 
 	function openModal() {
@@ -141,28 +146,22 @@
 		}
 
 		(async () => {
-		if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-			void navigator.serviceWorker
-				.register("/service-worker.js", { type: "module" })
-				.catch((error: unknown) => {
-					console.error("Service worker registration failed", error);
-				});
-		}
+			if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+				void navigator.serviceWorker
+					.register("/service-worker.js", { type: "module" })
+					.catch((error: unknown) => {
+						console.error("Service worker registration failed", error);
+					});
+			}
 
-		zlibName = ZLibAuthService.getStoredUserName();
+			zlibName = ZLibAuthService.getStoredUserName();
 
-		// Restore sidebar state
-		if (typeof localStorage !== "undefined") {
-			sidebarCollapsed =
-				localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
-		}
+			// Restore sidebar state
+			if (typeof localStorage !== "undefined") {
+				sidebarCollapsed =
+					localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+			}
 
-		await loadShelves();
-
-		const result = await ZUI.authCheck();
-		if (!result.ok) {
-			goto("/");
-		}
 		})();
 
 		return () => {

@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 
 export interface UpdateLibraryBookStateResponse {
 	success: boolean;
@@ -23,17 +22,11 @@ export async function updateLibraryBookState(
 	bookId: number,
 	request: UpdateLibraryBookStateRequest
 ): Promise<Result<UpdateLibraryBookStateResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/${bookId}/state`, {
 			method: 'PUT',
 			headers: {
-				'Content-Type': 'application/json',
-				Authorization: authResult.value
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify(request)
 		});

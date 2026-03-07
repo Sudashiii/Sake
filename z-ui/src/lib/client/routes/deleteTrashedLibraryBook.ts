@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 
 interface DeleteTrashedLibraryBookResponse {
 	success: boolean;
@@ -10,17 +9,9 @@ interface DeleteTrashedLibraryBookResponse {
 export async function deleteTrashedLibraryBook(
 	bookId: number
 ): Promise<Result<DeleteTrashedLibraryBookResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/${bookId}/trash`, {
-			method: 'DELETE',
-			headers: {
-				Authorization: authResult.value
-			}
+			method: 'DELETE'
 		});
 
 		if (!response.ok) {
