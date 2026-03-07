@@ -101,8 +101,6 @@
 			return;
 		}
 
-		void loadAuthApiKeys();
-
 		previouslyFocusedSettingsElement =
 			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
 
@@ -132,6 +130,7 @@
 
 	function openSettingsModal(): void {
 		showSettingsModal = true;
+		void loadAuthApiKeys();
 	}
 
 	function closeSettingsModal(): void {
