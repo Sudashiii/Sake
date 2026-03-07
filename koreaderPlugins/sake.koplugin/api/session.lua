@@ -84,7 +84,6 @@ function Session:clearStoredApiKey()
 end
 
 function Session:clearPairingCredentials()
-    Settings.saveField(self.settings, "api_user", "")
     Settings.saveField(self.settings, "api_pass", "")
 end
 
@@ -138,6 +137,20 @@ function Session:pairDevice()
     self:clearPairingCredentials()
     logger.info(LOG_PREFIX .. "Stored device API key for " .. tostring(self.settings.device_name))
     return true, api_key
+end
+
+function Session:fetchDeviceKey()
+    local previous_api_key = self:storedApiKey()
+    if previous_api_key ~= "" then
+        self:clearStoredApiKey()
+    end
+
+    local ok, result = self:pairDevice()
+    if not ok and previous_api_key ~= "" then
+        self:storeApiKey(previous_api_key)
+    end
+
+    return ok, result
 end
 
 function Session:request(opts)

@@ -11,6 +11,7 @@ local Utils = require("core/utils")
 local has_sake_device, SakeDevice = pcall(require, "core/device")
 local Menu = require("ui/menu")
 local Dialogs = require("ui/dialogs")
+local Session = require("api/session")
 local BookSync = require("controllers/book_sync")
 local ProgressSync = require("controllers/progress_sync")
 
@@ -90,6 +91,44 @@ function Sake:runProgressSync(opts)
     end
 
     return true, result
+end
+
+function Sake:fetchDeviceKey()
+    local valid, missing = Settings.validatePairingRequired(self.settings)
+    if not valid then
+        logger.info("[Sake] Device key fetch skipped. Missing settings: " .. tostring(missing))
+        UIManager:show(InfoMessage:new{
+            text = _("Missing settings: ") .. tostring(missing),
+            timeout = 6
+        })
+        return false
+    end
+
+    local session = Session:new(self.settings)
+    local ok, api_key_or_err = session:fetchDeviceKey()
+    if not ok then
+        local error_message = tostring(api_key_or_err)
+        if type(api_key_or_err) == "table" then
+            error_message =
+                session:errorFromResponse(api_key_or_err)
+                or api_key_or_err.request_error
+                or ("HTTP Error " .. tostring(api_key_or_err.status_code))
+        end
+
+        logger.warn("[Sake] Device key fetch failed: " .. tostring(error_message))
+        UIManager:show(InfoMessage:new{
+            text = _("Login failed: ") .. tostring(error_message),
+            timeout = 6
+        })
+        return false
+    end
+
+    logger.info("[Sake] Device key fetched successfully.")
+    UIManager:show(InfoMessage:new{
+        text = _("Login successful. Device key stored and login password cleared."),
+        timeout = 5
+    })
+    return true
 end
 
 function Sake:checkPluginUpdate(opts)
@@ -220,6 +259,7 @@ function Sake:init()
 
     self.ctx.actions.onSync = function() self.bookSync:syncNow() end
     self.ctx.actions.onProgressSync = function() self:runProgressSync() end
+    self.ctx.actions.onFetchDeviceKey = function() self:fetchDeviceKey() end
     self.ctx.actions.onCheckPluginUpdate = function() self:checkPluginUpdate({ notify = true }) end
     self.ctx.actions.showInput = function(field, title)
         Dialogs.showStringInput(self.ctx, field, title)
