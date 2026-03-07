@@ -2,7 +2,16 @@ import type { Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { resolveRequestAuthUseCase } from '$lib/server/application/composition';
 import { SAKE_API_KEY_HEADER_NAME, SAKE_SESSION_COOKIE_NAME } from '$lib/server/auth/constants';
-import { isApiKeyAllowedRoute, isPublicApiRoute, isStaticAssetPath } from '$lib/server/auth/requestAccess';
+import {
+	isApiKeyAllowedRoute,
+	isLegacyBasicAuthMigrationRoute,
+	isPublicApiRoute,
+	isStaticAssetPath
+} from '$lib/server/auth/requestAccess';
+import {
+	hasLegacyBasicAuthConfigured,
+	requireLegacyBasicAuth
+} from '$lib/server/auth/basicAuth';
 import { errorResponse } from '$lib/server/http/api';
 import {
 	purgeExpiredTrashUseCase,
@@ -142,13 +151,56 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	const { request, url, cookies } = event;
 	const pathname = url.pathname;
 	const method = request.method.toUpperCase();
+
+	if (isStaticAssetPath(pathname)) {
+		return resolve(event);
+	}
+
+	if (pathname.startsWith('/api/') && isPublicApiRoute(pathname, method)) {
+		return resolve(event);
+	}
+
 	const sessionToken = cookies.get(SAKE_SESSION_COOKIE_NAME);
-	const apiKey = request.headers.get(SAKE_API_KEY_HEADER_NAME);
+	const apiKeyHeader = request.headers.get(SAKE_API_KEY_HEADER_NAME);
+	const apiKey = apiKeyHeader?.trim() ? apiKeyHeader.trim() : null;
+
+	if (!sessionToken && !apiKey) {
+		if (
+			pathname.startsWith('/api/') &&
+			isLegacyBasicAuthMigrationRoute(pathname, method) &&
+			hasLegacyBasicAuthConfigured()
+		) {
+			try {
+				requireLegacyBasicAuth(request);
+				return resolve(event);
+			} catch (err) {
+				if (err instanceof Response) {
+					return err;
+				}
+				throw err;
+			}
+		}
+
+		if (pathname.startsWith('/api/')) {
+			event.locals.logger?.warn({ event: 'auth.denied', pathname, method }, 'Authentication required');
+			return errorResponse('Authentication required', 401);
+		}
+
+		if (pathname.startsWith('/remote/')) {
+			return errorResponse('Authentication required', 401);
+		}
+
+		if (pathname === '/') {
+			return resolve(event);
+		}
+
+		return redirectTo(url, '/');
+	}
 
 	try {
 		const auth = await resolveRequestAuthUseCase.execute({
 			sessionToken: sessionToken ?? null,
-			apiKey: apiKey?.trim() ? apiKey.trim() : null
+			apiKey
 		});
 		event.locals.auth = auth ?? undefined;
 	} catch (err: unknown) {
@@ -186,10 +238,6 @@ const authHandle: Handle = async ({ event, resolve }) => {
 		if (event.locals.auth?.type !== 'session') {
 			return errorResponse('Authentication required', 401);
 		}
-		return resolve(event);
-	}
-
-	if (isStaticAssetPath(pathname)) {
 		return resolve(event);
 	}
 

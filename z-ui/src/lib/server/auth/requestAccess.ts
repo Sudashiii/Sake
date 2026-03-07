@@ -1,3 +1,25 @@
+const RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS = new Set([
+	'list',
+	'new',
+	'ratings',
+	'trash',
+	'progress',
+	'confirmDownload',
+	'shelves'
+]);
+
+export function isLegacyBasicAuthMigrationRoute(pathname: string, method: string): boolean {
+	if (pathname === '/api/plugin/koreader/latest') {
+		return method === 'GET';
+	}
+
+	if (pathname === '/api/plugin/koreader/download') {
+		return method === 'GET';
+	}
+
+	return false;
+}
+
 export function isPublicApiRoute(pathname: string, method: string): boolean {
 	if (pathname === '/api/library/ratings') {
 		return method === 'GET';
@@ -70,17 +92,7 @@ function isDirectLibraryFileRoute(pathname: string, method: string): boolean {
 		return false;
 	}
 
-	const reservedSegments = new Set([
-		'list',
-		'new',
-		'ratings',
-		'trash',
-		'progress',
-		'confirmDownload',
-		'shelves'
-	]);
-
-	return !reservedSegments.has(lastSegment);
+	return !RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS.has(lastSegment);
 }
 
 export function isStaticAssetPath(pathname: string): boolean {
