@@ -1,0 +1,27 @@
+meta {
+  name: POST Login Local Account
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

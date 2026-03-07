@@ -113,6 +113,13 @@
       "when": 1778800000000,
       "tag": "0015_shelf_sort_order",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1778900000000,
+      "tag": "0016_local_auth_sessions_api_keys",
+      "breakpoints": true
     }
   ]
 }

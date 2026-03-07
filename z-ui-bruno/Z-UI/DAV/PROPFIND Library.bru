@@ -8,12 +8,7 @@ http {
   method: propfind
   url: {{base_url}}/api/dav/
   body: none
-  auth: basic
-}
-
-auth:basic {
-  username: {{env.BASIC_AUTH_USERNAME}}
-  password: {{env.BASIC_AUTH_PASSWORD}}
+  auth: none
 }
 
 settings {

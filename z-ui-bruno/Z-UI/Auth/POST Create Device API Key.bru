@@ -1,0 +1,28 @@
+meta {
+  name: POST Create Device API Key
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/auth/device-key
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}",
+    "deviceId": "{{env.DEVICE_ID}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

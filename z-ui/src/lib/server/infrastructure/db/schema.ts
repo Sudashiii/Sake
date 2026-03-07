@@ -52,6 +52,65 @@ export const pluginReleases = sqliteTable(
 	(table) => [uniqueIndex('plugin_releases_version_unique').on(table.version)]
 );
 
+export const users = sqliteTable(
+	'Users',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		username: text('username').notNull(),
+		passwordHash: text('password_hash').notNull(),
+		isDisabled: integer('is_disabled', { mode: 'boolean' }).notNull().default(false),
+		createdAt: text('created_at').notNull(),
+		updatedAt: text('updated_at').notNull(),
+		lastLoginAt: text('last_login_at')
+	},
+	(table) => [uniqueIndex('users_username_unique').on(table.username)]
+);
+
+export const userSessions = sqliteTable(
+	'UserSessions',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull(),
+		createdAt: text('created_at').notNull(),
+		lastUsedAt: text('last_used_at').notNull(),
+		expiresAt: text('expires_at').notNull(),
+		revokedAt: text('revoked_at'),
+		userAgent: text('user_agent'),
+		ipAddress: text('ip_address')
+	},
+	(table) => [
+		uniqueIndex('user_sessions_token_hash_unique').on(table.tokenHash),
+		index('user_sessions_user_idx').on(table.userId),
+		index('user_sessions_expires_idx').on(table.expiresAt)
+	]
+);
+
+export const userApiKeys = sqliteTable(
+	'UserApiKeys',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		deviceId: text('device_id').notNull(),
+		scope: text('scope').notNull().default('device'),
+		keyPrefix: text('key_prefix').notNull(),
+		keyHash: text('key_hash').notNull(),
+		createdAt: text('created_at').notNull(),
+		lastUsedAt: text('last_used_at'),
+		expiresAt: text('expires_at'),
+		revokedAt: text('revoked_at')
+	},
+	(table) => [
+		uniqueIndex('user_api_keys_key_hash_unique').on(table.keyHash),
+		index('user_api_keys_user_idx').on(table.userId),
+		index('user_api_keys_device_idx').on(table.deviceId)
+	]
+);
+
 export const deviceDownloads = sqliteTable('DeviceDownloads', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	deviceId: text('deviceId').notNull(),

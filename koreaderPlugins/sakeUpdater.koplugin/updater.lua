@@ -1,7 +1,6 @@
 local json = require("json")
 local ltn12 = require("ltn12")
 local logger = require("logger")
-local mime = require("mime")
 local socket = require("socket.http")
 
 local Updater = {}
@@ -9,6 +8,11 @@ Updater.__index = Updater
 
 local LOG_PREFIX = "[Sake] "
 local ROUTE_LATEST = "/api/plugin/koreader/latest"
+local ROUTE_DEVICE_KEY = "/api/auth/device-key"
+local API_KEY_HEADER = "x-api-key"
+local API_KEY_SETTING = "sake_api_key"
+local API_USER_SETTING = "sake_api_user"
+local API_PASS_SETTING = "sake_api_pass"
 
 local function normalizedBaseUrl(base_url)
     local url = tostring(base_url or "")
@@ -22,9 +26,12 @@ local function shellQuote(value)
     return "'" .. tostring(value or ""):gsub("'", "'\\''") .. "'"
 end
 
-local function authHeader(user, pass)
-    local credentials = (user or "") .. ":" .. (pass or "")
-    return "Basic " .. mime.b64(credentials)
+local function copyTable(value)
+    local copy = {}
+    for key, item in pairs(value or {}) do
+        copy[key] = item
+    end
+    return copy
 end
 
 local function request(opts)
@@ -42,6 +49,149 @@ local function request(opts)
         return false, nil, headers, tostring(statusCode or "Request failed"), response_chunks
     end
     return true, statusCode, headers, statusText, response_chunks
+end
+
+local function buildResponse(status_code, response_headers, request_err, response_chunks)
+    return {
+        status_code = status_code,
+        headers = response_headers,
+        request_error = tostring(request_err or "Request failed"),
+        body_chunks = response_chunks or {},
+        body = table.concat(response_chunks or {}),
+    }
+end
+
+local function errorFromResponse(response)
+    local body = table.concat(response and response.body_chunks or {})
+    if body == "" then
+        return nil
+    end
+
+    local ok, decoded = pcall(function() return json.decode(body) end)
+    if ok and decoded and type(decoded) == "table" and decoded.error then
+        return tostring(decoded.error)
+    end
+
+    return nil
+end
+
+local function storedApiKey(settings)
+    local api_key = tostring(settings.api_key or "")
+    return api_key:gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function hasPairingCredentials(settings)
+    return tostring(settings.api_user or "") ~= ""
+        and tostring(settings.api_pass or "") ~= ""
+        and tostring(settings.device_name or "") ~= ""
+end
+
+local function saveApiKey(settings, api_key)
+    settings.api_key = tostring(api_key or "")
+    G_reader_settings:saveSetting(API_KEY_SETTING, settings.api_key)
+end
+
+local function clearStoredApiKey(settings)
+    settings.api_key = ""
+    G_reader_settings:saveSetting(API_KEY_SETTING, "")
+end
+
+local function clearPairingCredentials(settings)
+    settings.api_user = ""
+    settings.api_pass = ""
+    G_reader_settings:saveSetting(API_USER_SETTING, "")
+    G_reader_settings:saveSetting(API_PASS_SETTING, "")
+end
+
+local function pairDevice(settings)
+    if not hasPairingCredentials(settings) then
+        return false, "Missing API key and pairing credentials"
+    end
+
+    local request_body = json.encode({
+        username = tostring(settings.api_user or ""),
+        password = tostring(settings.api_pass or ""),
+        deviceId = tostring(settings.device_name or ""),
+    })
+
+    local ok, statusCode, headers, requestErr, response_chunks = request{
+        url = normalizedBaseUrl(settings.api_url) .. ROUTE_DEVICE_KEY,
+        method = "POST",
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["Content-Length"] = tostring(#request_body),
+        },
+        source = ltn12.source.string(request_body),
+    }
+
+    local response = buildResponse(statusCode, headers, requestErr, response_chunks)
+    if not ok then
+        return false, response
+    end
+
+    if statusCode ~= 201 then
+        return false, response
+    end
+
+    local ok_json, payload = pcall(function() return json.decode(response.body) end)
+    if not ok_json or type(payload) ~= "table" or not payload.apiKey then
+        return false, "Invalid device-key response"
+    end
+
+    local api_key = tostring(payload.apiKey)
+    saveApiKey(settings, api_key)
+    clearPairingCredentials(settings)
+    logger.info(LOG_PREFIX .. "Updater stored device API key for " .. tostring(settings.device_name))
+    return true, api_key
+end
+
+local function requestWithAuth(settings, opts)
+    local api_key = storedApiKey(settings)
+    if api_key == "" then
+        local paired, api_key_or_err = pairDevice(settings)
+        if not paired then
+            if type(api_key_or_err) == "table" and api_key_or_err.status_code then
+                return true, api_key_or_err
+            end
+
+            return false, {
+                status_code = nil,
+                headers = nil,
+                request_error = tostring(api_key_or_err or "Request failed"),
+                body_chunks = {},
+                body = "",
+            }
+        end
+
+        api_key = tostring(api_key_or_err)
+    end
+
+    local headers = copyTable(opts.headers)
+    headers[API_KEY_HEADER] = api_key
+
+    local ok, statusCode, responseHeaders, requestErr, response_chunks = request{
+        url = opts.url,
+        method = opts.method or "GET",
+        headers = headers,
+        source = opts.source,
+        sink = opts.sink,
+        redirect = opts.redirect,
+        timeout = opts.timeout,
+    }
+
+    local response = buildResponse(statusCode, responseHeaders, requestErr, response_chunks)
+    if not ok then
+        return false, response
+    end
+
+    if response.status_code == 401 and not opts._retry_auth and hasPairingCredentials(settings) then
+        clearStoredApiKey(settings)
+        local retry_opts = copyTable(opts)
+        retry_opts._retry_auth = true
+        return requestWithAuth(settings, retry_opts)
+    end
+
+    return true, response
 end
 
 local function parseVersion(version)
@@ -121,23 +271,21 @@ function Updater:checkForUpdate()
     self.current_version = current_version
 
     local url = normalizedBaseUrl(settings.api_url) .. ROUTE_LATEST
-    local ok, statusCode, _, requestErr, response_chunks = request{
+    local ok, response = requestWithAuth(settings, {
         url = url,
         method = "GET",
-        headers = {
-            ["Authorization"] = authHeader(settings.api_user, settings.api_pass),
-        },
-    }
+    })
     if not ok then
         self.update_available = false
-        return false, "Request failed: " .. tostring(requestErr)
+        return false, "Request failed: " .. tostring(response.request_error)
     end
-    if statusCode ~= 200 then
+    if response.status_code ~= 200 then
         self.update_available = false
-        return false, "HTTP Error " .. tostring(statusCode)
+        local api_error = errorFromResponse(response)
+        return false, api_error or "HTTP Error " .. tostring(response.status_code)
     end
 
-    local body = table.concat(response_chunks)
+    local body = response.body
     local ok_json, payload = pcall(function() return json.decode(body) end)
     if not ok_json or type(payload) ~= "table" or not payload.version then
         self.update_available = false
@@ -180,22 +328,20 @@ function Updater:performUpdate()
         return false, "Failed to create zip file: " .. tostring(open_err)
     end
 
-    local ok, statusCode, _, requestErr = request{
+    local ok, response = requestWithAuth(settings, {
         url = url,
         method = "GET",
         redirect = true,
-        headers = {
-            ["Authorization"] = authHeader(settings.api_user, settings.api_pass),
-        },
         sink = ltn12.sink.file(file),
-    }
+    })
     if not ok then
         os.remove(zip_path)
-        return false, "Download failed: " .. tostring(requestErr)
+        return false, "Download failed: " .. tostring(response.request_error)
     end
-    if statusCode ~= 200 then
+    if response.status_code ~= 200 then
         os.remove(zip_path)
-        return false, "Download HTTP Error " .. tostring(statusCode)
+        local api_error = errorFromResponse(response)
+        return false, api_error or "Download HTTP Error " .. tostring(response.status_code)
     end
 
     local cleanup_ok = os.execute("rm -rf " .. shellQuote(updated_path) .. " " .. shellQuote(old_path))

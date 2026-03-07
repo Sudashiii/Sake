@@ -7,12 +7,7 @@ meta {
 post {
   url: {{base_url}}/api/zlibrary/search
   body: json
-  auth: basic
-}
-
-auth:basic {
-  username: {{env.BASIC_AUTH_USERNAME}}
-  password: {{env.BASIC_AUTH_PASSWORD}}
+  auth: none
 }
 
 body:json {

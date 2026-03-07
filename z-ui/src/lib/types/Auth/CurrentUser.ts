@@ -1,0 +1,12 @@
+export interface CurrentUser {
+	id: number;
+	username: string;
+	isDisabled: boolean;
+	lastLoginAt: string | null;
+	createdAt: string;
+}
+
+export interface CurrentUserResponse {
+	success: true;
+	user: CurrentUser;
+}

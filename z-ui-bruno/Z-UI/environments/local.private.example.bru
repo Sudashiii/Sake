@@ -1,4 +1,189 @@
 vars {
-  BASIC_AUTH_USERNAME: your-dev-user
-  BASIC_AUTH_PASSWORD: your-dev-password
+  LOCAL_AUTH_USERNAME: your-local-admin
+  LOCAL_AUTH_PASSWORD: your-local-password
+  LEGACY_BOOTSTRAP_USERNAME: your-legacy-bootstrap-user
+  LEGACY_BOOTSTRAP_PASSWORD: your-legacy-bootstrap-password
+  DEVICE_ID: koreader-test-device
+  DEVICE_API_KEY: your-device-api-key
+  API_KEY_ID: 1
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/folder.bru
+meta {
+  name: Auth
+}
+
+auth {
+  mode: none
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/GET Auth Status.bru
+meta {
+  name: GET Auth Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/auth/status
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/POST Bootstrap Local Account.bru
+meta {
+  name: POST Bootstrap Local Account
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/auth/bootstrap
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}",
+    "legacyUsername": "{{env.LEGACY_BOOTSTRAP_USERNAME}}",
+    "legacyPassword": "{{env.LEGACY_BOOTSTRAP_PASSWORD}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/POST Login Local Account.bru
+meta {
+  name: POST Login Local Account
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/GET Current User.bru
+meta {
+  name: GET Current User
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/auth/me
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/POST Logout Local Account.bru
+meta {
+  name: POST Logout Local Account
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/auth/logout
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/POST Create Device API Key.bru
+meta {
+  name: POST Create Device API Key
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/auth/device-key
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}",
+    "deviceId": "{{env.DEVICE_ID}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/GET API Keys.bru
+meta {
+  name: GET API Keys
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{base_url}}/api/auth/api-keys
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+*** Add File: /Users/sascha/Code/z-dl/z-ui-bruno/Z-UI/Auth/DELETE Revoke API Key.bru
+meta {
+  name: DELETE Revoke API Key
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{base_url}}/api/auth/api-keys/{{env.API_KEY_ID}}
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
 }

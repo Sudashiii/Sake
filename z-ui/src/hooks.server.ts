@@ -1,6 +1,8 @@
 import type { Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { requireBasicAuth } from '$lib/server/auth/basicAuth';
+import { resolveRequestAuthUseCase } from '$lib/server/application/composition';
+import { SAKE_API_KEY_HEADER_NAME, SAKE_SESSION_COOKIE_NAME } from '$lib/server/auth/constants';
+import { isApiKeyAllowedRoute, isPublicApiRoute, isStaticAssetPath } from '$lib/server/auth/requestAccess';
 import { errorResponse } from '$lib/server/http/api';
 import {
 	purgeExpiredTrashUseCase,
@@ -119,29 +121,6 @@ const requestLogHandle: Handle = async ({ event, resolve }) => {
 	}
 };
 
-const basicAuthHandle: Handle = async ({ event, resolve }) => {
-	const { request, url } = event;
-	const isPublicApiRoute = url.pathname === '/api/library/ratings';
-
-	if (url.pathname.startsWith('/api/') && !isPublicApiRoute) {
-		try {
-			requireBasicAuth(request);
-		} catch (err) {
-				if (err instanceof Response) {
-					event.locals.logger?.warn(
-						{ event: 'auth.denied', statusCode: err.status },
-						'Basic auth denied'
-					);
-					return err;
-				}
-				event.locals.logger?.error({ event: 'auth.error', error: toLogError(err) }, 'Auth error');
-				return errorResponse('Authentication error', 500);
-			}
-		}
-
-	return resolve(event);
-};
-
 const cookieHandle: Handle = async ({ event, resolve }) => {
 	triggerTrashPurgeIfDue();
 
@@ -154,4 +133,78 @@ const cookieHandle: Handle = async ({ event, resolve }) => {
 
 	return resolve(event);
 };
-export const handle = sequence(requestLogHandle, cookieHandle, basicAuthHandle);
+
+function redirectTo(url: URL, pathname: string): Response {
+	return Response.redirect(new URL(pathname, url), 303);
+}
+
+const authHandle: Handle = async ({ event, resolve }) => {
+	const { request, url, cookies } = event;
+	const pathname = url.pathname;
+	const method = request.method.toUpperCase();
+	const sessionToken = cookies.get(SAKE_SESSION_COOKIE_NAME);
+	const apiKey = request.headers.get(SAKE_API_KEY_HEADER_NAME);
+
+	try {
+		const auth = await resolveRequestAuthUseCase.execute({
+			sessionToken: sessionToken ?? null,
+			apiKey: apiKey?.trim() ? apiKey.trim() : null
+		});
+		event.locals.auth = auth ?? undefined;
+	} catch (err: unknown) {
+		event.locals.logger?.error({ event: 'auth.resolve.failed', error: toLogError(err) }, 'Auth resolution failed');
+		return errorResponse('Authentication error', 500);
+	}
+
+	if (pathname.startsWith('/api/')) {
+		if (isPublicApiRoute(pathname, method)) {
+			return resolve(event);
+		}
+
+		if (!event.locals.auth) {
+			event.locals.logger?.warn({ event: 'auth.denied', pathname, method }, 'Authentication required');
+			return errorResponse('Authentication required', 401);
+		}
+
+		if (event.locals.auth.type === 'api_key' && !isApiKeyAllowedRoute(pathname, method)) {
+			event.locals.logger?.warn(
+				{
+					event: 'auth.api_key.denied',
+					pathname,
+					method,
+					deviceId: event.locals.auth.deviceId
+				},
+				'API key is not allowed for this route'
+			);
+			return errorResponse('API key is not allowed for this route', 403);
+		}
+
+		return resolve(event);
+	}
+
+	if (pathname.startsWith('/remote/')) {
+		if (event.locals.auth?.type !== 'session') {
+			return errorResponse('Authentication required', 401);
+		}
+		return resolve(event);
+	}
+
+	if (isStaticAssetPath(pathname)) {
+		return resolve(event);
+	}
+
+	if (pathname === '/') {
+		if (event.locals.auth?.type === 'session') {
+			return redirectTo(url, '/search');
+		}
+		return resolve(event);
+	}
+
+	if (event.locals.auth?.type !== 'session') {
+		return redirectTo(url, '/');
+	}
+
+	return resolve(event);
+};
+
+export const handle = sequence(requestLogHandle, cookieHandle, authHandle);

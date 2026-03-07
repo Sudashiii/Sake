@@ -44,6 +44,9 @@ import { SyncKoreaderPluginReleaseUseCase } from '$lib/server/application/use-ca
 import { GetLatestKoreaderPluginUseCase } from '$lib/server/application/use-cases/GetLatestKoreaderPluginUseCase';
 import { GetKoreaderPluginDownloadUseCase } from '$lib/server/application/use-cases/GetKoreaderPluginDownloadUseCase';
 import { PluginReleaseRepository } from '$lib/server/infrastructure/repositories/PluginReleaseRepository';
+import { UserRepository } from '$lib/server/infrastructure/repositories/UserRepository';
+import { UserSessionRepository } from '$lib/server/infrastructure/repositories/UserSessionRepository';
+import { UserApiKeyRepository } from '$lib/server/infrastructure/repositories/UserApiKeyRepository';
 import { UpdateBookRatingUseCase } from '$lib/server/application/use-cases/UpdateBookRatingUseCase';
 import { ListLibraryRatingsUseCase } from '$lib/server/application/use-cases/ListLibraryRatingsUseCase';
 import { UpdateLibraryBookStateUseCase } from '$lib/server/application/use-cases/UpdateLibraryBookStateUseCase';
@@ -62,11 +65,23 @@ import { ZLibrarySearchProvider } from '$lib/server/infrastructure/search-provid
 import { OpenLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/OpenLibrarySearchProvider';
 import { GutenbergSearchProvider } from '$lib/server/infrastructure/search-providers/GutenbergSearchProvider';
 import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
+import { GetAuthStatusUseCase } from '$lib/server/application/use-cases/GetAuthStatusUseCase';
+import { BootstrapLocalAccountUseCase } from '$lib/server/application/use-cases/BootstrapLocalAccountUseCase';
+import { LoginLocalAccountUseCase } from '$lib/server/application/use-cases/LoginLocalAccountUseCase';
+import { GetCurrentUserUseCase } from '$lib/server/application/use-cases/GetCurrentUserUseCase';
+import { LogoutLocalAccountUseCase } from '$lib/server/application/use-cases/LogoutLocalAccountUseCase';
+import { CreateDeviceApiKeyUseCase } from '$lib/server/application/use-cases/CreateDeviceApiKeyUseCase';
+import { ListActiveApiKeysUseCase } from '$lib/server/application/use-cases/ListActiveApiKeysUseCase';
+import { RevokeApiKeyUseCase } from '$lib/server/application/use-cases/RevokeApiKeyUseCase';
+import { ResolveRequestAuthUseCase } from '$lib/server/application/use-cases/ResolveRequestAuthUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = new S3Storage();
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
+export const userRepository = new UserRepository();
+export const userSessionRepository = new UserSessionRepository();
+export const userApiKeyRepository = new UserApiKeyRepository();
 export const bookRepository = new BookRepository();
 export const shelfRepository = new ShelfRepository();
 export const deviceDownloadRepository = new DeviceDownloadRepository();
@@ -141,6 +156,28 @@ export const getLatestKoreaderPluginUseCase = new GetLatestKoreaderPluginUseCase
 export const getKoreaderPluginDownloadUseCase = new GetKoreaderPluginDownloadUseCase(
 	storage,
 	getLatestKoreaderPluginUseCase
+);
+export const getAuthStatusUseCase = new GetAuthStatusUseCase(userRepository);
+export const bootstrapLocalAccountUseCase = new BootstrapLocalAccountUseCase(
+	userRepository,
+	userSessionRepository
+);
+export const loginLocalAccountUseCase = new LoginLocalAccountUseCase(
+	userRepository,
+	userSessionRepository
+);
+export const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepository);
+export const logoutLocalAccountUseCase = new LogoutLocalAccountUseCase(userSessionRepository);
+export const createDeviceApiKeyUseCase = new CreateDeviceApiKeyUseCase(
+	userRepository,
+	userApiKeyRepository
+);
+export const listActiveApiKeysUseCase = new ListActiveApiKeysUseCase(userApiKeyRepository);
+export const revokeApiKeyUseCase = new RevokeApiKeyUseCase(userApiKeyRepository);
+export const resolveRequestAuthUseCase = new ResolveRequestAuthUseCase(
+	userRepository,
+	userSessionRepository,
+	userApiKeyRepository
 );
 export const updateBookRatingUseCase = new UpdateBookRatingUseCase(bookRepository);
 export const listLibraryRatingsUseCase = new ListLibraryRatingsUseCase(bookRepository);

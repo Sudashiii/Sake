@@ -1,59 +1,94 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { goto } from "$app/navigation";
-	import SakeLogo from "$lib/assets/svg/SakeLogo.svelte";
-	import { AuthService } from "$lib/client/services/authService";
-	import type { ApiError } from "$lib/types/ApiError";
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
+	import { AuthService } from '$lib/client/services/authService';
+	import type { ApiError } from '$lib/types/ApiError';
 
-	let username = $state("");
-	let password = $state("");
-	let isAuthenticated = $state(false);
-	let isLoading = $state(false);
+	type AuthMode = 'login' | 'bootstrap';
+
+	let username = $state('');
+	let password = $state('');
+	let legacyUsername = $state('');
+	let legacyPassword = $state('');
+	let authMode = $state<AuthMode>('login');
+	let bootstrapGuardRequired = $state(false);
+	let isInitializing = $state(true);
+	let isSubmitting = $state(false);
 	let error = $state<ApiError | null>(null);
 
-	async function handleLogin() {
-		if (!username || !password) {
+	const heading = $derived(authMode === 'bootstrap' ? 'Create the first account' : 'Welcome back');
+	const subtitle = $derived(
+		authMode === 'bootstrap'
+			? 'Set up the local Sake account used for this instance.'
+			: 'Sign in to your private digital library.'
+	);
+	const submitLabel = $derived(authMode === 'bootstrap' ? 'Create Account' : 'Sign In');
+	const helperText = $derived(
+		authMode === 'bootstrap'
+			? 'This instance has no local account yet.'
+			: 'Use the local Sake account credentials for this server.'
+	);
+
+	async function initializePage(): Promise<void> {
+		error = null;
+		isInitializing = true;
+
+		const sessionResult = await AuthService.restoreSession();
+		if (sessionResult.ok) {
+			await goto('/search');
 			return;
 		}
 
-		isLoading = true;
+		const statusResult = await AuthService.getStatus();
+		if (!statusResult.ok) {
+			error = statusResult.error;
+			authMode = 'login';
+			bootstrapGuardRequired = false;
+			isInitializing = false;
+			return;
+		}
+
+		authMode = statusResult.value.needsBootstrap ? 'bootstrap' : 'login';
+		bootstrapGuardRequired = statusResult.value.bootstrapGuardRequired;
+		isInitializing = false;
+	}
+
+	async function handleSubmit(): Promise<void> {
+		if (!username || !password || isSubmitting || isInitializing) {
+			return;
+		}
+
+		isSubmitting = true;
 		error = null;
 
-		const result = await AuthService.validateCredentials({
-			username,
-			password,
-		});
+		const result =
+			authMode === 'bootstrap'
+				? await AuthService.bootstrap({
+						username,
+						password,
+						legacyUsername: legacyUsername || undefined,
+						legacyPassword: legacyPassword || undefined
+					})
+				: await AuthService.login({ username, password });
 
-		if (result.ok) {
-			isAuthenticated = true;
-			goto("/search");
-		} else {
+		if (!result.ok) {
 			error = result.error;
+			isSubmitting = false;
+			return;
 		}
 
-		isLoading = false;
+		await goto('/search');
 	}
 
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === "Enter") {
-			handleLogin();
+	function handleKeyDown(event: KeyboardEvent): void {
+		if (event.key === 'Enter') {
+			void handleSubmit();
 		}
 	}
 
-	onMount(async () => {
-		if (AuthService.hasStoredCredentials()) {
-			isLoading = true;
-			const result = await AuthService.restoreSession();
-
-			if (result.ok) {
-				username = result.value.username;
-				password = result.value.password;
-				isAuthenticated = true;
-				goto("/search");
-			}
-
-			isLoading = false;
-		}
+	onMount(() => {
+		void initializePage();
 	});
 </script>
 
@@ -61,7 +96,7 @@
 	<div class="glow glow-left"></div>
 	<div class="glow glow-right"></div>
 
-	{#if !isAuthenticated}
+	{#if !isInitializing}
 		<section class="login-wrap">
 			<div class="login-panel">
 				<div class="brand-row">
@@ -69,8 +104,8 @@
 						<SakeLogo size={28} decorative={true} />
 					</div>
 					<div class="brand-copy">
-						<h1>Welcome back</h1>
-						<p>Sign in to your private digital library.</p>
+						<h1>{heading}</h1>
+						<p>{subtitle}</p>
 					</div>
 				</div>
 
@@ -85,14 +120,17 @@
 					</div>
 				{/if}
 
+				<p class="signup-note">{helperText}</p>
+
 				<div class="field-group">
 					<label for="username">Username</label>
 					<input
 						id="username"
 						type="text"
 						bind:value={username}
-						placeholder="Enter username"
+						placeholder={authMode === 'bootstrap' ? 'Choose a username' : 'Enter username'}
 						onkeydown={handleKeyDown}
+						autocomplete="username"
 					/>
 				</div>
 
@@ -102,24 +140,52 @@
 						id="password"
 						type="password"
 						bind:value={password}
-						placeholder="Enter password"
+						placeholder={authMode === 'bootstrap' ? 'Create a password' : 'Enter password'}
 						onkeydown={handleKeyDown}
+						autocomplete={authMode === 'bootstrap' ? 'new-password' : 'current-password'}
 					/>
 				</div>
 
-				<button class="login-btn" onclick={handleLogin} disabled={isLoading}>
-					{#if isLoading}
+				{#if authMode === 'bootstrap' && bootstrapGuardRequired}
+					<div class="divider"></div>
+
+					<div class="field-group">
+						<label for="legacy-username">Legacy Bootstrap Username</label>
+						<input
+							id="legacy-username"
+							type="text"
+							bind:value={legacyUsername}
+							placeholder="Enter legacy bootstrap username"
+							onkeydown={handleKeyDown}
+							autocomplete="username"
+						/>
+					</div>
+
+					<div class="field-group">
+						<label for="legacy-password">Legacy Bootstrap Password</label>
+						<input
+							id="legacy-password"
+							type="password"
+							bind:value={legacyPassword}
+							placeholder="Enter legacy bootstrap password"
+							onkeydown={handleKeyDown}
+							autocomplete="current-password"
+						/>
+					</div>
+
+					<p class="helper-note">
+						This upgraded install still requires the legacy env credentials once before the first local account can be created.
+					</p>
+				{/if}
+
+				<button class="login-btn" onclick={() => void handleSubmit()} disabled={isSubmitting}>
+					{#if isSubmitting}
 						<span class="spinner"></span>
-						Signing in...
+						{authMode === 'bootstrap' ? 'Creating account...' : 'Signing in...'}
 					{:else}
-						Sign In
+						{submitLabel}
 					{/if}
 				</button>
-
-				<p class="signup-note">
-					Don't have an account?
-					<button type="button">Create one</button>
-				</p>
 			</div>
 
 			<div class="visual-panel" aria-hidden="true">
@@ -133,7 +199,7 @@
 	{:else}
 		<div class="redirect-panel">
 			<div class="spinner"></div>
-			<p>Redirecting...</p>
+			<p>Checking session...</p>
 		</div>
 	{/if}
 </main>
@@ -202,6 +268,12 @@
 		margin: 0.22rem 0 0;
 		font-size: 0.87rem;
 		color: var(--color-text-muted);
+	}
+
+	.divider {
+		height: 1px;
+		background: rgba(255, 255, 255, 0.08);
+		margin: 0.1rem 0;
 	}
 
 	.field-group {
@@ -325,23 +397,15 @@
 
 	.signup-note {
 		margin: 0.2rem 0 0;
-		text-align: center;
 		font-size: 0.74rem;
 		color: var(--color-text-muted);
 	}
 
-	.signup-note button {
-		background: transparent;
-		border: 0;
-		padding: 0 0 0 0.2rem;
-		margin: 0;
-		color: var(--color-primary);
-		font-size: inherit;
-		cursor: pointer;
-	}
-
-	.signup-note button:hover {
-		text-decoration: underline;
+	.helper-note {
+		margin: -0.1rem 0 0;
+		font-size: 0.78rem;
+		line-height: 1.45;
+		color: var(--color-text-muted);
 	}
 
 	.redirect-panel {
