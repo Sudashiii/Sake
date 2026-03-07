@@ -14,6 +14,14 @@ KOReader plugin release metadata is stored in `z-ui` DB (`PluginReleases`) while
 Drizzle migration names in `z-ui` must be explicit/descriptive (no random auto-generated slugs), and corresponding `drizzle/meta/_journal.json` tags must be updated when renamed.
 Implementation plans for non-trivial `z-ui` work are mandatory in `./z-ui/docs/implementation-plans/`.
 
+## Git workflow
+
+- Before pushing, always check the current branch explicitly.
+- Never push directly on `master`.
+- You may create branches when needed.
+- Branch names must use either `feature/<feature_desc>` or `fix/<fix_desc>`.
+- If the correct branch name is unclear, do not commit yet. Leave the change uncommitted until it can be included in the next appropriate feature or fix branch.
+
 ## KOReader plugin logging
 
 - For `koreaderPlugins/sake.koplugin`, all logger output must use the prefix `[Sake]`.

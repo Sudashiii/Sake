@@ -18,12 +18,21 @@ services:
       context: ./z-ui
       dockerfile: dockerfile
       target: runtime
+      args:
+        PUBLIC_WEBAPP_VERSION: ${PUBLIC_WEBAPP_VERSION:-dev-local}
+        PUBLIC_WEBAPP_GIT_TAG: ${PUBLIC_WEBAPP_GIT_TAG:-}
+        PUBLIC_WEBAPP_COMMIT_SHA: ${PUBLIC_WEBAPP_COMMIT_SHA:-}
+        PUBLIC_WEBAPP_RELEASED_AT: ${PUBLIC_WEBAPP_RELEASED_AT:-}
     image: z-ui
     container_name: z-ui
     ports:
       - "5173:3000"
     environment:
       - PUBLIC_ZDL_URL=http://z-dl:6126
+      - PUBLIC_WEBAPP_VERSION=${PUBLIC_WEBAPP_VERSION:-dev-local}
+      - PUBLIC_WEBAPP_GIT_TAG=${PUBLIC_WEBAPP_GIT_TAG:-}
+      - PUBLIC_WEBAPP_COMMIT_SHA=${PUBLIC_WEBAPP_COMMIT_SHA:-}
+      - PUBLIC_WEBAPP_RELEASED_AT=${PUBLIC_WEBAPP_RELEASED_AT:-}
     env_file:
       - ./z-ui/.env
     volumes:

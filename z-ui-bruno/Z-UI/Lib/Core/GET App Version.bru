@@ -1,0 +1,20 @@
+meta {
+  name: GET App Version
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{base_url}}/api/app/version
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  base_url: http://localhost:5173
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

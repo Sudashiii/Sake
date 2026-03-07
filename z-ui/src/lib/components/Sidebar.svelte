@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { env } from '$env/dynamic/public';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount, tick } from 'svelte';
@@ -9,6 +10,7 @@
 	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
 	import { ZUI } from '$lib/client/zui';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import { createWebappVersion } from '$lib/webappVersion';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
 	import type { RuleGroup } from '$lib/types/Library/ShelfRule';
@@ -24,6 +26,7 @@
 	const EMOJI_OPTIONS = ['📚', '⭐', '🚀', '📌', '🔥', '💎', '🎯', '📖', '🌙', '🎨', '💡', '🏆', '❤️', '🌊', '⚡', '🦋'];
 	const SHELF_REORDER_LONG_PRESS_MS = 360;
 	const SHELF_DRAG_CANCEL_DISTANCE_PX = 8;
+	const appVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERSION });
 
 	let {
 		collapsed = $bindable(false),
@@ -1067,6 +1070,21 @@
 				<section class="settings-section">
 					<div class="settings-section-header">
 						<div>
+							<h4>App</h4>
+							<p>Current webapp release for this build.</p>
+						</div>
+					</div>
+					<dl class="settings-app-meta">
+						<div>
+							<dt>Version</dt>
+							<dd>{appVersion.version}</dd>
+						</div>
+					</dl>
+				</section>
+
+				<section class="settings-section">
+					<div class="settings-section-header">
+						<div>
 							<h4>Device API Keys</h4>
 							<p>Masked keys are listed by device ID. Revoke one to force that device to pair again.</p>
 						</div>
@@ -1861,6 +1879,32 @@
 	.api-key-list {
 		display: grid;
 		gap: 0.7rem;
+	}
+
+	.settings-app-meta {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.7rem;
+		margin: 0;
+	}
+
+	.settings-app-meta div {
+		display: grid;
+		gap: 0.18rem;
+	}
+
+	.settings-app-meta dt {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-text-muted);
+	}
+
+	.settings-app-meta dd {
+		margin: 0;
+		font-size: 0.88rem;
+		font-family: var(--font-mono, 'JetBrains Mono', monospace);
+		color: var(--color-text-primary);
 	}
 
 	.api-key-card {
