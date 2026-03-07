@@ -13,10 +13,7 @@ export interface AuthCredentials {
 	password: string;
 }
 
-export interface BootstrapCredentials extends AuthCredentials {
-	legacyUsername?: string;
-	legacyPassword?: string;
-}
+export type BootstrapCredentials = AuthCredentials;
 
 export const AuthService = {
 	async getStatus(): Promise<Result<AuthStatus, ApiError>> {

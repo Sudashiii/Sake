@@ -3,5 +3,4 @@ export interface AuthStatus {
 	hasAccount: boolean;
 	needsBootstrap: boolean;
 	registrationOpen: boolean;
-	bootstrapGuardRequired: boolean;
 }

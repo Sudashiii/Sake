@@ -6,8 +6,6 @@ import { ZUIRoutes } from '../base/routes';
 interface BootstrapLocalAccountRequest {
 	username: string;
 	password: string;
-	legacyUsername?: string;
-	legacyPassword?: string;
 }
 
 export async function bootstrapLocalAccount(

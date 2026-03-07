@@ -1,5 +1,4 @@
 import { getAuthStatusUseCase } from '$lib/server/application/composition';
-import { hasLegacyBasicAuthConfigured } from '$lib/server/auth/basicAuth';
 import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
@@ -23,10 +22,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			return errorResponse(result.error.message, result.error.status);
 		}
 
-		return json({
-			...result.value,
-			bootstrapGuardRequired: result.value.needsBootstrap && hasLegacyBasicAuthConfigured()
-		});
+		return json(result.value);
 	} catch (err: unknown) {
 		requestLogger.error({ event: 'auth.status.failed', error: toLogError(err) }, 'Failed to fetch auth status');
 		return errorResponse('Failed to fetch auth status', 500);
