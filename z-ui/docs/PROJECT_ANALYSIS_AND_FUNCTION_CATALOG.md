@@ -12,7 +12,7 @@ This repository is a monorepo with three active areas:
 
 Core product behavior:
 
-1. User authenticates to Z-DL (Basic Auth for app access, optional Z-Library session for search/download).
+1. User authenticates to Sake with a local account (session cookie in the browser, device API keys for KOReader).
 2. Search books via Z-Library.
 3. Download immediately to device, or queue for background import into personal library.
 4. Library tracks metadata, ratings, read/archive state, trash lifecycle, device download confirmations, and progress history.
@@ -32,7 +32,7 @@ Core product behavior:
 Global server hooks (`src/hooks.server.ts`) add:
 
 - structured request logging + `x-request-id`,
-- basic-auth enforcement for `/api/*` (except `/api/library/ratings`),
+- local-account session / device API-key enforcement for protected routes,
 - periodic trash purge trigger,
 - startup KOReader plugin sync trigger,
 - cookie-based Z-Library credential hydration (`locals.zuser`).
@@ -58,10 +58,20 @@ All API routes are under `/api/*`.
 
 ### Core/system
 
-- `GET /api/auth-check` -> Basic auth validation probe.
 - `GET /api/_routes` -> `getApiRouteCatalog()` JSON route catalog.
 - `GET /api/docs` -> HTML route documentation page.
 - `PROPFIND /api/dav/*` -> `ListDavDirectoryUseCase.execute()` WebDAV-style directory listing.
+
+### Local auth
+
+- `GET /api/auth/status` -> `GetAuthStatusUseCase.execute()`.
+- `POST /api/auth/bootstrap` -> `BootstrapLocalAccountUseCase.execute()`.
+- `POST /api/auth/login` -> `LoginLocalAccountUseCase.execute()`.
+- `POST /api/auth/logout` -> `LogoutLocalAccountUseCase.execute()`.
+- `GET /api/auth/me` -> `GetCurrentUserUseCase.execute()`.
+- `POST /api/auth/device-key` -> `CreateDeviceApiKeyUseCase.execute()`.
+- `GET /api/auth/api-keys` -> `ListActiveApiKeysUseCase.execute()`.
+- `DELETE /api/auth/api-keys/[id]` -> `RevokeApiKeyUseCase.execute()`.
 
 ### Z-Library
 
@@ -123,10 +133,8 @@ All API routes are under `/api/*`.
 - `triggerTrashPurgeIfDue()` (`hooks.server.ts`): starts periodic purge job (6h cadence, single-flight guard).
 - `triggerPluginSyncOnStartup()` (`hooks.server.ts`): startup-only KOReader plugin artifact/version sync.
 - `requestLogHandle(...)`: per-request logger + request id propagation.
-- `basicAuthHandle(...)`: enforces Basic Auth on API routes.
+- `authHandle(...)`: enforces local-account sessions and device API keys on protected routes.
 - `cookieHandle(...)`: injects cookie-based Z-Library credentials into `locals`.
-- `requireBasicAuth(request)` (`basicAuth.ts`): parses and validates Authorization header.
-- `throwUnauthorized()` (`basicAuth.ts`): canonical 401 response throw helper.
 - `apiOk(value)` (`http/api.ts`): wraps successful `ApiResult`.
 - `apiError(message, status, cause)` (`http/api.ts`): wraps error `ApiResult`.
 - `errorResponse(message, status)` (`http/api.ts`): standardized HTTP error payload `{"error": "..."}`.
@@ -238,19 +246,16 @@ All API routes are under `/api/*`.
 
 ### Base/auth
 
-- `generateAuthHeader()`: builds Basic auth header from local storage.
-- `getStoredCredentials()`: reads persisted app auth credentials.
-- `storeCredentials(username, password)`: persists app auth credentials.
-- `clearCredentials()`: removes app auth credentials.
 - `get(endpoint)`: authenticated GET wrapper with typed `Result`.
 - `post(endpoint, body)`: authenticated POST wrapper with typed `Result`.
 
 ### Auth services
 
-- `AuthService.validateCredentials(credentials)`.
+- `AuthService.getStatus()`.
+- `AuthService.bootstrap(credentials)`.
+- `AuthService.login(credentials)`.
 - `AuthService.restoreSession()`.
 - `AuthService.logout()`.
-- `AuthService.hasStoredCredentials()`.
 - `ZLibAuthService.passwordLogin(email, password)`.
 - `ZLibAuthService.tokenLogin(userId, userKey)`.
 - `ZLibAuthService.getStoredUserName()`.
@@ -358,4 +363,3 @@ All plugin logger messages in `sake.koplugin` correctly use `[Sake]` prefix.
 - `koreaderPlugins/sake.koplugin`: KOReader sync plugin.
 - `koreaderPlugins/sakeUpdater.koplugin`: KOReader self-updater helper plugin.
 - `z-ui-bruno`: API request collection for test/manual operations.
-

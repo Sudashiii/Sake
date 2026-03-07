@@ -1,4 +1,6 @@
 import { createDeviceApiKeyUseCase } from '$lib/server/application/composition';
+import { buildRateLimitKeyPart, enforceAuthRateLimits } from '$lib/server/auth/rateLimit';
+import { getRequestIp } from '$lib/server/auth/requestMetadata';
 import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
@@ -7,6 +9,7 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const requestLogger = getRequestLogger(locals);
+	const ipAddress = getRequestIp(request);
 	let body: { username?: unknown; password?: unknown; deviceId?: unknown };
 
 	try {
@@ -19,11 +22,36 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return errorResponse('Invalid JSON body', 400);
 	}
 
+	const username = typeof body.username === 'string' ? body.username : '';
+	const deviceId = typeof body.deviceId === 'string' ? body.deviceId : '';
+	const rateLimitResponse = enforceAuthRateLimits([
+		{
+			policyName: 'deviceKeyIp',
+			key: buildRateLimitKeyPart(ipAddress, 'unknown-ip')
+		},
+		{
+			policyName: 'deviceKeyUserDevice',
+			key: `${buildRateLimitKeyPart(username, 'missing-username')}::${buildRateLimitKeyPart(deviceId, 'missing-device')}`
+		}
+	]);
+	if (rateLimitResponse) {
+		requestLogger.warn(
+			{
+				event: 'auth.device_key.rate_limited',
+				ipAddress,
+				username: username.trim() || null,
+				deviceId: deviceId.trim() || null
+			},
+			'Device key creation rate limited'
+		);
+		return rateLimitResponse;
+	}
+
 	try {
 		const result = await createDeviceApiKeyUseCase.execute({
-			username: typeof body.username === 'string' ? body.username : '',
+			username,
 			password: typeof body.password === 'string' ? body.password : '',
-			deviceId: typeof body.deviceId === 'string' ? body.deviceId : ''
+			deviceId
 		});
 
 		if (!result.ok) {

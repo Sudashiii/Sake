@@ -8,18 +8,6 @@ const RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS = new Set([
 	'shelves'
 ]);
 
-export function isLegacyBasicAuthMigrationRoute(pathname: string, method: string): boolean {
-	if (pathname === '/api/plugin/koreader/latest') {
-		return method === 'GET';
-	}
-
-	if (pathname === '/api/plugin/koreader/download') {
-		return method === 'GET';
-	}
-
-	return false;
-}
-
 export function isPublicApiRoute(pathname: string, method: string): boolean {
 	if (pathname === '/api/library/ratings') {
 		return method === 'GET';

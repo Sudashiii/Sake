@@ -9,10 +9,7 @@
 
 	let username = $state('');
 	let password = $state('');
-	let legacyUsername = $state('');
-	let legacyPassword = $state('');
 	let authMode = $state<AuthMode>('login');
-	let bootstrapGuardRequired = $state(false);
 	let isInitializing = $state(true);
 	let isSubmitting = $state(false);
 	let error = $state<ApiError | null>(null);
@@ -44,13 +41,11 @@
 		if (!statusResult.ok) {
 			error = statusResult.error;
 			authMode = 'login';
-			bootstrapGuardRequired = false;
 			isInitializing = false;
 			return;
 		}
 
 		authMode = statusResult.value.needsBootstrap ? 'bootstrap' : 'login';
-		bootstrapGuardRequired = statusResult.value.bootstrapGuardRequired;
 		isInitializing = false;
 	}
 
@@ -66,9 +61,7 @@
 			authMode === 'bootstrap'
 				? await AuthService.bootstrap({
 						username,
-						password,
-						legacyUsername: legacyUsername || undefined,
-						legacyPassword: legacyPassword || undefined
+						password
 					})
 				: await AuthService.login({ username, password });
 
@@ -145,38 +138,6 @@
 						autocomplete={authMode === 'bootstrap' ? 'new-password' : 'current-password'}
 					/>
 				</div>
-
-				{#if authMode === 'bootstrap' && bootstrapGuardRequired}
-					<div class="divider"></div>
-
-					<div class="field-group">
-						<label for="legacy-username">Legacy Bootstrap Username</label>
-						<input
-							id="legacy-username"
-							type="text"
-							bind:value={legacyUsername}
-							placeholder="Enter legacy bootstrap username"
-							onkeydown={handleKeyDown}
-							autocomplete="username"
-						/>
-					</div>
-
-					<div class="field-group">
-						<label for="legacy-password">Legacy Bootstrap Password</label>
-						<input
-							id="legacy-password"
-							type="password"
-							bind:value={legacyPassword}
-							placeholder="Enter legacy bootstrap password"
-							onkeydown={handleKeyDown}
-							autocomplete="current-password"
-						/>
-					</div>
-
-					<p class="helper-note">
-						This upgraded install still requires the legacy env credentials once before the first local account can be created.
-					</p>
-				{/if}
 
 				<button class="login-btn" onclick={() => void handleSubmit()} disabled={isSubmitting}>
 					{#if isSubmitting}
@@ -268,12 +229,6 @@
 		margin: 0.22rem 0 0;
 		font-size: 0.87rem;
 		color: var(--color-text-muted);
-	}
-
-	.divider {
-		height: 1px;
-		background: rgba(255, 255, 255, 0.08);
-		margin: 0.1rem 0;
 	}
 
 	.field-group {
@@ -398,13 +353,6 @@
 	.signup-note {
 		margin: 0.2rem 0 0;
 		font-size: 0.74rem;
-		color: var(--color-text-muted);
-	}
-
-	.helper-note {
-		margin: -0.1rem 0 0;
-		font-size: 0.78rem;
-		line-height: 1.45;
 		color: var(--color-text-muted);
 	}
 

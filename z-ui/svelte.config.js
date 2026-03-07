@@ -10,7 +10,7 @@ const config = {
 	kit: {
 		csrf: {
 			// KOReader uploads progress via cross-site multipart/form-data PUT.
-			// API routes are protected by Basic Auth, so allow cross-origin form submissions.
+			// Keep cross-origin form submissions enabled for device sync compatibility.
 			trustedOrigins: ['*']
 		},
 		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.

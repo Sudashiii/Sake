@@ -1,10 +1,6 @@
 import { bootstrapLocalAccountUseCase } from '$lib/server/application/composition';
-import {
-	hasLegacyBasicAuthConfigured,
-	matchesLegacyBasicAuth,
-	requireLegacyBasicAuth
-} from '$lib/server/auth/basicAuth';
 import { clearZlibraryCookies, setSakeSessionCookie } from '$lib/server/auth/cookies';
+import { buildRateLimitKeyPart, enforceAuthRateLimits } from '$lib/server/auth/rateLimit';
 import { getRequestIp, getRequestUserAgent } from '$lib/server/auth/requestMetadata';
 import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
@@ -14,19 +10,16 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	const requestLogger = getRequestLogger(locals);
+	const ipAddress = getRequestIp(request);
 	let body: {
 		username?: unknown;
 		password?: unknown;
-		legacyUsername?: unknown;
-		legacyPassword?: unknown;
 	};
 
 	try {
 		body = (await request.json()) as {
 			username?: unknown;
 			password?: unknown;
-			legacyUsername?: unknown;
-			legacyPassword?: unknown;
 		};
 	} catch (err: unknown) {
 		requestLogger.warn(
@@ -36,21 +29,18 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 		return errorResponse('Invalid JSON body', 400);
 	}
 
-	if (hasLegacyBasicAuthConfigured()) {
-		try {
-			requireLegacyBasicAuth(request);
-		} catch (err) {
-			const legacyUsername = typeof body.legacyUsername === 'string' ? body.legacyUsername : '';
-			const legacyPassword = typeof body.legacyPassword === 'string' ? body.legacyPassword : '';
-
-			if (matchesLegacyBasicAuth(legacyUsername, legacyPassword)) {
-				// Allow browser bootstrap without requiring a Basic Auth prompt.
-			} else if (err instanceof Response) {
-				return err;
-			} else {
-				throw err;
-			}
+	const rateLimitResponse = enforceAuthRateLimits([
+		{
+			policyName: 'bootstrapIp',
+			key: buildRateLimitKeyPart(ipAddress, 'unknown-ip')
 		}
+	]);
+	if (rateLimitResponse) {
+		requestLogger.warn(
+			{ event: 'auth.bootstrap.rate_limited', ipAddress },
+			'Bootstrap rate limited'
+		);
+		return rateLimitResponse;
 	}
 
 	try {
@@ -58,7 +48,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 			username: typeof body.username === 'string' ? body.username : '',
 			password: typeof body.password === 'string' ? body.password : '',
 			userAgent: getRequestUserAgent(request),
-			ipAddress: getRequestIp(request)
+			ipAddress
 		});
 
 		if (!result.ok) {
