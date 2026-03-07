@@ -145,7 +145,7 @@ export class GetReadingActivityStatsUseCase {
 			sessions: 0
 		}));
 
-		const books = await this.bookRepository.getAll();
+		const books = await this.bookRepository.getAllForStats();
 		const historiesByBook = new Map<number, Awaited<ReturnType<BookProgressHistoryRepositoryPort['getByBookId']>>>();
 
 		await Promise.all(

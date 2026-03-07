@@ -1,78 +1,66 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { storeCredentials, clearCredentials, getStoredCredentials } from '../base/authHeader';
-
-const API_URL = '/api';
+import type { AuthStatus } from '$lib/types/Auth/AuthStatus';
+import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
+import { getAuthStatus } from '../routes/getAuthStatus';
+import { loginLocalAccount } from '../routes/loginLocalAccount';
+import { bootstrapLocalAccount } from '../routes/bootstrapLocalAccount';
+import { getCurrentUser } from '../routes/getCurrentUser';
+import { logoutLocalAccount } from '../routes/logoutLocalAccount';
 
 export interface AuthCredentials {
 	username: string;
 	password: string;
 }
 
-/**
- * Service for handling Basic authentication operations.
- */
+export interface BootstrapCredentials extends AuthCredentials {
+	legacyUsername?: string;
+	legacyPassword?: string;
+}
+
 export const AuthService = {
-	/**
-	 * Validates credentials against the auth-check endpoint.
-	 */
-	async validateCredentials(credentials: AuthCredentials): Promise<Result<void, ApiError>> {
+	async getStatus(): Promise<Result<AuthStatus, ApiError>> {
+		return getAuthStatus();
+	},
+
+	async login(credentials: AuthCredentials): Promise<Result<CurrentUser, ApiError>> {
 		const { username, password } = credentials;
 
 		if (!username || !password) {
 			return err(ApiErrors.validation('Username and password are required'));
 		}
 
-		const encodedCredentials = btoa(`${username}:${password}`);
-
-		try {
-			const response = await fetch(`${API_URL}/auth-check`, {
-				headers: { Authorization: `Basic ${encodedCredentials}` }
-			});
-
-			if (response.ok) {
-				storeCredentials(username, password);
-				return ok(undefined);
-			}
-
-			clearCredentials();
-			return err(await ApiErrors.fromResponse(response));
-		} catch {
-			clearCredentials();
-			return err(ApiErrors.network('Failed to connect to authentication server'));
-		}
-	},
-
-	/**
-	 * Attempts to restore a session from stored credentials.
-	 */
-	async restoreSession(): Promise<Result<AuthCredentials, ApiError>> {
-		const stored = getStoredCredentials();
-
-		if (!stored) {
-			return err(ApiErrors.authentication('No stored credentials'));
+		const result = await loginLocalAccount(credentials);
+		if (!result.ok) {
+			return err(result.error);
 		}
 
-		const result = await this.validateCredentials(stored);
+		return ok(result.value.user);
+	},
 
-		if (result.ok) {
-			return ok(stored);
+	async bootstrap(credentials: BootstrapCredentials): Promise<Result<CurrentUser, ApiError>> {
+		if (!credentials.username || !credentials.password) {
+			return err(ApiErrors.validation('Username and password are required'));
 		}
 
-		return err(result.error);
+		const result = await bootstrapLocalAccount(credentials);
+		if (!result.ok) {
+			return err(result.error);
+		}
+
+		return ok(result.value.user);
 	},
 
-	/**
-	 * Clears stored authentication credentials.
-	 */
-	logout(): void {
-		clearCredentials();
+	async restoreSession(): Promise<Result<CurrentUser, ApiError>> {
+		const result = await getCurrentUser();
+		if (!result.ok) {
+			return err(result.error);
+		}
+
+		return ok(result.value.user);
 	},
 
-	/**
-	 * Checks if credentials are stored.
-	 */
-	hasStoredCredentials(): boolean {
-		return getStoredCredentials() !== null;
+	async logout(): Promise<Result<void, ApiError>> {
+		return logoutLocalAccount();
 	}
 } as const;

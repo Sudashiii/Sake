@@ -1,0 +1,16 @@
+meta {
+  name: GET Auth Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/auth/status
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

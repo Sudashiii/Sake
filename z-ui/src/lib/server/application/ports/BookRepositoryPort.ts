@@ -6,6 +6,7 @@ import type {
 
 export interface BookRepositoryPort {
 	getAll(): Promise<Book[]>;
+	getAllForStats(): Promise<Book[]>;
 	getById(id: number): Promise<Book | undefined>;
 	getByIdIncludingTrashed(id: number): Promise<Book | undefined>;
 	getByZLibId(zLibId: string): Promise<Book | undefined>;

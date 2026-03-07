@@ -3,7 +3,6 @@ import { ApiErrors, type ApiError } from '$lib/types/ApiError';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
 import { post } from '../base/post';
-import { generateAuthHeader } from '../base/authHeader';
 import { ZUIRoutes } from '../base/routes';
 
 export interface QueueSearchBookResponse {
@@ -86,11 +85,6 @@ export async function queueSearchBookToLibrary(
 		return err(downloadResponse.error);
 	}
 
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const fileBuffer = await downloadResponse.value.arrayBuffer();
 		const fallbackExtension = (book.extension ?? 'epub').toLowerCase();
@@ -99,7 +93,6 @@ export async function queueSearchBookToLibrary(
 		const uploadResponse = await fetch(`/api/library/${encodeURIComponent(fileName)}`, {
 			method: 'PUT',
 			headers: {
-				Authorization: authResult.value,
 				'Content-Type': downloadResponse.value.headers.get('content-type') || 'application/octet-stream'
 			},
 			body: fileBuffer

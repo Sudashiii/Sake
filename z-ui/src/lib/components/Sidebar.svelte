@@ -5,8 +5,11 @@
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import ShelfRulesModal from '$lib/components/ShelfRulesModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
+	import { AuthService } from '$lib/client/services/authService';
+	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
 	import { ZUI } from '$lib/client/zui';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
 	import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 	import { countRuleConditions } from '$lib/types/Library/ShelfRule';
@@ -50,6 +53,11 @@
 	let showSettingsModal = $state(false);
 	let settingsModalEl = $state<HTMLDivElement | null>(null);
 	let previouslyFocusedSettingsElement = $state<HTMLElement | null>(null);
+	let apiKeys = $state<AuthApiKey[]>([]);
+	let apiKeysError = $state<string | null>(null);
+	let isLoadingApiKeys = $state(false);
+	let revokingApiKeyId = $state<number | null>(null);
+	let isLoggingOut = $state(false);
 	let isReorderingShelves = $state(false);
 	let draggingShelfId = $state<number | null>(null);
 	let shelfDragOverId = $state<number | null>(null);
@@ -93,6 +101,8 @@
 			return;
 		}
 
+		void loadAuthApiKeys();
+
 		previouslyFocusedSettingsElement =
 			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
 
@@ -120,6 +130,10 @@
 		onToggle?.();
 	}
 
+	function openSettingsModal(): void {
+		showSettingsModal = true;
+	}
+
 	function closeSettingsModal(): void {
 		showSettingsModal = false;
 	}
@@ -129,6 +143,80 @@
 			event.preventDefault();
 			closeSettingsModal();
 		}
+	}
+
+	function formatDateTime(value: string | null): string {
+		if (!value) {
+			return 'Never';
+		}
+
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) {
+			return value;
+		}
+
+		return new Intl.DateTimeFormat(undefined, {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		}).format(date);
+	}
+
+	async function loadAuthApiKeys(): Promise<void> {
+		if (isLoadingApiKeys) {
+			return;
+		}
+
+		isLoadingApiKeys = true;
+		apiKeysError = null;
+
+		const result = await ZUI.getAuthApiKeys();
+
+		isLoadingApiKeys = false;
+		if (!result.ok) {
+			apiKeys = [];
+			apiKeysError = result.error.message;
+			return;
+		}
+
+		apiKeys = result.value.apiKeys;
+	}
+
+	async function handleRevokeApiKey(apiKeyId: number, deviceId: string): Promise<void> {
+		if (revokingApiKeyId !== null) {
+			return;
+		}
+
+		revokingApiKeyId = apiKeyId;
+		const result = await ZUI.revokeAuthApiKey(apiKeyId);
+		revokingApiKeyId = null;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to revoke API key: ${result.error.message}`, 'error');
+			return;
+		}
+
+		apiKeys = apiKeys.filter((apiKey) => apiKey.id !== apiKeyId);
+		toastStore.add(`Revoked API key for ${deviceId}`, 'success');
+	}
+
+	async function handleAppLogout(): Promise<void> {
+		if (isLoggingOut) {
+			return;
+		}
+
+		isLoggingOut = true;
+		const result = await AuthService.logout();
+		isLoggingOut = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to log out: ${result.error.message}`, 'error');
+			return;
+		}
+
+		ZLibAuthService.clearUserName();
+		closeSettingsModal();
+		mobileOpen = false;
+		await goto('/');
 	}
 
 	async function navigateToShelf(shelfId: number): Promise<void> {
@@ -860,7 +948,7 @@
 			class="sidebar-footer-btn"
 			title={collapsed ? 'Settings' : undefined}
 			aria-label="Open settings"
-			onclick={() => (showSettingsModal = true)}
+			onclick={openSettingsModal}
 		>
 			<span class="icon">
 				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -976,7 +1064,80 @@
 					</svg>
 				</button>
 			</div>
-			<p>Settings will live here soon.</p>
+			<div class="settings-modal-body">
+				<section class="settings-section">
+					<div class="settings-section-header">
+						<div>
+							<h4>Device API Keys</h4>
+							<p>Masked keys are listed by device ID. Revoke one to force that device to pair again.</p>
+						</div>
+						<button
+							type="button"
+							class="settings-refresh-btn"
+							onclick={() => void loadAuthApiKeys()}
+							disabled={isLoadingApiKeys || revokingApiKeyId !== null}
+						>
+							Refresh
+						</button>
+					</div>
+
+					{#if apiKeysError}
+						<p class="settings-error">{apiKeysError}</p>
+					{:else if isLoadingApiKeys}
+						<p class="settings-empty">Loading device keys...</p>
+					{:else if apiKeys.length === 0}
+						<p class="settings-empty">No device API keys have been issued yet.</p>
+					{:else}
+						<div class="api-key-list">
+							{#each apiKeys as apiKey (apiKey.id)}
+								<article class="api-key-card">
+									<div class="api-key-card-header">
+										<div>
+											<h5>{apiKey.deviceId}</h5>
+											<p>{apiKey.keyPreview}</p>
+										</div>
+										<button
+											type="button"
+											class="api-key-revoke-btn"
+											onclick={() => void handleRevokeApiKey(apiKey.id, apiKey.deviceId)}
+											disabled={revokingApiKeyId !== null}
+										>
+											{revokingApiKeyId === apiKey.id ? 'Revoking...' : 'Revoke'}
+										</button>
+									</div>
+									<dl class="api-key-meta">
+										<div>
+											<dt>Created</dt>
+											<dd>{formatDateTime(apiKey.createdAt)}</dd>
+										</div>
+										<div>
+											<dt>Last Used</dt>
+											<dd>{formatDateTime(apiKey.lastUsedAt)}</dd>
+										</div>
+									</dl>
+								</article>
+							{/each}
+						</div>
+					{/if}
+				</section>
+
+				<section class="settings-section settings-section-session">
+					<div class="settings-section-header">
+						<div>
+							<h4>Browser Session</h4>
+							<p>End the current Sake session for this browser.</p>
+						</div>
+					</div>
+					<button
+						type="button"
+						class="settings-logout-btn"
+						onclick={() => void handleAppLogout()}
+						disabled={isLoggingOut}
+					>
+						{isLoggingOut ? 'Logging out...' : 'Log Out'}
+					</button>
+				</section>
+			</div>
 		</div>
 	</div>
 {/if}
@@ -1579,7 +1740,8 @@
 	}
 
 	.settings-modal {
-		width: min(24rem, 100%);
+		width: min(38rem, 100%);
+		max-height: min(80vh, 44rem);
 		border-radius: 0.9rem;
 		border: 1px solid var(--color-border);
 		background: color-mix(in oklab, var(--color-surface), white 2%);
@@ -1630,7 +1792,164 @@
 		color: var(--color-text-secondary);
 	}
 
+	.settings-modal-body {
+		display: grid;
+		gap: 0.9rem;
+		overflow-y: auto;
+		padding-right: 0.15rem;
+	}
+
+	.settings-section {
+		display: grid;
+		gap: 0.75rem;
+		padding: 0.9rem;
+		border-radius: 0.75rem;
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		background: rgba(255, 255, 255, 0.025);
+	}
+
+	.settings-section-header {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.settings-section-header h4 {
+		margin: 0;
+		font-size: 0.92rem;
+		color: var(--color-text-primary);
+	}
+
+	.settings-section-header p {
+		margin-top: 0.18rem;
+		font-size: 0.8rem;
+		line-height: 1.45;
+	}
+
+	.settings-refresh-btn,
+	.api-key-revoke-btn,
+	.settings-logout-btn {
+		border-radius: 0.58rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.04);
+		color: var(--color-text-primary);
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.16s ease, border-color 0.16s ease;
+	}
+
+	.settings-refresh-btn:hover:not(:disabled),
+	.api-key-revoke-btn:hover:not(:disabled),
+	.settings-logout-btn:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.16);
+	}
+
+	.settings-refresh-btn:disabled,
+	.api-key-revoke-btn:disabled,
+	.settings-logout-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.settings-refresh-btn {
+		padding: 0.55rem 0.8rem;
+		white-space: nowrap;
+	}
+
+	.api-key-list {
+		display: grid;
+		gap: 0.7rem;
+	}
+
+	.api-key-card {
+		display: grid;
+		gap: 0.8rem;
+		padding: 0.85rem 0.9rem;
+		border-radius: 0.7rem;
+		border: 1px solid rgba(255, 255, 255, 0.07);
+		background: rgba(0, 0, 0, 0.14);
+	}
+
+	.api-key-card-header {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.api-key-card-header h5 {
+		margin: 0;
+		font-size: 0.88rem;
+		color: var(--color-text-primary);
+	}
+
+	.api-key-card-header p {
+		margin-top: 0.16rem;
+		font-size: 0.78rem;
+		font-family: var(--font-mono, 'JetBrains Mono', monospace);
+		color: var(--color-text-muted);
+	}
+
+	.api-key-revoke-btn {
+		padding: 0.48rem 0.74rem;
+	}
+
+	.api-key-meta {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.7rem;
+		margin: 0;
+	}
+
+	.api-key-meta div {
+		display: grid;
+		gap: 0.18rem;
+	}
+
+	.api-key-meta dt {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-text-muted);
+	}
+
+	.api-key-meta dd {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--color-text-secondary);
+	}
+
+	.settings-empty,
+	.settings-error {
+		font-size: 0.83rem;
+	}
+
+	.settings-error {
+		color: #ffb4ad;
+	}
+
+	.settings-section-session {
+		align-items: start;
+	}
+
+	.settings-logout-btn {
+		padding: 0.72rem 0.9rem;
+	}
+
 	@media (max-width: 900px) {
+		.api-key-card-header,
+		.settings-section-header {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.api-key-meta {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
 		.sidebar {
 			width: min(84vw, 300px);
 			transform: translateX(-105%);

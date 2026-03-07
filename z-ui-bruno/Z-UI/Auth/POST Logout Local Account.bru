@@ -1,0 +1,16 @@
+meta {
+  name: POST Logout Local Account
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/auth/logout
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

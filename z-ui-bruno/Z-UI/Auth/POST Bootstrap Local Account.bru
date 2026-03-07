@@ -1,0 +1,29 @@
+meta {
+  name: POST Bootstrap Local Account
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/auth/bootstrap
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{env.LOCAL_AUTH_USERNAME}}",
+    "password": "{{env.LOCAL_AUTH_PASSWORD}}",
+    "legacyUsername": "{{env.LEGACY_BOOTSTRAP_USERNAME}}",
+    "legacyPassword": "{{env.LEGACY_BOOTSTRAP_PASSWORD}}"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

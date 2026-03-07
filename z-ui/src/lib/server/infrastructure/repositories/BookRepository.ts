@@ -148,6 +148,15 @@ export class BookRepository implements BookRepositoryPort {
 		return rows.map((row) => mapBookWithDownloadRow(row));
 	}
 
+	async getAllForStats(): Promise<Book[]> {
+		const rows = await drizzleDb
+			.select(bookSelection)
+			.from(books)
+			.orderBy(desc(books.createdAt));
+
+		return rows.map((row) => mapBookRow(row));
+	}
+
 	async getById(id: number): Promise<Book | undefined> {
 		const [row] = await drizzleDb
 			.select(bookSelection)
@@ -467,6 +476,10 @@ export class BookRepository implements BookRepositoryPort {
 
 	static async getAll(): Promise<Book[]> {
 		return BookRepository.instance.getAll();
+	}
+
+	static async getAllForStats(): Promise<Book[]> {
+		return BookRepository.instance.getAllForStats();
 	}
 
 	static async getById(id: number): Promise<Book | undefined> {

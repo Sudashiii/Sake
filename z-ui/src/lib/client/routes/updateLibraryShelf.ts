@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 
 export interface UpdateLibraryShelfResponse {
@@ -12,17 +11,11 @@ export async function updateLibraryShelf(
 	shelfId: number,
 	request: { name: string; icon?: string }
 ): Promise<Result<UpdateLibraryShelfResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/shelves/${shelfId}`, {
 			method: 'PUT',
 			headers: {
-				'Content-Type': 'application/json',
-				Authorization: authResult.value
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify(request)
 		});

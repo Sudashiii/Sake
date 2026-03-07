@@ -1,6 +1,5 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 
 export interface ReorderLibraryShelvesResponse {
@@ -11,17 +10,11 @@ export interface ReorderLibraryShelvesResponse {
 export async function reorderLibraryShelves(
 	shelfIds: number[]
 ): Promise<Result<ReorderLibraryShelvesResponse, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch('/api/library/shelves/reorder', {
 			method: 'PATCH',
 			headers: {
-				'Content-Type': 'application/json',
-				Authorization: authResult.value
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({ shelfIds })
 		});

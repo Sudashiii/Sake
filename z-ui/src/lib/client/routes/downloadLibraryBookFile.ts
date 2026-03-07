@@ -1,22 +1,13 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
-import { generateAuthHeader } from '../base/authHeader';
 
 export async function downloadLibraryBookFile(
 	storageKey: string,
 	fileName: string
 ): Promise<Result<void, ApiError>> {
-	const authResult = generateAuthHeader();
-	if (!authResult.ok) {
-		return err(authResult.error);
-	}
-
 	try {
 		const response = await fetch(`/api/library/${encodeURIComponent(storageKey)}`, {
-			method: 'GET',
-			headers: {
-				Authorization: authResult.value
-			}
+			method: 'GET'
 		});
 
 		if (!response.ok) {

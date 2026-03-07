@@ -1,11 +1,17 @@
 export const ZUIRoutes = {
+	authStatus: '/auth/status',
+	authBootstrap: '/auth/bootstrap',
+	authLogin: '/auth/login',
+	authLogout: '/auth/logout',
+	authMe: '/auth/me',
+	authApiKeys: '/auth/api-keys',
+	authDeviceKey: '/auth/device-key',
 	searchBooks: '/search',
 	searchDownload: '/search/download',
 	searchBookMetadata: '/zlibrary/search/metadata',
 	passwordLogin: '/zlibrary/passwordLogin',
 	tokenLogin: '/zlibrary/login',
 	downloadBook: '/zlibrary/download',
-	authCheck: '/auth-check',
 	library: '/library/list'
 } as const;
 

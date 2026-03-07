@@ -7,7 +7,11 @@ meta {
 get {
   url: {{base_url}}/api/plugin/koreader/latest
   body: none
-  auth: inherit
+  auth: none
+}
+
+headers {
+  x-api-key: {{env.DEVICE_API_KEY}}
 }
 
 settings {

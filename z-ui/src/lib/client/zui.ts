@@ -3,8 +3,9 @@ import type { ApiError } from '$lib/types/ApiError';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
 import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLoginRequest';
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
-import { authCheck } from './routes/authCheck';
 import { passwordLogin } from './routes/passwordLogin';
+import { getAuthApiKeys } from './routes/getAuthApiKeys';
+import { revokeAuthApiKey } from './routes/revokeAuthApiKey';
 import { searchBooks } from './routes/searchBooks';
 import {
 	lookupSearchBookMetadata,
@@ -61,6 +62,7 @@ import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchBooksResponse } from '$lib/types/Search/SearchBooksResponse';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
+import type { AuthApiKeysResponse } from '$lib/types/Auth/ApiKey';
 
 /**
  * Facade for all Z-Library UI client operations.
@@ -81,7 +83,10 @@ export const ZUI = {
 	tokenLogin: (request: ZTokenLoginRequest): Promise<Result<void, ApiError>> =>
 		tokenLogin(request),
 
-	authCheck: (): Promise<Result<void, ApiError>> => authCheck(),
+	getAuthApiKeys: (): Promise<Result<AuthApiKeysResponse, ApiError>> => getAuthApiKeys(),
+
+	revokeAuthApiKey: (apiKeyId: number): Promise<Result<void, ApiError>> =>
+		revokeAuthApiKey(apiKeyId),
 
 	downloadSearchBook: (
 		book: SearchResultBook,

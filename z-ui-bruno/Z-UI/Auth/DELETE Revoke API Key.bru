@@ -1,0 +1,16 @@
+meta {
+  name: DELETE Revoke API Key
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{base_url}}/api/auth/api-keys/{{env.API_KEY_ID}}
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

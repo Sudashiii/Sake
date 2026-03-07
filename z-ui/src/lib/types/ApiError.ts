@@ -73,19 +73,33 @@ export const ApiErrors = {
 
 	fromResponse: async (response: Response): Promise<ApiError> => {
 		const text = await response.text().catch(() => 'Unknown error');
+		let message = text || 'Unknown error';
+
+		if (text) {
+			try {
+				const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
+				if (typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
+					message = parsed.error;
+				} else if (typeof parsed.message === 'string' && parsed.message.trim().length > 0) {
+					message = parsed.message;
+				}
+			} catch {
+				message = text;
+			}
+		}
 
 		if (response.status === 401 || response.status === 403) {
-			return ApiErrors.authentication(text || 'Authentication failed');
+			return ApiErrors.authentication(message || 'Authentication failed');
 		}
 
 		if (response.status === 404) {
-			return ApiErrors.notFound(text || 'Resource not found');
+			return ApiErrors.notFound(message || 'Resource not found');
 		}
 
 		if (response.status === 422 || response.status === 400) {
-			return ApiErrors.validation(text || 'Validation failed');
+			return ApiErrors.validation(message || 'Validation failed');
 		}
 
-		return ApiErrors.server(text || `Request failed with status ${response.status}`, response.status);
+		return ApiErrors.server(message || `Request failed with status ${response.status}`, response.status);
 	}
 } as const;

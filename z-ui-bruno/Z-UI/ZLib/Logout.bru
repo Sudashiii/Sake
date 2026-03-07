@@ -7,12 +7,7 @@ meta {
 get {
   url: {{base_url}}/api/zlibrary/logout
   body: none
-  auth: basic
-}
-
-auth:basic {
-  username: {{env.BASIC_AUTH_USERNAME}}
-  password: {{env.BASIC_AUTH_PASSWORD}}
+  auth: none
 }
 
 body:multipart-form {

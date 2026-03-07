@@ -7,17 +7,12 @@ meta {
 get {
   url: {{base_url}}/api/zlibrary/download?hash={{book_hash}}&bookId={{book_id}}
   body: none
-  auth: basic
+  auth: none
 }
 
 params:query {
   hash: {{book_hash}}
   bookId: {{book_id}}
-}
-
-auth:basic {
-  username: {{env.BASIC_AUTH_USERNAME}}
-  password: {{env.BASIC_AUTH_PASSWORD}}
 }
 
 settings {
