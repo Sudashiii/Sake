@@ -11,7 +11,6 @@ local ROUTE_LATEST = "/api/plugin/koreader/latest"
 local ROUTE_DEVICE_KEY = "/api/auth/device-key"
 local API_KEY_HEADER = "x-api-key"
 local API_KEY_SETTING = "sake_api_key"
-local API_USER_SETTING = "sake_api_user"
 local API_PASS_SETTING = "sake_api_pass"
 
 local function normalizedBaseUrl(base_url)
@@ -97,9 +96,7 @@ local function clearStoredApiKey(settings)
 end
 
 local function clearPairingCredentials(settings)
-    settings.api_user = ""
     settings.api_pass = ""
-    G_reader_settings:saveSetting(API_USER_SETTING, "")
     G_reader_settings:saveSetting(API_PASS_SETTING, "")
 end
 

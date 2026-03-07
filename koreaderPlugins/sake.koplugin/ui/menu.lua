@@ -30,19 +30,25 @@ function Menu.addToMainMenu(menu_items, ctx)
         callback = function() ctx.actions.showInput("api_url", "Enter API URL") end,
     })
     table.insert(sub_items, {
-        text = _("Set API Username"),
+        text = _("Set Login Username"),
         keep_menu_open = true,
-        callback = function() ctx.actions.showInput("api_user", "Enter Username") end,
+        callback = function() ctx.actions.showInput("api_user", "Enter Login Username") end,
     })
     table.insert(sub_items, {
-        text = _("Set API Password"),
+        text = _("Set Login Password"),
         keep_menu_open = true,
-        callback = function() ctx.actions.showInput("api_pass", "Enter Password") end,
+        callback = function() ctx.actions.showInput("api_pass", "Enter Login Password") end,
     })
     table.insert(sub_items, {
         text = _("Set Device Name"),
         keep_menu_open = true,
         callback = function() ctx.actions.showInput("device_name", "Enter Device Name") end,
+    })
+    table.insert(sub_items, {
+        text = _("Login and Fetch Device Key"),
+        callback = function()
+            ctx.actions.onFetchDeviceKey()
+        end,
     })
 
     menu_items.sake = {
