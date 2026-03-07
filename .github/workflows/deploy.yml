@@ -5,6 +5,13 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write
+
+concurrency:
+  group: z-ui-prod-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy to VPS
@@ -13,6 +20,48 @@ jobs:
     environment: prod
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --force --tags origin
+
+      - name: Compute webapp version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TZ=Europe/Vienna
+
+          existing_tag="$(git tag --points-at "$GITHUB_SHA" --list 'webapp/v*' | sort -V | tail -n 1)"
+
+          if [ -n "$existing_tag" ]; then
+            version="${existing_tag#webapp/v}"
+            released_at="$(git for-each-ref --format='%(creatordate:iso-strict)' "refs/tags/${existing_tag}" | head -n 1)"
+            should_create_tag=false
+          else
+            release_day="$(date +'%Y.%m.%d')"
+            prefix="webapp/v${release_day}."
+            max_n="$(git tag --list "${prefix}*" | sed -E "s#^webapp/v${release_day}\.##" | awk 'BEGIN { max = 0 } /^[0-9]+$/ { if ($1 > max) max = $1 } END { print max }')"
+            next_n="$((max_n + 1))"
+            version="${release_day}.${next_n}"
+            existing_tag="webapp/v${version}"
+            released_at="$(date +'%Y-%m-%dT%H:%M:%S%:z')"
+            should_create_tag=true
+          fi
+
+          commit_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
+
+          {
+            echo "tag=$existing_tag"
+            echo "version=$version"
+            echo "released_at=$released_at"
+            echo "commit_sha=$commit_sha"
+            echo "should_create_tag=$should_create_tag"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Prepare .env payload
         id: prepare_env
         env:
@@ -47,10 +96,33 @@ jobs:
             git pull origin master
             
             printf '%s' '${{ steps.prepare_env.outputs.env_b64 }}' | base64 -d | sudo tee ./z-ui/.env > /dev/null
+
+            export PUBLIC_WEBAPP_VERSION='${{ steps.version.outputs.version }}'
+            export PUBLIC_WEBAPP_GIT_TAG='${{ steps.version.outputs.tag }}'
+            export PUBLIC_WEBAPP_RELEASED_AT='${{ steps.version.outputs.released_at }}'
+            export PUBLIC_WEBAPP_COMMIT_SHA='${{ steps.version.outputs.commit_sha }}'
             
-            sudo docker compose build --no-cache --progress=plain
-            sudo docker compose run --rm z-ui-migrator
-            sudo docker compose up -d --remove-orphans z-ui
+            sudo env \
+              PUBLIC_WEBAPP_VERSION="$PUBLIC_WEBAPP_VERSION" \
+              PUBLIC_WEBAPP_GIT_TAG="$PUBLIC_WEBAPP_GIT_TAG" \
+              PUBLIC_WEBAPP_RELEASED_AT="$PUBLIC_WEBAPP_RELEASED_AT" \
+              PUBLIC_WEBAPP_COMMIT_SHA="$PUBLIC_WEBAPP_COMMIT_SHA" \
+              docker compose build --no-cache --progress=plain
+
+            sudo env \
+              PUBLIC_WEBAPP_VERSION="$PUBLIC_WEBAPP_VERSION" \
+              PUBLIC_WEBAPP_GIT_TAG="$PUBLIC_WEBAPP_GIT_TAG" \
+              PUBLIC_WEBAPP_RELEASED_AT="$PUBLIC_WEBAPP_RELEASED_AT" \
+              PUBLIC_WEBAPP_COMMIT_SHA="$PUBLIC_WEBAPP_COMMIT_SHA" \
+              docker compose run --rm z-ui-migrator
+
+            sudo env \
+              PUBLIC_WEBAPP_VERSION="$PUBLIC_WEBAPP_VERSION" \
+              PUBLIC_WEBAPP_GIT_TAG="$PUBLIC_WEBAPP_GIT_TAG" \
+              PUBLIC_WEBAPP_RELEASED_AT="$PUBLIC_WEBAPP_RELEASED_AT" \
+              PUBLIC_WEBAPP_COMMIT_SHA="$PUBLIC_WEBAPP_COMMIT_SHA" \
+              docker compose up -d --remove-orphans z-ui
+
             sudo docker compose ps z-ui
 
             for i in {1..20}; do
@@ -68,3 +140,11 @@ jobs:
             done
 
             sudo docker image prune -f
+
+      - name: Create webapp release tag
+        if: steps.version.outputs.should_create_tag == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag -a "${{ steps.version.outputs.tag }}" "$GITHUB_SHA" -m "Webapp ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.tag }}"

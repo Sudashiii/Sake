@@ -15,6 +15,7 @@ This file defines project-specific engineering rules for automated agents and co
 - Do not reintroduce migration ownership in external projects (old `z-mg` flow is decommissioned for migrations).
 - KOReader plugin distribution is startup-synced from local plugin files to R2 and exposed via API endpoints (`/api/plugin/koreader/latest`, `/api/plugin/koreader/download`).
 - KOReader plugin release metadata source-of-truth is the DB table `PluginReleases` (not an R2 `latest.json` manifest).
+- Webapp production releases use deploy-time CalVer git tags in the format `webapp/vYYYY.MM.DD.N`; Settings and `/api/app/version` read injected `PUBLIC_WEBAPP_*` metadata, not `package.json.version`.
 - Book search is provider-agnostic via `POST /api/search` and `SearchProviderPort` implementations (e.g. Z-Library, OpenLibrary). New providers must return the normalized search response shape and explicit capability flags.
 - Non-Z-Library search-result downloads are handled through `POST /api/search/download` with provider-specific safe handling.
 
@@ -90,3 +91,11 @@ Before finishing a change:
 - Keep implementation plan docs focused: scope, phases, risks, cutover/rollback, and done criteria.
 - Once implementation is fully complete, delete the corresponding plan file from `docs/implementation-plans/` so this folder does not become permanent stale documentation.
 - Keep Bruno requests in sync with API changes. When adding or changing endpoints, update the matching requests under `z-ui-bruno/Z-UI/`.
+
+## Git workflow
+
+- Before pushing, always check the current branch explicitly.
+- Never push directly on `master`.
+- You may create branches when needed.
+- Branch names must use either `feature/<feature_desc>` or `fix/<fix_desc>`.
+- If the correct branch name is unclear, do not commit yet. Leave the change uncommitted until it can be included in the next appropriate feature or fix branch.

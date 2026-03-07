@@ -9,6 +9,10 @@ const RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS = new Set([
 ]);
 
 export function isPublicApiRoute(pathname: string, method: string): boolean {
+	if (pathname === '/api/app/version') {
+		return method === 'GET';
+	}
+
 	if (pathname === '/api/library/ratings') {
 		return method === 'GET';
 	}

@@ -81,6 +81,21 @@ function triggerPluginSyncOnStartup(): void {
 
 triggerPluginSyncOnStartup();
 
+function attachResponseHeader(response: Response, name: string, value: string): Response {
+	try {
+		response.headers.set(name, value);
+		return response;
+	} catch (err: unknown) {
+		if (!(err instanceof TypeError) || err.message !== 'immutable') {
+			throw err;
+		}
+
+		const clonedResponse = new Response(response.body, response);
+		clonedResponse.headers.set(name, value);
+		return clonedResponse;
+	}
+}
+
 const requestLogHandle: Handle = async ({ event, resolve }) => {
 	const requestId = randomUUID();
 	const start = Date.now();
@@ -98,16 +113,16 @@ const requestLogHandle: Handle = async ({ event, resolve }) => {
 	try {
 		const response = await resolve(event);
 		const durationMs = Date.now() - start;
-		response.headers.set('x-request-id', requestId);
+		const responseWithRequestId = attachResponseHeader(response, 'x-request-id', requestId);
 		requestLogger.info(
 			{
 				event: 'request.finish',
-				statusCode: response.status,
+				statusCode: responseWithRequestId.status,
 				durationMs
 			},
 			'Request completed'
 		);
-		return response;
+		return responseWithRequestId;
 	} catch (err: unknown) {
 		requestLogger.error(
 			{
