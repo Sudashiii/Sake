@@ -146,5 +146,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.version.outputs.tag }}" "$GITHUB_SHA" -m "Webapp ${{ steps.version.outputs.version }}"
           git push origin "${{ steps.version.outputs.tag }}"
