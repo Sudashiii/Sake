@@ -53,9 +53,9 @@ services:
           aws --endpoint-url http://seaweedfs:8333 s3api create-bucket --bucket "${S3_BUCKET:-sake}"
     restart: "no"
 
-  z-ui:
+  sake:
     build:
-      context: ./z-ui
+      context: ./sake
       dockerfile: dockerfile
       target: runtime
       args:
@@ -63,8 +63,8 @@ services:
         PUBLIC_WEBAPP_GIT_TAG: ${PUBLIC_WEBAPP_GIT_TAG:-}
         PUBLIC_WEBAPP_COMMIT_SHA: ${PUBLIC_WEBAPP_COMMIT_SHA:-}
         PUBLIC_WEBAPP_RELEASED_AT: ${PUBLIC_WEBAPP_RELEASED_AT:-}
-    image: z-ui
-    container_name: z-ui-selfhost
+    image: sake
+    container_name: sake-selfhost
     ports:
       - "5173:3000"
     environment:

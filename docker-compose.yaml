@@ -1,21 +1,21 @@
 services:
-  z-ui-migrator:
+  sake-migrator:
     build:
-      context: ./z-ui
+      context: ./sake
       dockerfile: dockerfile
       target: migrator
-    image: z-ui-migrator
-    container_name: z-ui-migrator
+    image: sake-migrator
+    container_name: sake-migrator
     command: ["bun", "run", "db:migrate"]
     env_file:
-      - ./z-ui/.env
+      - ./sake/.env
     networks:
       - caddy_net
     restart: "no"
 
-  z-ui: 
+  sake:
     build:
-      context: ./z-ui
+      context: ./sake
       dockerfile: dockerfile
       target: runtime
       args:
@@ -23,10 +23,10 @@ services:
         PUBLIC_WEBAPP_GIT_TAG: ${PUBLIC_WEBAPP_GIT_TAG:-}
         PUBLIC_WEBAPP_COMMIT_SHA: ${PUBLIC_WEBAPP_COMMIT_SHA:-}
         PUBLIC_WEBAPP_RELEASED_AT: ${PUBLIC_WEBAPP_RELEASED_AT:-}
-    image: z-ui
-    container_name: z-ui
+    image: sake
+    container_name: sake
     depends_on:
-      z-ui-migrator:
+      sake-migrator:
         condition: service_completed_successfully
     ports:
       - "5173:3000"
@@ -37,7 +37,7 @@ services:
       - PUBLIC_WEBAPP_COMMIT_SHA=${PUBLIC_WEBAPP_COMMIT_SHA:-}
       - PUBLIC_WEBAPP_RELEASED_AT=${PUBLIC_WEBAPP_RELEASED_AT:-}
     env_file:
-      - ./z-ui/.env
+      - ./sake/.env
     volumes:
       - ./koreaderPlugins/sake.koplugin:/app/koreaderPlugins/sake.koplugin:ro
     networks:

@@ -18,8 +18,8 @@ This file defines project-specific engineering rules for automated agents and co
 - KOReader plugin release metadata source-of-truth is the DB table `PluginReleases` (not a storage `latest.json` manifest).
 - Infrastructure config is generic `LIBSQL_*` plus `S3_*`. Cloudflare R2 remains supported through the generic `S3_*` contract.
 - Webapp production releases use deploy-time CalVer git tags in the format `webapp/vYYYY.MM.DD.N`; Settings and `/api/app/version` read injected `PUBLIC_WEBAPP_*` metadata, not `package.json.version`.
-- Production deploy writes `z-ui/.env` from four GitHub secret blocks: `ENV_STORAGE`, `ENV_DB`, `ENV_USERS`, and `ENV_APP`. App-level env such as `VITE_ALLOWED_HOSTS` and `ACTIVATED_PROVIDERS` belong in `ENV_APP`.
-- Docker Compose startup runs the one-shot `z-ui-migrator` service (`bun run db:migrate`) before `z-ui`. Keep that dependency intact when changing container startup flow.
+- Production deploy writes `sake/.env` from four GitHub secret blocks: `ENV_STORAGE`, `ENV_DB`, `ENV_USERS`, and `ENV_APP`. App-level env such as `VITE_ALLOWED_HOSTS` and `ACTIVATED_PROVIDERS` belong in `ENV_APP`.
+- Docker Compose startup runs the one-shot `sake-migrator` service (`bun run db:migrate`) before `sake`. Keep that dependency intact when changing container startup flow.
 - Search providers are env-activated via `ACTIVATED_PROVIDERS` and are opt-in. If the env is unset, blank, or has no valid providers, search is disabled and the search UI/routes should stay hidden.
 - Book search is provider-agnostic via `POST /api/search` and `SearchProviderPort` implementations (e.g. Z-Library, OpenLibrary). New providers must return the normalized search response shape and explicit capability flags.
 - Non-Z-Library search-result downloads are handled through `POST /api/search/download` with provider-specific safe handling.
@@ -96,7 +96,7 @@ Before finishing a change:
 - Treat implementation-plan creation as mandatory, not optional, for this project.
 - Keep implementation plan docs focused: scope, phases, risks, cutover/rollback, and done criteria.
 - Once implementation is fully complete, delete the corresponding plan file from `docs/implementation-plans/` so this folder does not become permanent stale documentation.
-- Keep Bruno requests in sync with API changes. When adding or changing endpoints, update the matching requests under `z-ui-bruno/Z-UI/`.
+- Keep Bruno requests in sync with API changes. When adding or changing endpoints, update the matching requests in the Bruno collection.
 
 ## Redesign source workflow
 
@@ -104,7 +104,7 @@ Before finishing a change:
 - When the user explicitly points to redesign source files, treat those files as the single source of truth for the requested UI.
 - In that case, implement a strict parity port first: copy structure, spacing, colors, typography, button treatment, and responsive behavior as exactly as the target stack allows.
 - Do not reinterpret the redesign, approximate values, or substitute local design choices when a concrete source value exists in the redesign code.
-- If `z-ui` lacks an equivalent token or helper, copy the concrete value/behavior from the redesign rather than inventing a near match.
+- If `sake` lacks an equivalent token or helper, copy the concrete value/behavior from the redesign rather than inventing a near match.
 - If exact parity is blocked by a real app constraint, stop and report the blocker explicitly before continuing with a partial adaptation.
 
 ## Git workflow

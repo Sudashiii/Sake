@@ -27,10 +27,10 @@ export function toLogError(error: unknown): { name: string; message: string; sta
 }
 
 export const logger: Logger = pino({
-	name: 'z-ui',
+	name: 'sake',
 	level: resolveLogLevel(),
 	base: {
-		service: 'z-ui',
+		service: 'sake',
 		env: process.env.NODE_ENV ?? 'development'
 	},
 	transport: {

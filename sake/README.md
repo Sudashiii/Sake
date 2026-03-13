@@ -1,6 +1,6 @@
-# z-ui
+# Sake
 
-Small fullstack SvelteKit app for searching Z-Library, downloading books, and syncing a personal library/progress data.
+Small fullstack SvelteKit app for running Sake: searching providers, downloading books, and syncing a personal library and reading progress.
 
 It runs as a single SvelteKit service (Svelte 5 + adapter-node), with API routes and server-side logic in the same repo.
 
@@ -38,7 +38,7 @@ It uses:
 Start it from the repository root with:
 
 ```bash
-docker compose -f docker-compose.yaml up --build
+docker compose -f docker-compose.selfhost.yaml up --build
 ```
 
 You can switch to another libSQL-compatible target or S3-compatible backend by overriding the `LIBSQL_*` and `S3_*` environment variables.

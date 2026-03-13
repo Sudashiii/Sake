@@ -20,7 +20,7 @@ async function renderHtml(): Promise<string> {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Z-UI API Routes</title>
+<title>Sake API Routes</title>
 <style>
 body { margin: 0; font-family: system-ui, sans-serif; background: #0a1422; color: #e6f0ff; }
 main { max-width: 920px; margin: 0 auto; padding: 1.5rem; }

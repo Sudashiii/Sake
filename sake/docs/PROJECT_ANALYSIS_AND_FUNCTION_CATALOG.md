@@ -6,9 +6,9 @@ Last reviewed: 2026-03-13
 
 This repository currently has three main active areas:
 
-- `z-ui`: the main SvelteKit fullstack app (UI, API, application layer, domain layer, infrastructure)
+- `sake`: the main SvelteKit fullstack app (UI, API, application layer, domain layer, infrastructure)
 - `koreaderPlugins`: KOReader plugins (`sake.koplugin` and `sakeUpdater.koplugin`)
-- `z-ui-bruno`: Bruno requests for manual API and integration testing
+- Bruno requests collection: manual API and integration testing support
 
 Core product behavior today:
 
@@ -17,12 +17,12 @@ Core product behavior today:
 3. Books can be searched through normalized search providers (`zlibrary`, `openlibrary`, `gutenberg`).
 4. Search results can either be downloaded directly or imported/queued into the personal library.
 5. The library stores metadata, ratings, progress, shelves, read/archive/trash state, and device download acknowledgements.
-6. KOReader syncs books, progress, plugin version, and plugin updates through `z-ui` APIs.
+6. KOReader syncs books, progress, plugin version, and plugin updates through `sake` APIs.
 7. KOReader plugin release artifacts are built from local plugin sources, uploaded to S3-compatible object storage, and versioned in the database.
 
 ## 2) Architecture summary
 
-`z-ui` follows the current layered architecture used throughout the codebase:
+`sake` follows the current layered architecture used throughout the codebase:
 
 - `src/routes/api`: thin HTTP controllers only
 - `src/lib/server/application/use-cases`: workflow orchestration via `execute()` entrypoints
@@ -430,12 +430,12 @@ Current tradeoffs and risks:
 
 ## 13) Quick inventory by folder
 
-- `z-ui/src/routes`: page shells and API controllers
-- `z-ui/src/lib/server/application`: use-cases, services, ports, composition
-- `z-ui/src/lib/server/domain`: entities, value objects, pure rules
-- `z-ui/src/lib/server/infrastructure`: DB, repositories, storage, queue, provider adapters, external clients
-- `z-ui/src/lib/client`: typed client facade and route wrappers
-- `z-ui/src/lib/features`: decomposed frontend feature UIs and helpers
+- `sake/src/routes`: page shells and API controllers
+- `sake/src/lib/server/application`: use-cases, services, ports, composition
+- `sake/src/lib/server/domain`: entities, value objects, pure rules
+- `sake/src/lib/server/infrastructure`: DB, repositories, storage, queue, provider adapters, external clients
+- `sake/src/lib/client`: typed client facade and route wrappers
+- `sake/src/lib/features`: decomposed frontend feature UIs and helpers
 - `koreaderPlugins/sake.koplugin`: main KOReader sync plugin
 - `koreaderPlugins/sakeUpdater.koplugin`: updater plugin
-- `z-ui-bruno`: manual API testing and integration requests
+- Bruno requests collection: manual API testing and integration requests

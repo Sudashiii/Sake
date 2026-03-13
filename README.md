@@ -6,13 +6,13 @@ The idea is simple: keep your library in one place, sync reading progress betwee
 
 ## What is in this repo?
 
-- `sake` - the main web app and API (`Svelte 5` + `SvelteKit`)
-- `koreaderPlugins` - the KOReader plugins used by Sake
+- `sake/` - the main web app and API (`Svelte 5` + `SvelteKit`)
+- `koreaderPlugins/` - the KOReader plugins used by Sake
 
 ## Notes
 
-- Database migrations live in `z-ui` and are managed with Drizzle.
-- KOReader plugin releases are served by `z-ui`, while plugin artifacts are stored in S3-compatible object storage.
+- Database migrations live in `sake/` and are managed with Drizzle.
+- KOReader plugin releases are served by the `sake` app, while plugin artifacts are stored in S3-compatible object storage.
 - API route lookup is available in the app at `/api/_routes` and `/api/docs`.
 - A self-host reference stack is available at `docker-compose.selfhost.yaml`.
 

@@ -92,7 +92,7 @@ bun run check
 
 ## DB and migration workflow
 
-- `z-ui` is the source of truth for DB schema and migrations.
+- `sake` is the source of truth for DB schema and migrations.
 - Schema lives in `src/lib/server/infrastructure/db/schema.ts`.
 - Migration files live in `drizzle/`.
 - Generate migration after schema changes:
@@ -107,7 +107,7 @@ bun run db:migrate
 ```bash
 node --env-file=.env ./scripts/db/mark-drizzle-baseline.mjs
 ```
-- In Docker Compose, run migrations explicitly with the normal app image via `docker compose run --rm z-ui bun run db:migrate`.
+- In Docker Compose, run migrations explicitly with the normal app image via `docker compose run --rm sake bun run db:migrate`.
 
 ## Common pitfall to avoid
 
