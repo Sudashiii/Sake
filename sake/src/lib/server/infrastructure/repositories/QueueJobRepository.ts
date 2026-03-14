@@ -156,7 +156,7 @@ export class QueueJobRepository {
 			.where(eq(queueJobs.id, id));
 	}
 
-	async failActiveJobsWithoutCredentials(
+	async failActiveJobsAfterRestart(
 		error: string,
 		updatedAt: string,
 		finishedAt: string
@@ -185,7 +185,7 @@ export class QueueJobRepository {
 
 		this.repoLogger.warn(
 			{ event: 'queue_job.recovery.failed', count, updatedAt },
-			'Marked queued jobs as failed because queue credentials are not persisted across restart'
+			'Marked queued jobs as failed because queue state cannot resume after restart'
 		);
 		return count;
 	}

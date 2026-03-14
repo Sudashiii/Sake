@@ -1,20 +1,26 @@
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
+import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
+import { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
 import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import { QueueJobRepository } from '$lib/server/infrastructure/repositories/QueueJobRepository';
 import type { QueueJobRecord } from '$lib/server/infrastructure/repositories/QueueJobRepository';
 import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
+import { S3Storage } from '$lib/server/infrastructure/storage/S3Storage';
 import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
 import {
 	RECOVERY_REQUEUE_REQUIRED_ERROR,
 	PERSISTED_QUEUE_USER_KEY
 } from '$lib/server/infrastructure/queue/persistence';
+import type {
+	SearchImportQueueTaskInput,
+	ZLibraryQueueTaskInput
+} from '$lib/server/application/ports/DownloadQueuePort';
 import { randomUUID } from 'node:crypto';
 
-export interface QueuedDownload {
+interface BaseQueuedDownload {
 	id: string;
 	bookId: string;
-	hash: string;
 	title: string;
 	extension: string;
 	author: string | null;
@@ -39,6 +45,19 @@ export interface QueuedDownload {
 	updatedAt: Date;
 	finishedAt?: Date;
 }
+
+export interface QueuedZLibraryDownload extends BaseQueuedDownload {
+	source: 'zlibrary';
+	hash: string;
+}
+
+export interface QueuedSearchImportDownload extends BaseQueuedDownload {
+	source: 'provider-import';
+	provider: SearchImportQueueTaskInput['provider'];
+	downloadRef: string;
+}
+
+export type QueuedDownload = QueuedZLibraryDownload | QueuedSearchImportDownload;
 
 export interface QueuedDownloadSnapshot {
 	id: string;
@@ -69,12 +88,22 @@ class DownloadQueue {
 		new BookRepository(),
 		() => DavUploadServiceFactory.createS3()
 	);
+	private readonly downloadSearchBookUseCase = new DownloadSearchBookUseCase();
+	private readonly putLibraryFileUseCase = new PutLibraryFileUseCase(
+		new S3Storage(),
+		new BookRepository()
+	);
 
 	async enqueue(
-		task: Omit<
-			QueuedDownload,
-			'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
-		>
+		task:
+			| Omit<
+					QueuedZLibraryDownload,
+					'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
+			  >
+			| Omit<
+					QueuedSearchImportDownload,
+					'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
+			  >
 	): Promise<string> {
 		await this.ensureInitialized();
 
@@ -140,7 +169,7 @@ class DownloadQueue {
 	private async initialize(): Promise<void> {
 		try {
 			const nowIso = new Date().toISOString();
-			const failedRecoveredJobs = await this.queueJobRepository.failActiveJobsWithoutCredentials(
+			const failedRecoveredJobs = await this.queueJobRepository.failActiveJobsAfterRestart(
 				RECOVERY_REQUEUE_REQUIRED_ERROR,
 				nowIso,
 				nowIso
@@ -154,7 +183,7 @@ class DownloadQueue {
 						event: 'queue.recovery.credentials_missing',
 						failedRecoveredJobs
 					},
-					'Marked queued jobs as failed because queue credentials are not persisted across restart'
+					'Marked queued jobs as failed because queue state cannot resume after restart'
 				);
 			}
 		} catch (error: unknown) {
@@ -250,32 +279,10 @@ class DownloadQueue {
 				task.updatedAt.toISOString()
 			);
 
-			const useCaseResult = await this.downloadBookUseCase.execute({
-				request: {
-					bookId: task.bookId,
-					hash: task.hash,
-					title: task.title,
-					upload: true,
-					extension: task.extension,
-					author: task.author ?? undefined,
-					publisher: task.publisher ?? undefined,
-					series: task.series ?? undefined,
-					volume: task.volume ?? undefined,
-					edition: task.edition ?? undefined,
-					identifier: task.identifier ?? undefined,
-					pages: task.pages ?? undefined,
-					description: task.description ?? undefined,
-					cover: task.cover ?? undefined,
-					filesize: task.filesize ?? undefined,
-					language: task.language ?? undefined,
-					year: task.year ?? undefined,
-					downloadToDevice: false
-				},
-				credentials: {
-					userId: task.userId,
-					userKey: task.userKey
-				}
-			});
+			const useCaseResult =
+				task.source === 'zlibrary'
+					? await this.executeZLibraryTask(task)
+					: await this.executeSearchImportTask(task);
 
 			if (useCaseResult.ok) {
 				return;
@@ -308,6 +315,64 @@ class DownloadQueue {
 		}
 
 		throw new Error('Queue task failed without terminal result');
+	}
+
+	private executeZLibraryTask(task: QueuedZLibraryDownload) {
+		return this.downloadBookUseCase.execute({
+			request: {
+				bookId: task.bookId,
+				hash: task.hash,
+				title: task.title,
+				upload: true,
+				extension: task.extension,
+				author: task.author ?? undefined,
+				publisher: task.publisher ?? undefined,
+				series: task.series ?? undefined,
+				volume: task.volume ?? undefined,
+				edition: task.edition ?? undefined,
+				identifier: task.identifier ?? undefined,
+				pages: task.pages ?? undefined,
+				description: task.description ?? undefined,
+				cover: task.cover ?? undefined,
+				filesize: task.filesize ?? undefined,
+				language: task.language ?? undefined,
+				year: task.year ?? undefined,
+				downloadToDevice: false
+			},
+			credentials: {
+				userId: task.userId,
+				userKey: task.userKey
+			}
+		});
+	}
+
+	private async executeSearchImportTask(task: QueuedSearchImportDownload) {
+		const downloadResult = await this.downloadSearchBookUseCase.execute({
+			provider: task.provider,
+			downloadRef: task.downloadRef,
+			title: task.title,
+			extension: task.extension
+		});
+		if (!downloadResult.ok) {
+			return downloadResult;
+		}
+
+		const uploadResult = await this.putLibraryFileUseCase.execute(
+			this.buildLibraryFileName(task.title, downloadResult.value.fileName, task.extension),
+			this.toArrayBuffer(downloadResult.value.fileData)
+		);
+		if (!uploadResult.ok) {
+			return uploadResult;
+		}
+
+		return uploadResult;
+	}
+
+	private buildLibraryFileName(title: string, downloadedFileName: string, fallbackExtension: string): string {
+		const normalizedTitle = title.trim() || 'book';
+		const match = downloadedFileName.match(/\.([A-Za-z0-9]+)$/);
+		const extension = match?.[1]?.toLowerCase() || fallbackExtension.toLowerCase() || 'epub';
+		return `${normalizedTitle}.${extension}`;
 	}
 
 	private isRetryableFailure(statusCode: number, message: string): boolean {
@@ -352,7 +417,7 @@ class DownloadQueue {
 		return {
 			id: task.id,
 			bookId: task.bookId,
-			hash: task.hash,
+			hash: task.source === 'zlibrary' ? task.hash : task.downloadRef,
 			title: task.title,
 			extension: task.extension,
 			author: task.author,
@@ -377,6 +442,12 @@ class DownloadQueue {
 			updatedAt: task.updatedAt.toISOString(),
 			finishedAt: task.finishedAt?.toISOString()
 		};
+	}
+
+	private toArrayBuffer(data: Uint8Array): ArrayBuffer {
+		const copy = new Uint8Array(data.byteLength);
+		copy.set(data);
+		return copy.buffer;
 	}
 }
 

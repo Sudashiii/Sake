@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
+import type { QueueSearchBookRequest } from '$lib/types/Search/QueueSearchBookRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
 import { post } from '../base/post';
@@ -41,6 +42,31 @@ function toQueueRequest(book: SearchResultBook): Result<ZDownloadBookRequest, Ap
 	});
 }
 
+function toSearchQueueRequest(book: SearchResultBook): Result<QueueSearchBookRequest, ApiError> {
+	if (book.provider === 'zlibrary') {
+		return err(ApiErrors.validation('Selected provider must use the Z-Library queue endpoint'));
+	}
+	if (!book.downloadRef) {
+		return err(ApiErrors.validation('Selected provider does not expose a downloadable file'));
+	}
+
+	return ok({
+		provider: book.provider,
+		providerBookId: book.providerBookId,
+		downloadRef: book.downloadRef,
+		title: book.title,
+		extension: book.extension ?? null,
+		author: book.author ?? null,
+		identifier: book.identifier ?? null,
+		pages: book.pages ?? null,
+		description: book.description ?? null,
+		cover: book.cover ?? null,
+		filesize: book.filesize ?? null,
+		language: book.language ?? null,
+		year: book.year ?? null
+	});
+}
+
 export async function queueSearchBookToLibrary(
 	book: SearchResultBook
 ): Promise<Result<QueueSearchBookResponse, ApiError>> {
@@ -72,43 +98,25 @@ export async function queueSearchBookToLibrary(
 		return err(ApiErrors.validation('Selected provider does not expose a downloadable file'));
 	}
 
-	const downloadResponse = await post(
-		ZUIRoutes.searchDownload,
-		JSON.stringify({
-			provider: book.provider,
-			downloadRef: book.downloadRef,
-			title: book.title,
-			extension: book.extension ?? null
-		})
-	);
-	if (!downloadResponse.ok) {
-		return err(downloadResponse.error);
+	const request = toSearchQueueRequest(book);
+	if (!request.ok) {
+		return request;
+	}
+
+	const result = await post(ZUIRoutes.searchQueue, JSON.stringify(request.value));
+	if (!result.ok) {
+		return err(result.error);
 	}
 
 	try {
-		const fileBuffer = await downloadResponse.value.arrayBuffer();
-		const fallbackExtension = (book.extension ?? 'epub').toLowerCase();
-		const fileName = `${book.title.trim() || 'book'}.${fallbackExtension}`;
-
-		const uploadResponse = await fetch(`/api/library/${encodeURIComponent(fileName)}`, {
-			method: 'PUT',
-			headers: {
-				'Content-Type': downloadResponse.value.headers.get('content-type') || 'application/octet-stream'
-			},
-			body: fileBuffer
-		});
-
-		if (!uploadResponse.ok) {
-			return err(await ApiErrors.fromResponse(uploadResponse));
-		}
-
+		const data = await result.value.json();
 		return ok({
-			taskId: null,
-			message: 'Book imported to library',
-			queueStatus: { pending: 0, processing: 0 },
-			mode: 'imported'
+			taskId: data.taskId,
+			message: data.message,
+			queueStatus: data.queueStatus,
+			mode: 'queued'
 		});
-	} catch (cause: unknown) {
-		return err(ApiErrors.network('Failed to import provider book into library', cause));
+	} catch {
+		return err(ApiErrors.network('Failed to parse provider queue response'));
 	}
 }

@@ -1,13 +1,13 @@
 import { apiOk, type ApiResult } from '$lib/server/http/api';
 import type { DownloadQueuePort } from '$lib/server/application/ports/DownloadQueuePort';
-import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
+import type { QueueSearchBookRequest } from '$lib/types/Search/QueueSearchBookRequest';
 
-interface QueueDownloadInput {
-	request: ZDownloadBookRequest;
-	credentials: { userId: string; userKey: string };
+interface QueueSearchBookInput {
+	request: QueueSearchBookRequest;
+	userId: string;
 }
 
-interface QueueDownloadResult {
+interface QueueSearchBookResult {
 	success: true;
 	taskId: string;
 	message: string;
@@ -17,22 +17,23 @@ interface QueueDownloadResult {
 	};
 }
 
-export class QueueDownloadUseCase {
+export class QueueSearchBookUseCase {
 	constructor(private readonly queue: DownloadQueuePort) {}
 
-	async execute(input: QueueDownloadInput): Promise<ApiResult<QueueDownloadResult>> {
-		const { request, credentials } = input;
+	async execute(input: QueueSearchBookInput): Promise<ApiResult<QueueSearchBookResult>> {
+		const { request, userId } = input;
 		const taskId = await this.queue.enqueue({
-			source: 'zlibrary',
-			bookId: request.bookId,
-			hash: request.hash,
+			source: 'provider-import',
+			provider: request.provider,
+			bookId: `${request.provider}:${request.providerBookId}`,
+			downloadRef: request.downloadRef,
 			title: request.title,
 			extension: request.extension ?? 'epub',
 			author: request.author ?? null,
-			publisher: request.publisher ?? null,
-			series: request.series ?? null,
-			volume: request.volume ?? null,
-			edition: request.edition ?? null,
+			publisher: null,
+			series: null,
+			volume: null,
+			edition: null,
 			identifier: request.identifier ?? null,
 			pages: request.pages ?? null,
 			description: request.description ?? null,
@@ -40,15 +41,15 @@ export class QueueDownloadUseCase {
 			filesize: request.filesize ?? null,
 			language: request.language ?? null,
 			year: request.year ?? null,
-			userId: credentials.userId,
-			userKey: credentials.userKey
+			userId,
+			userKey: ''
 		});
 		const queueStatus = await this.queue.getStatus();
 
 		return apiOk({
 			success: true,
 			taskId,
-			message: 'Download queued successfully',
+			message: 'Provider import queued successfully',
 			queueStatus
 		});
 	}

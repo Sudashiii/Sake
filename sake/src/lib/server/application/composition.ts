@@ -9,6 +9,7 @@ import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/Da
 import { downloadQueue } from '$lib/server/infrastructure/queue/downloadQueue';
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
 import { QueueDownloadUseCase } from '$lib/server/application/use-cases/QueueDownloadUseCase';
+import { QueueSearchBookUseCase } from '$lib/server/application/use-cases/QueueSearchBookUseCase';
 import { GetQueueStatusUseCase } from '$lib/server/application/use-cases/GetQueueStatusUseCase';
 import { ZLibrarySearchUseCase } from '$lib/server/application/use-cases/ZLibrarySearchUseCase';
 import { ZLibraryTokenLoginUseCase } from '$lib/server/application/use-cases/ZLibraryTokenLoginUseCase';
@@ -103,6 +104,7 @@ export const downloadBookUseCase = new DownloadBookUseCase(
 	() => DavUploadServiceFactory.createS3()
 );
 export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
+export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
 export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
 export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();

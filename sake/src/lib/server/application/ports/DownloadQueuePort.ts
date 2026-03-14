@@ -1,6 +1,7 @@
-export interface DownloadQueueTaskInput {
+import type { QueueableSearchProviderId } from '$lib/types/Search/QueueSearchBookRequest';
+
+interface BaseQueueTaskInput {
 	bookId: string;
-	hash: string;
 	title: string;
 	extension: string;
 	author: string | null;
@@ -18,6 +19,20 @@ export interface DownloadQueueTaskInput {
 	userId: string;
 	userKey: string;
 }
+
+export interface ZLibraryQueueTaskInput extends BaseQueueTaskInput {
+	source: 'zlibrary';
+	bookId: string;
+	hash: string;
+}
+
+export interface SearchImportQueueTaskInput extends BaseQueueTaskInput {
+	source: 'provider-import';
+	provider: QueueableSearchProviderId;
+	downloadRef: string;
+}
+
+export type DownloadQueueTaskInput = ZLibraryQueueTaskInput | SearchImportQueueTaskInput;
 
 export interface QueueJobSnapshot {
 	id: string;

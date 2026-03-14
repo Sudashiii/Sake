@@ -9,6 +9,7 @@ export const ZUIRoutes = {
 	authDeviceKey: '/auth/device-key',
 	devices: '/devices',
 	searchBooks: '/search',
+	searchQueue: '/search/queue',
 	searchDownload: '/search/download',
 	searchBookMetadata: '/zlibrary/search/metadata',
 	passwordLogin: '/zlibrary/passwordLogin',

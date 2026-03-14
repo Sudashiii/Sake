@@ -96,7 +96,7 @@ Before finishing a change:
 - Treat implementation-plan creation as mandatory, not optional, for this project.
 - Keep implementation plan docs focused: scope, phases, risks, cutover/rollback, and done criteria.
 - Once implementation is fully complete, delete the corresponding plan file from `docs/implementation-plans/` so this folder does not become permanent stale documentation.
-- Keep Bruno requests in sync with API changes. When adding or changing endpoints, update the matching requests in the Bruno collection.
+- Keep Bruno requests in sync with API changes. When adding or changing endpoints, update the matching requests under `sake-bruno/Sake/`.
 
 ## Redesign source workflow
 
