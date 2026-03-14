@@ -1,6 +1,6 @@
-# Sake
+# sake
 
-Small fullstack SvelteKit app for running Sake: searching providers, downloading books, and syncing a personal library and reading progress.
+Small fullstack SvelteKit app for searching Z-Library, downloading books, and syncing a personal library/progress data.
 
 It runs as a single SvelteKit service (Svelte 5 + adapter-node), with API routes and server-side logic in the same repo.
 
@@ -15,13 +15,7 @@ Open `http://localhost:5173`.
 
 ## Environment
 
-For direct Bun runs, use `.env` in this folder.
-
-The repository root README contains the managed and fully self-hosted example `.env` blocks.
-
-Docker entrypoints use dedicated env files in this folder:
-- `.env.docker.managed` for `../docker-compose.yaml`
-- `.env.docker.selfhosted` for `../docker-compose.selfhost.yaml`
+Copy `.env.example` to `.env` and fill in required values.
 
 Main groups:
 - Generic libSQL database config (`LIBSQL_*`)
@@ -36,7 +30,6 @@ For Cloudflare R2, use `S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.co
 ## Self-host reference stack
 
 The repository root includes [`docker-compose.selfhost.yaml`](../docker-compose.selfhost.yaml) as a self-host reference stack.
-It reads `./.env.docker.selfhosted`.
 
 It uses:
 - a file-backed libSQL target by default (`LIBSQL_URL=file:/data/sake.db`)
@@ -48,7 +41,13 @@ Start it from the repository root with:
 docker compose -f docker-compose.selfhost.yaml up --build
 ```
 
-You can switch to another libSQL-compatible target or S3-compatible backend by editing `./.env.docker.selfhosted`.
+You can switch to another libSQL-compatible target or S3-compatible backend by overriding the `LIBSQL_*` and `S3_*` environment variables.
+By default, the self-host stack persists data under `../.data/selfhost/`:
+
+- `../.data/selfhost/libsql`
+- `../.data/selfhost/seaweedfs`
+
+If the database is empty on first run, Sake exposes the normal bootstrap flow so you can create the first account in the UI. No env-defined user is required for the self-host stack.
 
 ## Useful scripts
 
@@ -66,8 +65,6 @@ One-time baseline for already-migrated databases:
 ```bash
 node --env-file=.env ./scripts/db/mark-drizzle-baseline.mjs
 ```
-
-For direct Bun runs, Bun will load `.env` automatically, so `bun run db:migrate` and `bun run dev` use the same config.
 
 ## Project layout
 

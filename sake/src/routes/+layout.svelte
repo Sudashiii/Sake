@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
+	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from "$lib/auth/responseSignals";
 	import { ZUI } from "$lib/client/zui";
 	import { ZLibAuthService } from "$lib/client/services/zlibAuthService";
 	import Sidebar from "$lib/components/sidebar/Sidebar/Sidebar.svelte";
@@ -133,8 +134,12 @@
 		const handleShelvesChanged = () => {
 			void loadShelves();
 		};
+		const handleZlibraryAuthCleared = () => {
+			zlibName = "";
+		};
 		if (typeof window !== "undefined") {
 			window.addEventListener("shelves:changed", handleShelvesChanged);
+				window.addEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
 		}
 
 		(async () => {
@@ -159,6 +164,7 @@
 		return () => {
 			if (typeof window !== "undefined") {
 				window.removeEventListener("shelves:changed", handleShelvesChanged);
+					window.removeEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
 			}
 		};
 	});

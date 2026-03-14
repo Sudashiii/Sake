@@ -26,42 +26,26 @@ export class PluginReleaseRepository implements PluginReleaseRepositoryPort {
 
 	async upsert(input: UpsertPluginReleaseInput): Promise<PluginRelease> {
 		const now = new Date().toISOString();
-		const row = await drizzleDb.transaction(async (tx) => {
-			const [existing] = await tx
-				.select()
-				.from(pluginReleases)
-				.where(eq(pluginReleases.version, input.version))
-				.limit(1);
-
-			if (existing) {
-				const [updated] = await tx
-					.update(pluginReleases)
-					.set({
-						fileName: input.fileName,
-						storageKey: input.storageKey,
-						sha256: input.sha256,
-						updatedAt: now
-					})
-					.where(eq(pluginReleases.version, input.version))
-					.returning();
-
-				return updated;
-			}
-
-			const [inserted] = await tx
-				.insert(pluginReleases)
-				.values({
-					version: input.version,
+		const [row] = await drizzleDb
+			.insert(pluginReleases)
+			.values({
+				version: input.version,
+				fileName: input.fileName,
+				storageKey: input.storageKey,
+				sha256: input.sha256,
+				createdAt: now,
+				updatedAt: now
+			})
+			.onConflictDoUpdate({
+				target: pluginReleases.version,
+				set: {
 					fileName: input.fileName,
 					storageKey: input.storageKey,
 					sha256: input.sha256,
-					createdAt: now,
 					updatedAt: now
-				})
-				.returning();
-
-			return inserted;
-		});
+				}
+			})
+			.returning();
 
 		if (!row) {
 			throw new Error('Failed to upsert plugin release');

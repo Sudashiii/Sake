@@ -1,13 +1,16 @@
 import type { Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
+import { resolve as resolvePath } from '$app/paths';
 import { resolveRequestAuthUseCase } from '$lib/server/application/composition';
+import { SAKE_CLEAR_SESSION_HEADER_NAME } from '$lib/auth/responseSignals';
 import {
 	SAKE_API_KEY_HEADER_NAME,
 	SAKE_SESSION_COOKIE_NAME,
 	SAKE_VERSION_HEADER_NAME
 } from '$lib/server/auth/constants';
+import { clearSakeSessionCookie } from '$lib/server/auth/cookies';
 import { isApiKeyAllowedRoute, isPublicApiRoute, isStaticAssetPath } from '$lib/server/auth/requestAccess';
-import { errorResponse } from '$lib/server/http/api';
+import { errorResponse, withResponseHeader } from '$lib/server/http/api';
 import {
 	purgeExpiredTrashUseCase,
 	reportDeviceVersionUseCase,
@@ -119,21 +122,6 @@ async function syncDeviceVersionFromHeader(event: Parameters<Handle>[0]['event']
 	}
 }
 
-function attachResponseHeader(response: Response, name: string, value: string): Response {
-	try {
-		response.headers.set(name, value);
-		return response;
-	} catch (err: unknown) {
-		if (!(err instanceof TypeError) || err.message !== 'immutable') {
-			throw err;
-		}
-
-		const clonedResponse = new Response(response.body, response);
-		clonedResponse.headers.set(name, value);
-		return clonedResponse;
-	}
-}
-
 const requestLogHandle: Handle = async ({ event, resolve }) => {
 	const requestId = randomUUID();
 	const start = Date.now();
@@ -151,7 +139,7 @@ const requestLogHandle: Handle = async ({ event, resolve }) => {
 	try {
 		const response = await resolve(event);
 		const durationMs = Date.now() - start;
-		const responseWithRequestId = attachResponseHeader(response, 'x-request-id', requestId);
+		const responseWithRequestId = withResponseHeader(response, 'x-request-id', requestId);
 		requestLogger.info(
 			{
 				event: 'request.finish',
@@ -187,8 +175,12 @@ const cookieHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-function redirectTo(url: URL, pathname: string): Response {
-	return Response.redirect(new URL(pathname, url), 303);
+function redirectTo(pathname: string): Response {
+	return Response.redirect(pathname, 303);
+}
+
+function getAppRootPath(): string {
+	return resolvePath('/');
 }
 
 const authHandle: Handle = async ({ event, resolve }) => {
@@ -231,7 +223,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 			return resolve(event);
 		}
 
-		return redirectTo(url, '/');
+			return redirectTo(getAppRootPath());
 	}
 
 	try {
@@ -243,6 +235,29 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	} catch (err: unknown) {
 		event.locals.logger?.error({ event: 'auth.resolve.failed', error: toLogError(err) }, 'Auth resolution failed');
 		return errorResponse('Authentication error', 500);
+	}
+
+	const hasStaleSessionCookie = Boolean(sessionToken) && !apiKey && !event.locals.auth;
+	if (hasStaleSessionCookie) {
+		clearSakeSessionCookie(cookies, url);
+		event.locals.logger?.info(
+			{ event: 'auth.session_cookie.cleared', pathname, method },
+			'Cleared stale session cookie'
+		);
+
+		if (pathname.startsWith('/api/') || pathname.startsWith('/remote/')) {
+			return withResponseHeader(
+				errorResponse('Authentication required', 401),
+				SAKE_CLEAR_SESSION_HEADER_NAME,
+				'true'
+			);
+		}
+
+		if (pathname === '/') {
+			return resolve(event);
+		}
+
+		return redirectTo(getAppRootPath());
 	}
 
 	if (pathname.startsWith('/api/')) {
@@ -289,18 +304,18 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	if (pathname === '/') {
 		if (event.locals.auth?.type === 'session') {
-			return redirectTo(url, searchEnabled ? '/search' : '/library');
+			return redirectTo(resolvePath(searchEnabled ? '/search' : '/library'));
 		}
 		return resolve(event);
 	}
 
 	if (event.locals.auth?.type !== 'session') {
-		return redirectTo(url, '/');
+		return redirectTo(getAppRootPath());
 	}
 
 	if (pathname === '/search' || pathname.startsWith('/search/')) {
 		if (!searchEnabled) {
-			return redirectTo(url, '/library');
+			return redirectTo(resolvePath('/library'));
 		}
 	}
 

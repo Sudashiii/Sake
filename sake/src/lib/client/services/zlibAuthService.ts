@@ -1,11 +1,10 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import type { ApiError } from '$lib/types/ApiError';
+import { ZLIBRARY_NAME_STORAGE_KEY } from '$lib/auth/responseSignals';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
 import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLoginRequest';
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
 import { ZUI } from '../zui';
-
-const ZLIB_NAME_KEY = 'zlibName';
 
 /**
  * Service for Z-Library authentication operations.
@@ -40,7 +39,7 @@ export const ZLibAuthService = {
 		if (typeof localStorage === 'undefined') {
 			return '';
 		}
-		return localStorage.getItem(ZLIB_NAME_KEY) || '';
+		return localStorage.getItem(ZLIBRARY_NAME_STORAGE_KEY) || '';
 	},
 
 	/**
@@ -48,7 +47,7 @@ export const ZLibAuthService = {
 	 */
 	storeUserName(name: string): void {
 		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem(ZLIB_NAME_KEY, name);
+			localStorage.setItem(ZLIBRARY_NAME_STORAGE_KEY, name);
 		}
 	},
 
@@ -57,7 +56,7 @@ export const ZLibAuthService = {
 	 */
 	clearUserName(): void {
 		if (typeof localStorage !== 'undefined') {
-			localStorage.removeItem(ZLIB_NAME_KEY);
+			localStorage.removeItem(ZLIBRARY_NAME_STORAGE_KEY);
 		}
 	},
 

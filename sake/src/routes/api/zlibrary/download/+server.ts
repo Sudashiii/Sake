@@ -1,12 +1,13 @@
 import { downloadBookUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
+import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	const requestLogger = getRequestLogger(locals);
 	let body: ZDownloadBookRequest;
 	try {
@@ -46,7 +47,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				},
 				'Download rejected'
 			);
-			return errorResponse(result.error.message, result.error.status);
+			return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, url);
 		}
 
 		if (body.downloadToDevice === false) {

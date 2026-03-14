@@ -15,12 +15,9 @@ Thumbs.db
 # Env
 .env
 .env.*
+!.env.example
 !.env.test
 !.env.docker.selfhosted
-!.env.docke.managed.example
-
-# Local databases
-*.db
 
 # Vite
 vite.config.js.timestamp-*

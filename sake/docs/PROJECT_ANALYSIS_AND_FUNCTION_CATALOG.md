@@ -8,7 +8,6 @@ This repository currently has three main active areas:
 
 - `sake`: the main SvelteKit fullstack app (UI, API, application layer, domain layer, infrastructure)
 - `koreaderPlugins`: KOReader plugins (`sake.koplugin` and `sakeUpdater.koplugin`)
-- Bruno requests collection: manual API and integration testing support
 
 Core product behavior today:
 
@@ -438,4 +437,3 @@ Current tradeoffs and risks:
 - `sake/src/lib/features`: decomposed frontend feature UIs and helpers
 - `koreaderPlugins/sake.koplugin`: main KOReader sync plugin
 - `koreaderPlugins/sakeUpdater.koplugin`: updater plugin
-- Bruno requests collection: manual API testing and integration requests

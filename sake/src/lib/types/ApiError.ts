@@ -1,3 +1,5 @@
+import { applyAuthResponseSignals } from '$lib/client/base/authResponseSignals';
+
 /**
  * Structured error types for API operations.
  */
@@ -72,6 +74,8 @@ export const ApiErrors = {
 	}),
 
 	fromResponse: async (response: Response): Promise<ApiError> => {
+		applyAuthResponseSignals(response);
+
 		const text = await response.text().catch(() => 'Unknown error');
 		let message = text || 'Unknown error';
 

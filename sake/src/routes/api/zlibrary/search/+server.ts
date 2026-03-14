@@ -1,5 +1,6 @@
 import { zlibrarySearchUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
+import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
@@ -9,7 +10,7 @@ import { json } from '@sveltejs/kit';
 // -------------------------------
 // POST /api/zlibrary/search
 // -------------------------------
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	const requestLogger = getRequestLogger(locals);
 	requestLogger.warn(
 		{
@@ -47,7 +48,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				},
 				'Search rejected'
 			);
-			return errorResponse(searchResult.error.message, searchResult.error.status);
+			return zlibraryAuthFailureResponse(searchResult.error.message, searchResult.error.status, cookies, url);
 		}
 
 		return json(searchResult.value, {

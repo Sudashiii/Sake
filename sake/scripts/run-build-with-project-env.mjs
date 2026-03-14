@@ -43,21 +43,29 @@ function loadProjectEnv(cwd) {
 	return parseDotEnv(fs.readFileSync(envPath, 'utf8'));
 }
 
-async function main() {
-	const [scriptPath, ...scriptArgs] = process.argv.slice(2);
-	if (!scriptPath) {
-		console.error('Usage: node ./scripts/db/run-with-project-env.mjs <scriptPath> [...scriptArgs]');
-		process.exit(1);
+function mergeBuildEnv(projectEnv, currentEnv) {
+	const mergedEnv = { ...projectEnv };
+
+	for (const [key, value] of Object.entries(currentEnv)) {
+		if (value !== '') {
+			mergedEnv[key] = value;
+			continue;
+		}
+
+		if (!(key in mergedEnv)) {
+			mergedEnv[key] = value;
+		}
 	}
 
+	return mergedEnv;
+}
+
+async function main() {
 	const cwd = process.cwd();
 	const projectEnv = loadProjectEnv(cwd);
-	const childEnv = {
-		...projectEnv,
-		...process.env
-	};
+	const childEnv = mergeBuildEnv(projectEnv, process.env);
 
-	const child = spawn(process.execPath, [scriptPath, ...scriptArgs], {
+	const child = spawn(process.execPath, ['./node_modules/vite/bin/vite.js', 'build'], {
 		cwd,
 		env: childEnv,
 		stdio: 'inherit'

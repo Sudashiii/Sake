@@ -21,6 +21,21 @@ export function errorResponse(message: string, status = 500): Response {
 	return json({ error: message }, { status });
 }
 
+export function withResponseHeader(response: Response, name: string, value: string): Response {
+	try {
+		response.headers.set(name, value);
+		return response;
+	} catch (err: unknown) {
+		if (!(err instanceof TypeError) || err.message !== 'immutable') {
+			throw err;
+		}
+
+		const clonedResponse = new Response(response.body, response);
+		clonedResponse.headers.set(name, value);
+		return clonedResponse;
+	}
+}
+
 export function getErrorMessage(cause: unknown, fallback: string): string {
 	if (cause instanceof Error && cause.message) {
 		return cause.message;

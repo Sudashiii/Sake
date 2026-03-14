@@ -1,5 +1,6 @@
 import { getQueueStatusUseCase, queueDownloadUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
+import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
@@ -9,7 +10,7 @@ import { json } from '@sveltejs/kit';
 /**
  * Queue a book for download to library (async, returns immediately)
  */
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
 	const requestLogger = getRequestLogger(locals);
 	let body: ZDownloadBookRequest;
 	try {
@@ -49,7 +50,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				},
 				'Queue request rejected'
 			);
-			return errorResponse(result.error.message, result.error.status);
+			return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, url);
 		}
 
 		return json(result.value);
