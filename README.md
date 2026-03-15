@@ -145,7 +145,7 @@ Then open `http://localhost:5173`.
 <img src="./docs/img/SettingsMoreTools.png" alt="KOReader Settings" width="350">
 3. Select "Sake"
 <img src="./docs/img/Sake.png" alt="KOReader Settings" width="350">
-<img src="./docs/img/Sake.png" alt="KOReader Settings" width="350">
+<img src="./docs/img/SakeMenu.png" alt="KOReader Settings" width="350">
 4. Set the public URL where you host the webapp (eg. sake.yourdomain.com)
 5. Set the username and passowrd (the same login data as the webapp)
 6. Press "Login and fetch device key". This will fetch an api key, store it, and clear the password from your device
@@ -156,6 +156,7 @@ Then open `http://localhost:5173`.
 
 - Sake will download new books automatically if you set your device to sleep
 - Right now, book progress needs to be synced manually with "Sync progress now"
+- On Startup, if the version number of the sake plugin gets checked. If a version increase is detected it will be uploaded to the object storage and the "check for updates" button can be used to automatically download and install the update. This is a easy way to tweak the plugin and get it onto your device.
 
 
 ## A few images
