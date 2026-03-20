@@ -1,0 +1,76 @@
+name: Create Webapp Release Tag
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'sake/**'
+      - '.github/workflows/create-webapp-release-tag.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  create-webapp-release-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve webapp release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          existing_tag="$(git tag --points-at "$GITHUB_SHA" --list 'webapp/v*' | head -n 1)"
+
+          if [[ -n "$existing_tag" ]]; then
+            version="${existing_tag#webapp/v}"
+            tag="$existing_tag"
+            should_create_tag=false
+          else
+            version_date="$(date -u +'%Y.%m.%d')"
+            existing_sequences="$(
+              git tag --list "webapp/v${version_date}.*" \
+                | sed -E "s#^webapp/v${version_date}\.##" \
+                | grep -E '^[0-9]+$' || true
+            )"
+
+            if [[ -n "$existing_sequences" ]]; then
+              next_sequence="$(
+                printf '%s\n' "$existing_sequences" \
+                  | sort -n \
+                  | tail -n 1 \
+                  | awk '{ print $1 + 1 }'
+              )"
+            else
+              next_sequence=1
+            fi
+
+            version="${version_date}.${next_sequence}"
+            tag="webapp/v${version}"
+            should_create_tag=true
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "should_create_tag=$should_create_tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create webapp release tag
+        if: steps.version.outputs.should_create_tag == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" "$GITHUB_SHA" -m "Webapp ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.tag }}"
