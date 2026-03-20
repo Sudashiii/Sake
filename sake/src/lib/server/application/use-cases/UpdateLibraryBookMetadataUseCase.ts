@@ -1,4 +1,8 @@
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
+import {
+	ManagedBookCoverService,
+	isManagedBookCoverUrl
+} from '$lib/server/application/services/ManagedBookCoverService';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 
 interface UpdateLibraryBookMetadataInput {
@@ -30,7 +34,10 @@ interface UpdateLibraryBookMetadataResult {
 }
 
 export class UpdateLibraryBookMetadataUseCase {
-	constructor(private readonly bookRepository: BookRepositoryPort) {}
+	constructor(
+		private readonly bookRepository: BookRepositoryPort,
+		private readonly managedBookCoverService: Pick<ManagedBookCoverService, 'deleteForBookStorageKey'>
+	) {}
 
 	async execute(input: UpdateLibraryBookMetadataInput): Promise<ApiResult<UpdateLibraryBookMetadataResult>> {
 		const existing = await this.bookRepository.getById(input.bookId);
@@ -42,6 +49,10 @@ export class UpdateLibraryBookMetadataUseCase {
 		if (!nextTitle) {
 			return apiError('title cannot be empty', 400);
 		}
+
+		const nextCover = input.metadata.cover === undefined ? existing.cover : input.metadata.cover;
+		const shouldDeleteManagedCover =
+			isManagedBookCoverUrl(existing.cover) && !isManagedBookCoverUrl(nextCover);
 
 		await this.bookRepository.updateMetadata(input.bookId, {
 			zLibId: existing.zLibId,
@@ -79,12 +90,16 @@ export class UpdateLibraryBookMetadataUseCase {
 				input.metadata.externalRatingCount === undefined
 					? existing.external_rating_count
 					: input.metadata.externalRatingCount,
-			cover: input.metadata.cover === undefined ? existing.cover : input.metadata.cover,
+			cover: nextCover,
 			extension: existing.extension,
 			filesize: existing.filesize,
 			language: input.metadata.language === undefined ? existing.language : input.metadata.language,
 			year: input.metadata.year === undefined ? existing.year : input.metadata.year
 		});
+
+		if (shouldDeleteManagedCover) {
+			await this.managedBookCoverService.deleteForBookStorageKey(existing.s3_storage_key);
+		}
 
 		return apiOk({ success: true, bookId: input.bookId });
 	}

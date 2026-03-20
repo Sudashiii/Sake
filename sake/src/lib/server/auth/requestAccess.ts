@@ -5,7 +5,8 @@ const RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS = new Set([
 	'trash',
 	'progress',
 	'confirmDownload',
-	'shelves'
+	'shelves',
+	'covers'
 ]);
 
 export function isPublicApiRoute(pathname: string, method: string): boolean {
@@ -72,6 +73,9 @@ export function isApiKeyAllowedRoute(pathname: string, method: string): boolean 
 	}
 	if (pathname === '/api/devices/version') {
 		return method === 'POST';
+	}
+	if (pathname.startsWith('/api/library/covers/')) {
+		return method === 'GET';
 	}
 
 	return isDirectLibraryFileRoute(pathname, method);

@@ -176,7 +176,12 @@ const cookieHandle: Handle = async ({ event, resolve }) => {
 };
 
 function redirectTo(pathname: string): Response {
-	return Response.redirect(pathname, 303);
+	return new Response(null, {
+		status: 303,
+		headers: {
+			location: pathname
+		}
+	});
 }
 
 function getAppRootPath(): string {

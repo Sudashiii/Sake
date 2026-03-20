@@ -1,6 +1,7 @@
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
 import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
 import { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
+import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import { QueueJobRepository } from '$lib/server/infrastructure/repositories/QueueJobRepository';
@@ -82,16 +83,22 @@ class DownloadQueue {
 	private readonly queueJobRepository = new QueueJobRepository();
 	private isInitialized = false;
 	private initializePromise: Promise<void> | null = null;
+	private readonly storage = new S3Storage();
+	private readonly bookRepository = new BookRepository();
+	private readonly managedBookCoverService = new ManagedBookCoverService(this.storage);
 
 	private readonly downloadBookUseCase = new DownloadBookUseCase(
 		new ZLibraryClient('https://1lib.sk'),
-		new BookRepository(),
-		() => DavUploadServiceFactory.createS3()
+		this.bookRepository,
+		this.storage,
+		() => DavUploadServiceFactory.createS3(),
+		this.managedBookCoverService
 	);
 	private readonly downloadSearchBookUseCase = new DownloadSearchBookUseCase();
 	private readonly putLibraryFileUseCase = new PutLibraryFileUseCase(
-		new S3Storage(),
-		new BookRepository()
+		this.storage,
+		this.bookRepository,
+		this.managedBookCoverService
 	);
 
 	async enqueue(
@@ -359,7 +366,11 @@ class DownloadQueue {
 
 		const uploadResult = await this.putLibraryFileUseCase.execute(
 			this.buildLibraryFileName(task.title, downloadResult.value.fileName, task.extension),
-			this.toArrayBuffer(downloadResult.value.fileData)
+			this.toArrayBuffer(downloadResult.value.fileData),
+			{
+				provider: task.provider,
+				coverUrl: task.cover
+			}
 		);
 		if (!uploadResult.ok) {
 			return uploadResult;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
 	getProgressHistoryPageRange,
+	isImportableExternalCoverUrl,
 	matchesBookShelf,
 	parseNullableNumber,
 	sortBooks
@@ -102,5 +103,17 @@ describe('libraryView', () => {
 
 		assert.equal(getProgressHistoryPageRange(history, 0, 500), 'Read from page 50 to 200');
 		assert.equal(getProgressHistoryPageRange(history, 1, 500), 'Read from page 0 to 50');
+	});
+
+	test('isImportableExternalCoverUrl accepts non-internal http and https covers', () => {
+		assert.equal(
+			isImportableExternalCoverUrl('http://books.google.com/books/content?id=test-cover'),
+			true
+		);
+		assert.equal(
+			isImportableExternalCoverUrl('https://books.google.com/books/content?id=test-cover'),
+			true
+		);
+		assert.equal(isImportableExternalCoverUrl('/api/library/covers/example.epub.jpg'), false);
 	});
 });

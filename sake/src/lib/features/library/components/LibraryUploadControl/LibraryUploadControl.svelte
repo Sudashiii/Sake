@@ -20,5 +20,5 @@
 		<UploadIcon size={17} decorative={true} />
 		<span>{isUploading ? 'Importing...' : 'Import'}</span>
 	</button>
-	<input class="upload-input" type="file" bind:this={inputEl} onchange={onChange} />
+	<input class="upload-input" type="file" multiple bind:this={inputEl} onchange={onChange} />
 </div>

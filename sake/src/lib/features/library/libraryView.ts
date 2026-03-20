@@ -30,6 +30,8 @@ export type MetadataDraft = {
 	externalRatingCount: string;
 };
 
+const MANAGED_COVER_ROUTE_PREFIX = '/api/library/covers/';
+
 export function parseViewFromUrl(value: string | null): LibraryView | null {
 	if (value === 'library' || value === 'archived' || value === 'trash') {
 		return value;
@@ -39,6 +41,28 @@ export function parseViewFromUrl(value: string | null): LibraryView | null {
 
 export function toDraftText(value: string | number | null | undefined): string {
 	return value === null || value === undefined ? '' : String(value);
+}
+
+export function isManagedLibraryCoverUrl(value: string | null | undefined): boolean {
+	return typeof value === 'string' && value.startsWith(MANAGED_COVER_ROUTE_PREFIX);
+}
+
+export function isImportableExternalCoverUrl(value: string | null | undefined): boolean {
+	if (typeof value !== 'string') {
+		return false;
+	}
+
+	const trimmed = value.trim();
+	if (!trimmed || isManagedLibraryCoverUrl(trimmed)) {
+		return false;
+	}
+
+	try {
+		const url = trimmed.startsWith('//') ? new URL(`https:${trimmed}`) : new URL(trimmed);
+		return url.protocol === 'https:' || url.protocol === 'http:';
+	} catch {
+		return false;
+	}
 }
 
 export function parseNullableNumber(value: string): number | null {

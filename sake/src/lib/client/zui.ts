@@ -42,6 +42,10 @@ import {
 } from './routes/updateLibraryBookState';
 import { uploadLibraryBookFile } from './routes/uploadLibraryBookFile';
 import { updateLibraryBookMetadata, type UpdateLibraryBookMetadataRequest } from './routes/updateLibraryBookMetadata';
+import {
+	importLibraryBookCover,
+	type ImportLibraryBookCoverResponse
+} from './routes/importLibraryBookCover';
 import { getQueueStatus, type QueueStatusResponse } from './routes/getQueueStatus';
 import { getLibraryBookProgressHistory } from './routes/getLibraryBookProgressHistory';
 import type { BookProgressHistoryResponse } from '$lib/types/Library/BookProgressHistory';
@@ -162,6 +166,12 @@ export const ZUI = {
 		bookId: number,
 		request: UpdateLibraryBookMetadataRequest
 	) => updateLibraryBookMetadata(bookId, request),
+
+	importLibraryBookCover: (
+		bookId: number,
+		coverUrl?: string | null
+	): Promise<Result<ImportLibraryBookCoverResponse, ApiError>> =>
+		importLibraryBookCover(bookId, coverUrl),
 
 	getLibraryShelves: (): Promise<Result<GetLibraryShelvesResponse, ApiError>> => getLibraryShelves(),
 

@@ -83,6 +83,9 @@ import { DeleteDeviceUseCase } from '$lib/server/application/use-cases/DeleteDev
 import { getActivatedSearchProviders } from '$lib/server/config/activatedProviders';
 import type { SearchProviderPort } from '$lib/server/application/ports/SearchProviderPort';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
+import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
+import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
+import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = new S3Storage();
@@ -97,11 +100,14 @@ export const shelfRepository = new ShelfRepository();
 export const deviceDownloadRepository = new DeviceDownloadRepository();
 export const deviceProgressDownloadRepository = new DeviceProgressDownloadRepository();
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
+export const managedBookCoverService = new ManagedBookCoverService(storage);
 
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
 	bookRepository,
-	() => DavUploadServiceFactory.createS3()
+	storage,
+	() => DavUploadServiceFactory.createS3(),
+	managedBookCoverService
 );
 export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
@@ -170,14 +176,31 @@ export const confirmProgressDownloadUseCase = new ConfirmProgressDownloadUseCase
 );
 
 export const getLibraryFileUseCase = new GetLibraryFileUseCase(storage);
-export const putLibraryFileUseCase = new PutLibraryFileUseCase(storage, bookRepository);
+export const getLibraryCoverUseCase = new GetLibraryCoverUseCase(storage);
+export const importLibraryBookCoverUseCase = new ImportLibraryBookCoverUseCase(
+	bookRepository,
+	managedBookCoverService
+);
+export const putLibraryFileUseCase = new PutLibraryFileUseCase(
+	storage,
+	bookRepository,
+	managedBookCoverService
+);
 export const deleteLibraryFileUseCase = new DeleteLibraryFileUseCase(storage);
 export const listDavDirectoryUseCase = new ListDavDirectoryUseCase(storage);
 export const moveLibraryBookToTrashUseCase = new MoveLibraryBookToTrashUseCase(bookRepository);
 export const listLibraryTrashUseCase = new ListLibraryTrashUseCase(bookRepository);
 export const restoreLibraryBookUseCase = new RestoreLibraryBookUseCase(bookRepository);
-export const deleteTrashedLibraryBookUseCase = new DeleteTrashedLibraryBookUseCase(bookRepository, storage);
-export const purgeExpiredTrashUseCase = new PurgeExpiredTrashUseCase(bookRepository, storage);
+export const deleteTrashedLibraryBookUseCase = new DeleteTrashedLibraryBookUseCase(
+	bookRepository,
+	storage,
+	managedBookCoverService
+);
+export const purgeExpiredTrashUseCase = new PurgeExpiredTrashUseCase(
+	bookRepository,
+	storage,
+	managedBookCoverService
+);
 export const syncKoreaderPluginReleaseUseCase = new SyncKoreaderPluginReleaseUseCase(
 	storage,
 	pluginReleaseRepository,
@@ -223,7 +246,10 @@ export const deleteDeviceUseCase = new DeleteDeviceUseCase(
 export const updateBookRatingUseCase = new UpdateBookRatingUseCase(bookRepository);
 export const listLibraryRatingsUseCase = new ListLibraryRatingsUseCase(bookRepository);
 export const updateLibraryBookStateUseCase = new UpdateLibraryBookStateUseCase(bookRepository);
-export const updateLibraryBookMetadataUseCase = new UpdateLibraryBookMetadataUseCase(bookRepository);
+export const updateLibraryBookMetadataUseCase = new UpdateLibraryBookMetadataUseCase(
+	bookRepository,
+	managedBookCoverService
+);
 export const getReadingActivityStatsUseCase = new GetReadingActivityStatsUseCase(
 	bookRepository,
 	bookProgressHistoryRepository

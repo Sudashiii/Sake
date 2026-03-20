@@ -7,7 +7,7 @@ import type {
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { books, deviceDownloads, deviceProgressDownloads } from '$lib/server/infrastructure/db/schema';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
-import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 
 type DbBookRow = {
 	id: number;
@@ -180,11 +180,41 @@ export class BookRepository implements BookRepositoryPort {
 		return row ? mapBookRow(row) : undefined;
 	}
 
+	async getByZLibIdIncludingTrashed(zLibId: string): Promise<Book | undefined> {
+		const active = await this.getByZLibId(zLibId);
+		if (active) {
+			return active;
+		}
+
+		const [row] = await drizzleDb
+			.select(bookSelection)
+			.from(books)
+			.where(and(eq(books.zLibId, zLibId), isNotNull(books.deletedAt)))
+			.orderBy(desc(books.deletedAt), desc(books.id))
+			.limit(1);
+		return row ? mapBookRow(row) : undefined;
+	}
+
 	async getByStorageKey(storageKey: string): Promise<Book | undefined> {
 		const [row] = await drizzleDb
 			.select(bookSelection)
 			.from(books)
 			.where(and(eq(books.s3StorageKey, storageKey), isNull(books.deletedAt)))
+			.limit(1);
+		return row ? mapBookRow(row) : undefined;
+	}
+
+	async getByStorageKeyIncludingTrashed(storageKey: string): Promise<Book | undefined> {
+		const active = await this.getByStorageKey(storageKey);
+		if (active) {
+			return active;
+		}
+
+		const [row] = await drizzleDb
+			.select(bookSelection)
+			.from(books)
+			.where(and(eq(books.s3StorageKey, storageKey), isNotNull(books.deletedAt)))
+			.orderBy(desc(books.deletedAt), desc(books.id))
 			.limit(1);
 		return row ? mapBookRow(row) : undefined;
 	}
@@ -205,6 +235,38 @@ export class BookRepository implements BookRepositoryPort {
 			.where(and(eq(books.title, title), isNull(books.deletedAt)))
 			.limit(1);
 		return row ? mapBookRow(row) : undefined;
+	}
+
+	async hasOtherBookWithStorageKey(storageKey: string, excludeBookId: number): Promise<boolean> {
+		const [row] = await drizzleDb
+			.select({ id: books.id })
+			.from(books)
+			.where(and(eq(books.s3StorageKey, storageKey), ne(books.id, excludeBookId)))
+			.limit(1);
+		return row !== undefined;
+	}
+
+	async listStorageKeysWithExternalReferences(
+		storageKeys: string[],
+		excludeBookIds: number[]
+	): Promise<string[]> {
+		const uniqueStorageKeys = [...new Set(storageKeys)];
+		if (uniqueStorageKeys.length === 0) {
+			return [];
+		}
+
+		const whereClause =
+			excludeBookIds.length > 0
+				? and(
+						inArray(books.s3StorageKey, uniqueStorageKeys),
+						notInArray(books.id, excludeBookIds)
+					)
+				: inArray(books.s3StorageKey, uniqueStorageKeys);
+		const rows = await drizzleDb
+			.selectDistinct({ storageKey: books.s3StorageKey })
+			.from(books)
+			.where(whereClause);
+		return rows.map((row) => row.storageKey);
 	}
 
 	async create(book: CreateBookInput): Promise<Book> {
@@ -494,8 +556,16 @@ export class BookRepository implements BookRepositoryPort {
 		return BookRepository.instance.getByZLibId(zLibId);
 	}
 
+	static async getByZLibIdIncludingTrashed(zLibId: string): Promise<Book | undefined> {
+		return BookRepository.instance.getByZLibIdIncludingTrashed(zLibId);
+	}
+
 	static async getByStorageKey(storageKey: string): Promise<Book | undefined> {
 		return BookRepository.instance.getByStorageKey(storageKey);
+	}
+
+	static async getByStorageKeyIncludingTrashed(storageKey: string): Promise<Book | undefined> {
+		return BookRepository.instance.getByStorageKeyIncludingTrashed(storageKey);
 	}
 
 	static async getByTitleAndExtension(title: string, extension: string): Promise<Book | undefined> {
@@ -504,6 +574,17 @@ export class BookRepository implements BookRepositoryPort {
 
 	static async getByTitle(title: string): Promise<Book | undefined> {
 		return BookRepository.instance.getByTitle(title);
+	}
+
+	static async hasOtherBookWithStorageKey(storageKey: string, excludeBookId: number): Promise<boolean> {
+		return BookRepository.instance.hasOtherBookWithStorageKey(storageKey, excludeBookId);
+	}
+
+	static async listStorageKeysWithExternalReferences(
+		storageKeys: string[],
+		excludeBookIds: number[]
+	): Promise<string[]> {
+		return BookRepository.instance.listStorageKeysWithExternalReferences(storageKeys, excludeBookIds);
 	}
 
 	static async create(book: CreateBookInput): Promise<Book> {

@@ -1,5 +1,3 @@
-import { env } from '$env/dynamic/private';
-
 export interface ExternalBookMetadata {
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
@@ -15,6 +13,8 @@ export interface ExternalBookMetadata {
 	externalRating: number | null;
 	externalRatingCount: number | null;
 }
+
+const googleBooksApiKey = process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
 
 interface LookupInput {
 	title: string;
@@ -178,7 +178,7 @@ export class ExternalBookMetadataService {
 		const query = encodeURIComponent(queryParts.join(' '));
 		const langRestrict = languageTokens(input.language).find((token) => token.length === 2) ?? '';
 		const langPart = langRestrict ? `&langRestrict=${encodeURIComponent(langRestrict)}` : '';
-		const keyPart = env.GOOGLE_BOOKS_API_KEY ? `&key=${encodeURIComponent(env.GOOGLE_BOOKS_API_KEY)}` : '';
+		const keyPart = googleBooksApiKey ? `&key=${encodeURIComponent(googleBooksApiKey)}` : '';
 		const url = `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=5${langPart}${keyPart}`;
 
 		try {
@@ -386,4 +386,3 @@ export class ExternalBookMetadataService {
 		return null;
 	}
 }
-

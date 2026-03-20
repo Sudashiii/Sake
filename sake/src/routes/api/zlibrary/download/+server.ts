@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 		}
 
 		if (body.downloadToDevice === false) {
-			return json({ success: true });
+			return json(result.value);
 		}
 
 		return new Response(result.value.fileData, {

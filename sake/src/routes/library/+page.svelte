@@ -67,6 +67,7 @@
 	let isMovingToTrash = $state(false);
 	let isDownloadingLibraryFile = $state(false);
 	let isUploadingLibraryFile = $state(false);
+	let isLibraryDropActive = $state(false);
 	let isUpdatingRating = $state(false);
 	let isUpdatingReadState = $state(false);
 	let isUpdatingArchiveState = $state(false);
@@ -74,6 +75,7 @@
 	let isUpdatingShelves = $state(false);
 	let isEditingMetadata = $state(false);
 	let isSavingMetadata = $state(false);
+	let isImportingCover = $state(false);
 	let restoringBookId = $state<number | null>(null);
 	let deletingTrashBookId = $state<number | null>(null);
 	let pendingDeleteTrashBook = $state<LibraryBook | null>(null);
@@ -100,6 +102,7 @@
 		externalRating: '',
 		externalRatingCount: ''
 	});
+	let libraryDropDepth = 0;
 
 	let activeLibraryBooks = $derived(books.filter((book) => !book.archived_at));
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
@@ -343,6 +346,7 @@
 		isUpdatingShelves = false;
 		isEditingMetadata = false;
 		isSavingMetadata = false;
+		isImportingCover = false;
 		progressHistoryError = null;
 		progressHistory = [];
 		showProgressHistory = false;
@@ -585,6 +589,45 @@
 		}
 	}
 
+	function setBookCoverState(bookId: number, cover: string | null): void {
+		const index = books.findIndex((book) => book.id === bookId);
+		if (index === -1) {
+			return;
+		}
+
+		const updatedBook: LibraryBook = {
+			...books[index],
+			cover
+		};
+		books = [...books.slice(0, index), updatedBook, ...books.slice(index + 1)];
+		selectedBook = updatedBook;
+	}
+
+	async function handleImportCover(): Promise<void> {
+		if (!selectedBook || isImportingCover) {
+			return;
+		}
+
+		const coverUrl = metadataDraft.cover.trim() || selectedBook.cover;
+		if (!coverUrl) {
+			toastStore.add('No cover URL available to import', 'error');
+			return;
+		}
+
+		isImportingCover = true;
+		const result = await ZUI.importLibraryBookCover(selectedBook.id, coverUrl);
+		isImportingCover = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to import cover: ${result.error.message}`, 'error');
+			return;
+		}
+
+		setBookCoverState(selectedBook.id, result.value.cover);
+		metadataDraft.cover = result.value.cover;
+		toastStore.add('Cover stored internally', 'success');
+	}
+
 	async function handleSetRating(rating: number | null): Promise<void> {
 		if (!selectedBook || isUpdatingRating) {
 			return;
@@ -807,22 +850,113 @@
 		pendingDeleteTrashBook = null;
 	}
 
+	function isFileDragEvent(event: DragEvent): boolean {
+		return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+	}
+
+	function resetLibraryDropState(): void {
+		libraryDropDepth = 0;
+		isLibraryDropActive = false;
+	}
+
+	function formatUploadFailureSummary(
+		failures: Array<{ fileName: string; message: string }>
+	): string {
+		const firstFailure = failures[0];
+		if (!firstFailure) {
+			return 'Upload failed';
+		}
+		if (failures.length === 1) {
+			return `Failed to upload "${firstFailure.fileName}": ${firstFailure.message}`;
+		}
+		return `Failed to upload ${failures.length} books. First error: "${firstFailure.fileName}" (${firstFailure.message})`;
+	}
+
+	async function uploadLibraryFiles(files: File[]): Promise<void> {
+		if (files.length === 0 || isUploadingLibraryFile) {
+			return;
+		}
+
+		resetLibraryDropState();
+		isUploadingLibraryFile = true;
+		const uploadedFiles: string[] = [];
+		const failedFiles: Array<{ fileName: string; message: string }> = [];
+
+		for (const file of files) {
+			const result = await ZUI.uploadLibraryBookFile(file);
+			if (result.ok) {
+				uploadedFiles.push(file.name);
+				continue;
+			}
+			failedFiles.push({
+				fileName: file.name,
+				message: result.error.message
+			});
+		}
+
+		isUploadingLibraryFile = false;
+
+		if (uploadedFiles.length > 0) {
+			if (uploadedFiles.length === 1 && failedFiles.length === 0) {
+				toastStore.add(`Uploaded "${uploadedFiles[0]}"`, 'success');
+			} else if (failedFiles.length === 0) {
+				toastStore.add(`Uploaded ${uploadedFiles.length} books`, 'success');
+			} else {
+				toastStore.add(`Uploaded ${uploadedFiles.length} of ${files.length} books`, 'success');
+			}
+			await loadLibrary();
+		}
+
+		if (failedFiles.length > 0) {
+			toastStore.add(formatUploadFailureSummary(failedFiles), 'error', 5000);
+		}
+	}
+
 	async function handleLibraryUploadChange(event: Event): Promise<void> {
 		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file || isUploadingLibraryFile) {
-			return;
-		}
-		isUploadingLibraryFile = true;
-		const result = await ZUI.uploadLibraryBookFile(file);
-		isUploadingLibraryFile = false;
+		const files = Array.from(input.files ?? []);
 		input.value = '';
-		if (!result.ok) {
-			toastStore.add(`Failed to upload book: ${result.error.message}`, 'error');
+		await uploadLibraryFiles(files);
+	}
+
+	function handleLibraryDragEnter(event: DragEvent): void {
+		if (currentView !== 'library' || isUploadingLibraryFile || !isFileDragEvent(event)) {
 			return;
 		}
-		toastStore.add(`Uploaded "${file.name}"`, 'success');
-		await loadLibrary();
+		event.preventDefault();
+		libraryDropDepth += 1;
+		isLibraryDropActive = true;
+	}
+
+	function handleLibraryDragOver(event: DragEvent): void {
+		if (currentView !== 'library' || !isFileDragEvent(event)) {
+			return;
+		}
+		event.preventDefault();
+		if (event.dataTransfer) {
+			event.dataTransfer.dropEffect = isUploadingLibraryFile ? 'none' : 'copy';
+		}
+	}
+
+	function handleLibraryDragLeave(event: DragEvent): void {
+		if (currentView !== 'library' || !isFileDragEvent(event)) {
+			return;
+		}
+		event.preventDefault();
+		libraryDropDepth = Math.max(0, libraryDropDepth - 1);
+		if (libraryDropDepth === 0) {
+			isLibraryDropActive = false;
+		}
+	}
+
+	async function handleLibraryDrop(event: DragEvent): Promise<void> {
+		if (currentView !== 'library' || !isFileDragEvent(event)) {
+			return;
+		}
+		event.preventDefault();
+		const files = Array.from(event.dataTransfer?.files ?? []);
+		resetLibraryDropState();
+		await uploadLibraryFiles(files);
 	}
 
 	async function confirmResetStatus(): Promise<void> {
@@ -948,6 +1082,7 @@
 		if (currentView === nextView) {
 			return;
 		}
+		resetLibraryDropState();
 		showSortMenu = false;
 		showFilters = false;
 		currentView = nextView;
@@ -962,8 +1097,25 @@
 	}
 </script>
 
-<div class={styles.root}>
+<div
+	class={`${styles.root} ${isLibraryDropActive ? styles.dragActive : ''}`}
+	role="region"
+	aria-label="Library content"
+	ondragenter={handleLibraryDragEnter}
+	ondragover={handleLibraryDragOver}
+	ondragleave={handleLibraryDragLeave}
+	ondrop={handleLibraryDrop}
+>
 	<Loading bind:show={isLoading} />
+
+	{#if isLibraryDropActive}
+		<div class={styles.dropOverlay} aria-hidden="true">
+			<div class={styles.dropPanel}>
+				<p>Drop files to import them into your library</p>
+				<span>Multiple files are supported.</span>
+			</div>
+		</div>
+	{/if}
 
 	{#if error}
 		<div class={styles.error}>
@@ -1120,12 +1272,14 @@
 		{isUpdatingShelves}
 		{isEditingMetadata}
 		{isSavingMetadata}
+		{isImportingCover}
 		{removingDeviceId}
 		onClose={closeDetailModal}
 		onRefetchMetadata={handleRefetchMetadata}
 		onStartMetadataEdit={startMetadataEdit}
 		onSaveMetadataEdit={saveMetadataEdit}
 		onCancelMetadataEdit={cancelMetadataEdit}
+		onImportCover={() => void handleImportCover()}
 		onSetRating={handleSetRating}
 		onToggleShelfAssignment={(shelfId) => void handleToggleShelfAssignment(shelfId)}
 		onDownloadFromLibrary={handleDownloadFromLibrary}

@@ -31,7 +31,7 @@ export const downloadBook = command(async (data: ZDownloadBookRequest, event: an
 	        }
 
 	        if (downloadToDevice === false) {
-	            return { success: true };
+	            return result.value;
 	        }
 	        if (!result.value.fileData) {
 	            throw new Error('File download failed');

@@ -35,12 +35,14 @@
 		isUpdatingShelves?: boolean;
 		isEditingMetadata?: boolean;
 		isSavingMetadata?: boolean;
+		isImportingCover?: boolean;
 		removingDeviceId: string | null;
 		onClose: () => void;
 		onRefetchMetadata: () => void;
 		onStartMetadataEdit: () => void;
 		onSaveMetadataEdit: () => void;
 		onCancelMetadataEdit: () => void;
+		onImportCover: () => void;
 		onSetRating: (rating: number | null) => void;
 		onToggleShelfAssignment: (shelfId: number) => void;
 		onDownloadFromLibrary: () => void;
@@ -74,12 +76,14 @@
 		isUpdatingShelves = false,
 		isEditingMetadata = false,
 		isSavingMetadata = false,
+		isImportingCover = false,
 		removingDeviceId,
 		onClose,
 		onRefetchMetadata,
 		onStartMetadataEdit,
 		onSaveMetadataEdit,
 		onCancelMetadataEdit,
+		onImportCover,
 		onSetRating,
 		onToggleShelfAssignment,
 		onDownloadFromLibrary,
@@ -162,6 +166,8 @@
 					{selectedBookDetail}
 					bind:metadataDraft
 					{isEditingMetadata}
+					{isImportingCover}
+					onImportCover={onImportCover}
 				/>
 			{:else}
 				<LibraryDetailDevicesTab

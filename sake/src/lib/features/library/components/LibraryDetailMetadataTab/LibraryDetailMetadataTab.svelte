@@ -2,6 +2,7 @@
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import {
+		isImportableExternalCoverUrl,
 		toGoogleBooksUrl,
 		toOpenLibraryUrl,
 		type MetadataDraft
@@ -13,26 +14,54 @@
 		selectedBookDetail: LibraryBookDetail;
 		metadataDraft: MetadataDraft;
 		isEditingMetadata?: boolean;
+		isImportingCover?: boolean;
+		onImportCover: () => void;
 	}
 
 	let {
 		selectedBook,
 		selectedBookDetail,
 		metadataDraft = $bindable(),
-		isEditingMetadata = false
+		isEditingMetadata = false,
+		isImportingCover = false,
+		onImportCover
 	}: Props = $props();
+
+	const activeCoverUrl = $derived(metadataDraft.cover.trim() || selectedBook.cover || '');
+	const canImportCover = $derived(!isEditingMetadata && isImportableExternalCoverUrl(activeCoverUrl));
 </script>
 
 <div class={styles.root}>
 	<div class="detail-v2-metadata-cover">
 		<p class="detail-v2-caption">Cover</p>
 		<div>
-			{#if metadataDraft.cover || selectedBook.cover}
-				<img src={metadataDraft.cover || selectedBook.cover || ''} alt={selectedBookDetail.title} />
+			{#if activeCoverUrl}
+				<img src={activeCoverUrl} alt={selectedBookDetail.title} />
 			{:else}
 				<div class="no-cover"><span class="extension">?</span></div>
 			{/if}
-			<span>{metadataDraft.cover || selectedBook.cover || 'No cover URL'}</span>
+			<div class="detail-v2-cover-meta">
+				{#if isEditingMetadata}
+					<input
+						class="detail-v2-input"
+						bind:value={metadataDraft.cover}
+						placeholder="https://books.google.com/..."
+					/>
+				{:else}
+					<span>{activeCoverUrl || 'No cover URL'}</span>
+				{/if}
+
+				{#if canImportCover}
+					<button
+						type="button"
+						class="detail-v2-cover-import-btn"
+						onclick={onImportCover}
+						disabled={isImportingCover}
+					>
+						{isImportingCover ? 'Importing...' : 'Store Internally'}
+					</button>
+				{/if}
+			</div>
 		</div>
 	</div>
 

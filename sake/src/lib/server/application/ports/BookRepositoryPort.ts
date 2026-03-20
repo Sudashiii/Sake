@@ -10,9 +10,16 @@ export interface BookRepositoryPort {
 	getById(id: number): Promise<Book | undefined>;
 	getByIdIncludingTrashed(id: number): Promise<Book | undefined>;
 	getByZLibId(zLibId: string): Promise<Book | undefined>;
+	getByZLibIdIncludingTrashed(zLibId: string): Promise<Book | undefined>;
 	getByStorageKey(storageKey: string): Promise<Book | undefined>;
+	getByStorageKeyIncludingTrashed(storageKey: string): Promise<Book | undefined>;
 	getByTitleAndExtension(title: string, extension: string): Promise<Book | undefined>;
 	getByTitle(title: string): Promise<Book | undefined>;
+	hasOtherBookWithStorageKey(storageKey: string, excludeBookId: number): Promise<boolean>;
+	listStorageKeysWithExternalReferences(
+		storageKeys: string[],
+		excludeBookIds: number[]
+	): Promise<string[]>;
 	create(book: CreateBookInput): Promise<Book>;
 	updateMetadata(id: number, metadata: UpdateBookMetadataInput): Promise<Book>;
 	delete(id: number): Promise<void>;

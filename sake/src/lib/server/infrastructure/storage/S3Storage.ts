@@ -1,9 +1,11 @@
 import {
 	S3Client,
+	S3ServiceException,
 	ListObjectsV2Command,
 	PutObjectCommand,
 	GetObjectCommand,
-	DeleteObjectCommand
+	DeleteObjectCommand,
+	HeadObjectCommand
 } from '@aws-sdk/client-s3';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import { Readable } from 'stream';
@@ -64,6 +66,26 @@ export class S3Storage implements StoragePort {
 		}
 
 		return Buffer.concat(chunks);
+	}
+
+	async exists(key: string): Promise<boolean> {
+		try {
+			await this.s3.send(
+				new HeadObjectCommand({
+					Bucket: this.bucket,
+					Key: key
+				})
+			);
+			return true;
+		} catch (error: unknown) {
+			if (
+				error instanceof S3ServiceException &&
+				(error.name === 'NotFound' || error.name === 'NoSuchKey' || error.$metadata.httpStatusCode === 404)
+			) {
+				return false;
+			}
+			throw error;
+		}
 	}
 
 	async delete(key: string): Promise<void> {
