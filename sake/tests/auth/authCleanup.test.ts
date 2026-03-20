@@ -454,8 +454,22 @@ describe('auth cleanup regression coverage', () => {
 		const users = new InMemoryUserRepository();
 		const apiKeys = new InMemoryUserApiKeyRepository();
 		const devices = new InMemoryDeviceRepository();
-		const first = await seedUser(users, 'alpha', 'supersecret123');
-		const second = await seedUser(users, 'beta', 'supersecret456');
+		const sharedPassword = 'supersecret123';
+		const sharedPasswordHash = await hashPassword(sharedPassword);
+		const first = {
+			user: await users.create({
+				username: 'alpha',
+				passwordHash: sharedPasswordHash
+			}),
+			password: sharedPassword
+		};
+		const second = {
+			user: await users.create({
+				username: 'beta',
+				passwordHash: sharedPasswordHash
+			}),
+			password: sharedPassword
+		};
 		const createDeviceApiKeyUseCase = new CreateDeviceApiKeyUseCase(users, apiKeys, devices);
 
 		expectOk(
