@@ -162,6 +162,12 @@ Then open `http://localhost:5173`.
 
 8. Enjoy!
 
+## How to enable downloads via Z-Library
+
+At the top of the page there is a button "Connect Z-Library". You need to either login with e-mail and password (will not get stored) or login yourself on the official z-library page and copy th remix_userkey and remix_userid out of your cookies. 
+
+When logging in with your password the app simply makes a post request to the login page and sets the cookies for the remix values in your browser. These values get used to make authenticated requests to z-library, so your password is safe.
+
 ## Tips
 
 - Sake will download new books automatically if you set your device to sleep
