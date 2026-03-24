@@ -6,6 +6,10 @@
 	color: var(--color-text-primary);
 }
 
+.selectionActive {
+	padding-bottom: calc(13rem + env(safe-area-inset-bottom, 0px));
+}
+
 .dragActive {
 	> :not(.dropOverlay) {
 		user-select: none;
@@ -114,6 +118,10 @@
 	.root {
 		padding-top: 0.75rem;
 		gap: 0.95rem;
+	}
+
+	.selectionActive {
+		padding-bottom: calc(24rem + env(safe-area-inset-bottom, 0px));
 	}
 
 	.dropOverlay {

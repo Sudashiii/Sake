@@ -1,0 +1,198 @@
+.root {
+	position: fixed;
+	left: calc(var(--main-content-offset) + 1rem);
+	right: 1rem;
+	bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+	z-index: 45;
+	width: auto;
+	margin-inline: auto;
+	max-width: min(72rem, calc(100vw - var(--main-content-offset) - 2rem));
+	display: grid;
+	gap: 0.85rem;
+	padding: 0.9rem 1rem;
+	border-radius: 0.85rem;
+	border: 1px solid rgba(201, 169, 98, 0.22);
+	background:
+		linear-gradient(180deg, rgba(24, 27, 36, 0.96), rgba(18, 21, 29, 0.96)),
+		radial-gradient(circle at top left, rgba(201, 169, 98, 0.09), transparent 42%);
+	box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(14px);
+
+	:global(.selection-head) {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	:global(.selection-summary) {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		color: var(--color-text-secondary);
+
+		strong {
+			font-size: 1.1rem;
+			color: var(--color-text-primary);
+		}
+
+		em {
+			font-style: normal;
+			font-size: 0.75rem;
+			color: var(--color-text-muted);
+		}
+	}
+
+	:global(.selection-controls) {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+	}
+
+	:global(.secondary-btn),
+	:global(.action-btn) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.42rem;
+		padding: 0.58rem 0.78rem;
+		border-radius: 0.58rem;
+		border: 1px solid var(--color-border);
+		background: #1b1f2b;
+		color: var(--color-text-secondary);
+		font-size: 0.8rem;
+		font-family: inherit;
+		cursor: pointer;
+		transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+
+		&:hover {
+			background: #23293a;
+			border-color: rgba(201, 169, 98, 0.24);
+			color: var(--color-text-primary);
+		}
+
+		&:disabled {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+
+		svg {
+			width: 0.95rem;
+			height: 0.95rem;
+			flex-shrink: 0;
+		}
+	}
+
+	:global(.bulk-actions) {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+	}
+
+	:global(.menu-wrap) {
+		position: relative;
+	}
+
+	:global(.danger-btn) {
+		color: #ffb4ad;
+		border-color: rgba(196, 68, 58, 0.28);
+		background: rgba(196, 68, 58, 0.12);
+
+		&:hover {
+			background: rgba(196, 68, 58, 0.2);
+			border-color: rgba(196, 68, 58, 0.4);
+			color: #ffd0ca;
+		}
+	}
+
+	:global(.menu-backdrop) {
+		position: fixed;
+		inset: 0;
+		z-index: 30;
+		border: 0;
+		padding: 0;
+		margin: 0;
+		background: transparent;
+	}
+
+	:global(.menu-popover) {
+		position: absolute;
+		bottom: calc(100% + 0.5rem);
+		left: 0;
+		z-index: 40;
+		min-width: 13.5rem;
+		padding: 0.4rem;
+		border-radius: 0.7rem;
+		border: 1px solid var(--color-border);
+		background: #161921;
+		box-shadow: 0 18px 36px rgba(0, 0, 0, 0.36);
+		display: grid;
+		gap: 0.18rem;
+	}
+
+	:global(.menu-title) {
+		padding: 0.35rem 0.45rem 0.25rem;
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	:global(.menu-empty) {
+		margin: 0;
+		padding: 0.5rem 0.45rem;
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	:global(.menu-item) {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		width: 100%;
+		padding: 0.5rem 0.55rem;
+		border-radius: 0.5rem;
+		border: 1px solid transparent;
+		background: transparent;
+		color: var(--color-text-secondary);
+		font-size: 0.8rem;
+		font-family: inherit;
+		text-align: left;
+		cursor: pointer;
+
+		&:hover {
+			background: rgba(255, 255, 255, 0.05);
+			color: var(--color-text-primary);
+		}
+	}
+}
+
+@media (max-width: 700px) {
+	.root {
+		left: 0.85rem;
+		right: 0.85rem;
+		bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+		max-width: none;
+		max-height: min(70vh, calc(100dvh - 6rem));
+		overflow-y: auto;
+
+		:global(.selection-head),
+		:global(.selection-controls),
+		:global(.bulk-actions) {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		:global(.secondary-btn),
+		:global(.action-btn) {
+			width: 100%;
+		}
+
+		:global(.menu-popover) {
+			width: min(100vw - 3rem, 18rem);
+		}
+	}
+}

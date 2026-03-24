@@ -19,6 +19,15 @@
 			border-color: color-mix(in oklab, var(--color-primary), transparent 70%);
 			transform: translateY(-1px);
 		}
+
+		&.selected {
+			border-color: rgba(201, 169, 98, 0.72);
+			box-shadow: 0 0 0 1px rgba(201, 169, 98, 0.2);
+		}
+
+		&.selection-mode:hover {
+			transform: none;
+		}
 	}
 
 	:global(.book-tile-cover) {
@@ -35,7 +44,7 @@
 		}
 	}
 
-	:global(.book-tile:hover .book-tile-cover img) {
+	:global(.book-tile:not(.selection-mode):hover .book-tile-cover img) {
 		transform: scale(1.05);
 	}
 
@@ -88,6 +97,31 @@
 		height: 100%;
 		border-radius: 999px;
 		background: linear-gradient(90deg, #c9a962, #e0c878);
+	}
+
+	:global(.tile-selection-indicator) {
+		position: absolute;
+		top: 0.55rem;
+		left: 0.55rem;
+		z-index: 2;
+		width: 1.35rem;
+		height: 1.35rem;
+		display: grid;
+		place-items: center;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.35);
+		background: rgba(12, 15, 21, 0.72);
+		color: transparent;
+		font-size: 0.78rem;
+		font-weight: 700;
+		backdrop-filter: blur(4px);
+		pointer-events: none;
+	}
+
+	:global(.tile-selection-indicator.selected) {
+		border-color: rgba(201, 169, 98, 0.82);
+		background: rgba(201, 169, 98, 0.96);
+		color: #0d0f14;
 	}
 
 	:global(.book-tile-meta) {

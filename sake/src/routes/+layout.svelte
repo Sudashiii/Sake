@@ -283,15 +283,21 @@
 	}
 
 	.app-layout.with-sidebar .main-content {
+		--main-content-offset: var(--sidebar-width);
+
 		margin-left: var(--sidebar-width);
 		transition: margin-left 0.2s ease;
 	}
 
 	.app-layout.with-sidebar.sidebar-collapsed .main-content {
+		--main-content-offset: var(--sidebar-collapsed-width);
+
 		margin-left: var(--sidebar-collapsed-width);
 	}
 
 	.main-content {
+		--main-content-offset: 0px;
+
 		display: flex;
 		flex-direction: column;
 		height: 100vh;

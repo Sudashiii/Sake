@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+	applyBulkShelfSelection,
+	getVisibleBookIds,
 	getProgressHistoryPageRange,
 	isImportableExternalCoverUrl,
 	matchesBookShelf,
 	parseNullableNumber,
-	sortBooks
+	pruneBookSelection,
+	sortBooks,
+	toggleBookSelection
 } from '$lib/features/library/libraryView';
 import type { LibraryBook } from '$lib/types/Library/Book';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
@@ -115,5 +119,24 @@ describe('libraryView', () => {
 			true
 		);
 		assert.equal(isImportableExternalCoverUrl('/api/library/covers/example.epub.jpg'), false);
+	});
+
+	test('toggleBookSelection adds and removes ids predictably', () => {
+		assert.deepEqual(toggleBookSelection([], 4), [4]);
+		assert.deepEqual(toggleBookSelection([4, 9], 4), [9]);
+		assert.deepEqual(toggleBookSelection([9], 4), [4, 9]);
+	});
+
+	test('getVisibleBookIds and pruneBookSelection keep selection scoped to visible books', () => {
+		const visibleIds = getVisibleBookIds([createBook({ id: 5 }), createBook({ id: 2 })]);
+
+		assert.deepEqual(visibleIds, [2, 5]);
+		assert.deepEqual(pruneBookSelection([2, 3, 5], visibleIds), [2, 5]);
+	});
+
+	test('applyBulkShelfSelection adds and removes shelves without duplicates', () => {
+		assert.deepEqual(applyBulkShelfSelection([1, 4], 4, 'add'), [1, 4]);
+		assert.deepEqual(applyBulkShelfSelection([1, 4], 7, 'add'), [1, 4, 7]);
+		assert.deepEqual(applyBulkShelfSelection([1, 4, 7], 4, 'remove'), [1, 7]);
 	});
 });
