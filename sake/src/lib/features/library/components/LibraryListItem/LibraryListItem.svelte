@@ -3,14 +3,25 @@
 	import styles from './LibraryListItem.module.scss';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
-	import { getFormatBadgeClass, getProgressPercent, getRoundedRating } from '$lib/features/library/libraryView';
+	import {
+		getFormatBadgeClass,
+		getProgressPercent,
+		getRoundedRating,
+		LIBRARY_SELECTION_LONG_PRESS_MS,
+		LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX
+	} from '$lib/features/library/libraryView';
 
 	interface Props {
 		book: LibraryBook;
 		shelves: LibraryShelf[];
 		showShelfAssign?: boolean;
 		showShelfAssignControl?: boolean;
+		selectionMode?: boolean;
+		selected?: boolean;
+		selectionDisabled?: boolean;
 		onOpenDetail: (book: LibraryBook) => void;
+		onStartSelectionMode: (book: LibraryBook) => void;
+		onToggleSelected: (book: LibraryBook) => void;
 		onToggleShelfAssignMenu: () => void;
 		onCloseShelfAssignMenu: () => void;
 		onToggleBookShelf: (shelfId: number) => void;
@@ -21,15 +32,121 @@
 		shelves,
 		showShelfAssign = false,
 		showShelfAssignControl = true,
+		selectionMode = false,
+		selected = false,
+		selectionDisabled = false,
 		onOpenDetail,
+		onStartSelectionMode,
+		onToggleSelected,
 		onToggleShelfAssignMenu,
 		onCloseShelfAssignMenu,
 		onToggleBookShelf
 	}: Props = $props();
+
+	let pressTimer: ReturnType<typeof setTimeout> | null = null;
+	let pressedPointerId: number | null = null;
+	let pressedStartX = 0;
+	let pressedStartY = 0;
+	let suppressClickUntil = 0;
+
+	function clearPressTimer(): void {
+		if (pressTimer !== null) {
+			clearTimeout(pressTimer);
+			pressTimer = null;
+		}
+	}
+
+	function resetPressState(): void {
+		clearPressTimer();
+		pressedPointerId = null;
+		pressedStartX = 0;
+		pressedStartY = 0;
+	}
+
+	function handlePointerDown(event: PointerEvent): void {
+		if (selectionMode || selectionDisabled) {
+			return;
+		}
+		if (event.pointerType === 'mouse' && event.button !== 0) {
+			return;
+		}
+
+		resetPressState();
+		pressedPointerId = event.pointerId;
+		pressedStartX = event.clientX;
+		pressedStartY = event.clientY;
+		pressTimer = setTimeout(() => {
+			if (pressedPointerId !== event.pointerId) {
+				return;
+			}
+
+			suppressClickUntil = Date.now() + 500;
+			onStartSelectionMode(book);
+			resetPressState();
+		}, LIBRARY_SELECTION_LONG_PRESS_MS);
+	}
+
+	function handlePointerMove(event: PointerEvent): void {
+		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
+			return;
+		}
+
+		const movedX = Math.abs(event.clientX - pressedStartX);
+		const movedY = Math.abs(event.clientY - pressedStartY);
+		if (
+			movedX > LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX ||
+			movedY > LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX
+		) {
+			resetPressState();
+		}
+	}
+
+	function handlePointerEnd(event: PointerEvent): void {
+		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
+			return;
+		}
+
+		resetPressState();
+	}
+
+	function handlePrimaryAction(): void {
+		if (Date.now() < suppressClickUntil) {
+			return;
+		}
+
+		if (selectionMode) {
+			if (selectionDisabled) {
+				return;
+			}
+
+			onToggleSelected(book);
+			return;
+		}
+
+		onOpenDetail(book);
+	}
 </script>
 
 <div class={styles.root}>
-	<button type="button" class="book-list-item" aria-label={`Show details for ${book.title}`} onclick={() => onOpenDetail(book)}>
+	<button
+		type="button"
+		class="book-list-item"
+		class:selected={selected}
+		class:selection-mode={selectionMode}
+		aria-label={selectionMode ? `${selected ? 'Deselect' : 'Select'} ${book.title}` : `Show details for ${book.title}`}
+		aria-pressed={selectionMode ? selected : undefined}
+		onpointerdown={handlePointerDown}
+		onpointermove={handlePointerMove}
+		onpointerup={handlePointerEnd}
+		onpointercancel={handlePointerEnd}
+		onpointerleave={handlePointerEnd}
+		onclick={handlePrimaryAction}
+	>
+		{#if selectionMode}
+			<span class:selected class="list-selection-indicator" aria-hidden="true">
+				{selected ? '✓' : ''}
+			</span>
+		{/if}
 		<div class="book-list-cover">
 			{#if book.cover}
 				<img src={book.cover} alt={book.title} loading="lazy" />

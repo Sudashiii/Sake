@@ -18,6 +18,35 @@
 			border-color: color-mix(in oklab, var(--color-primary), transparent 70%);
 			transform: translateY(-1px);
 		}
+
+		&.selected {
+			border-color: rgba(201, 169, 98, 0.72);
+			box-shadow: 0 0 0 1px rgba(201, 169, 98, 0.18);
+		}
+
+		&.selection-mode:hover {
+			transform: none;
+		}
+	}
+
+	:global(.list-selection-indicator) {
+		width: 1.35rem;
+		height: 1.35rem;
+		display: grid;
+		place-items: center;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.04);
+		color: transparent;
+		font-size: 0.78rem;
+		font-weight: 700;
+		flex-shrink: 0;
+	}
+
+	:global(.list-selection-indicator.selected) {
+		border-color: rgba(201, 169, 98, 0.82);
+		background: rgba(201, 169, 98, 0.96);
+		color: #0d0f14;
 	}
 
 	:global(.book-list-cover) {

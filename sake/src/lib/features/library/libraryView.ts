@@ -9,6 +9,10 @@ export type LibraryView = 'library' | 'archived' | 'trash';
 export type LibraryStatusFilter = 'all' | 'unread' | 'reading' | 'read';
 export type LibraryVisualMode = 'grid' | 'list';
 export type DetailTab = 'overview' | 'progress' | 'metadata' | 'devices';
+export type LibraryBulkShelfAction = 'add' | 'remove';
+
+export const LIBRARY_SELECTION_LONG_PRESS_MS = 360;
+export const LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX = 8;
 
 export type MetadataDraft = {
 	title: string;
@@ -105,6 +109,38 @@ export function formatDateTime(dateStr: string): string {
 
 export function normalizeText(value: string | null | undefined): string {
 	return value?.toLowerCase().trim() ?? '';
+}
+
+export function toggleBookSelection(selectedBookIds: number[], bookId: number): number[] {
+	if (selectedBookIds.includes(bookId)) {
+		return selectedBookIds.filter((id) => id !== bookId);
+	}
+
+	return [...selectedBookIds, bookId].sort((a, b) => a - b);
+}
+
+export function getVisibleBookIds(books: LibraryBook[]): number[] {
+	return books.map((book) => book.id).sort((a, b) => a - b);
+}
+
+export function pruneBookSelection(selectedBookIds: number[], visibleBookIds: number[]): number[] {
+	const visibleIdSet = new Set(visibleBookIds);
+	return selectedBookIds.filter((id) => visibleIdSet.has(id)).sort((a, b) => a - b);
+}
+
+export function applyBulkShelfSelection(
+	currentShelfIds: number[],
+	shelfId: number,
+	action: LibraryBulkShelfAction
+): number[] {
+	const uniqueShelfIds = [...new Set(currentShelfIds)];
+	if (action === 'add') {
+		return uniqueShelfIds.includes(shelfId)
+			? uniqueShelfIds.sort((a, b) => a - b)
+			: [...uniqueShelfIds, shelfId].sort((a, b) => a - b);
+	}
+
+	return uniqueShelfIds.filter((id) => id !== shelfId).sort((a, b) => a - b);
 }
 
 export function matchesBookQuery(book: LibraryBook, query: string): boolean {

@@ -7,6 +7,7 @@
 	import AlertCircleIcon from '$lib/assets/icons/AlertCircleIcon.svelte';
 	import { ZUI } from '$lib/client/zui';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import LibraryBulkActionsBar from '$lib/features/library/components/LibraryBulkActionsBar/LibraryBulkActionsBar.svelte';
 	import LibraryDetailModal from '$lib/features/library/components/LibraryDetailModal/LibraryDetailModal.svelte';
 	import LibraryEmptyState from '$lib/features/library/components/LibraryEmptyState/LibraryEmptyState.svelte';
 	import LibraryGridItem from '$lib/features/library/components/LibraryGridItem/LibraryGridItem.svelte';
@@ -15,15 +16,20 @@
 	import LibraryToolbar from '$lib/features/library/components/LibraryToolbar/LibraryToolbar.svelte';
 	import TrashBookCard from '$lib/features/library/components/TrashBookCard/TrashBookCard.svelte';
 	import {
+		applyBulkShelfSelection,
+		getVisibleBookIds,
 		getBookStatus,
 		matchesBookQuery,
 		matchesBookShelf,
 		matchesBookStatus,
 		parseNullableNumber,
 		parseViewFromUrl,
+		pruneBookSelection,
 		sortBooks,
+		toggleBookSelection,
 		toDraftText,
 		type DetailTab,
+		type LibraryBulkShelfAction,
 		type LibrarySort,
 		type LibraryStatusFilter,
 		type LibraryView,
@@ -52,8 +58,11 @@
 	let showFilters = $state(false);
 	let showSortMenu = $state(false);
 	let showShelfAssign = $state<number | null>(null);
+	let selectionMode = $state(false);
+	let selectedBookIds = $state<number[]>([]);
 	let showConfirmModal = $state(false);
 	let bookToReset = $state<LibraryBook | null>(null);
+	let showBulkTrashModal = $state(false);
 	let showDetailModal = $state(false);
 	let selectedBook = $state<LibraryBook | null>(null);
 	let selectedBookDetail = $state<LibraryBookDetail | null>(null);
@@ -67,6 +76,7 @@
 	let isMovingToTrash = $state(false);
 	let isDownloadingLibraryFile = $state(false);
 	let isUploadingLibraryFile = $state(false);
+	let isBulkActionPending = $state(false);
 	let isLibraryDropActive = $state(false);
 	let isUpdatingRating = $state(false);
 	let isUpdatingReadState = $state(false);
@@ -140,11 +150,48 @@
 		trashBooks.filter((book) => matchesBookQuery(book, searchQuery))
 	);
 	let visibleBooks = $derived(currentView === 'library' ? filteredLibraryBooks : filteredArchivedBooks);
+	let visibleLibraryBookIds = $derived(getVisibleBookIds(filteredLibraryBooks));
+	let selectedBooks = $derived(
+		filteredLibraryBooks.filter((book) => selectedBookIds.includes(book.id))
+	);
+	let allVisibleLibraryBooksSelected = $derived(
+		visibleLibraryBookIds.length > 0 && selectedBookIds.length === visibleLibraryBookIds.length
+	);
 	let libraryStats = $derived({
 		total: shelfScopedLibraryBooks.length,
 		reading: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === 'reading').length,
 		unread: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === 'unread').length,
 		read: shelfScopedLibraryBooks.filter((book) => getBookStatus(book) === 'read').length
+	});
+
+	$effect(() => {
+		if (currentView !== 'library') {
+			if (selectionMode) {
+				selectionMode = false;
+			}
+			if (selectedBookIds.length > 0) {
+				selectedBookIds = [];
+			}
+			showBulkTrashModal = false;
+			return;
+		}
+
+		if (!selectionMode) {
+			if (selectedBookIds.length > 0) {
+				selectedBookIds = [];
+			}
+			showBulkTrashModal = false;
+			return;
+		}
+
+		showShelfAssign = null;
+		const nextSelectedBookIds = pruneBookSelection(selectedBookIds, visibleLibraryBookIds);
+		if (
+			nextSelectedBookIds.length !== selectedBookIds.length ||
+			nextSelectedBookIds.some((id, index) => id !== selectedBookIds[index])
+		) {
+			selectedBookIds = nextSelectedBookIds;
+		}
 	});
 
 	onMount(() => {
@@ -281,6 +328,125 @@
 			error = result.error;
 		}
 		isLoading = false;
+	}
+
+	function disableSelectionMode(): void {
+		selectionMode = false;
+		selectedBookIds = [];
+		showShelfAssign = null;
+		showBulkTrashModal = false;
+	}
+
+	function startSelectionModeFromBook(book: LibraryBook): void {
+		if (isBulkActionPending) {
+			return;
+		}
+
+		selectionMode = true;
+		selectedBookIds = [book.id];
+		showShelfAssign = null;
+		showBulkTrashModal = false;
+	}
+
+	function clearSelectedBooks(): void {
+		if (isBulkActionPending) {
+			return;
+		}
+
+		selectedBookIds = [];
+	}
+
+	function selectAllVisibleBooks(): void {
+		if (isBulkActionPending || filteredLibraryBooks.length === 0) {
+			return;
+		}
+
+		selectedBookIds = allVisibleLibraryBooksSelected ? [] : visibleLibraryBookIds;
+	}
+
+	function handleToggleSelectedBook(book: LibraryBook): void {
+		if (isBulkActionPending) {
+			return;
+		}
+
+		selectedBookIds = toggleBookSelection(selectedBookIds, book.id);
+	}
+
+	function getSelectedBooksOrToast(): LibraryBook[] {
+		if (selectedBooks.length === 0) {
+			toastStore.add('Select at least one visible book first', 'error');
+			return [];
+		}
+
+		return selectedBooks;
+	}
+
+	function formatBulkFailureSummary(
+		actionLabel: string,
+		failures: Array<{ book: LibraryBook; message: string }>
+	): string {
+		const firstFailure = failures[0];
+		if (!firstFailure) {
+			return `Failed to ${actionLabel}`;
+		}
+
+		if (failures.length === 1) {
+			return `Failed to ${actionLabel} "${firstFailure.book.title}": ${firstFailure.message}`;
+		}
+
+		return `Failed to ${actionLabel} ${failures.length} books. First error: "${firstFailure.book.title}" (${firstFailure.message})`;
+	}
+
+	async function executeBulkBookAction(options: {
+		actionLabel: string;
+		successMessage: (successCount: number) => string;
+		targetBooks: LibraryBook[];
+		reloadTrash?: boolean;
+		run: (
+			book: LibraryBook
+		) => Promise<{ ok: true } | { ok: false; message: string }>;
+	}): Promise<void> {
+		if (options.targetBooks.length === 0 || isBulkActionPending) {
+			return;
+		}
+
+		isBulkActionPending = true;
+		showBulkTrashModal = false;
+
+		try {
+			const outcomes = await Promise.all(
+				options.targetBooks.map(async (book) => {
+					const outcome = await options.run(book);
+					return {
+						book,
+						...outcome
+					};
+				})
+			);
+
+			const successCount = outcomes.filter((outcome) => outcome.ok).length;
+			const failures = outcomes
+				.filter((outcome): outcome is { book: LibraryBook; ok: false; message: string } => !outcome.ok)
+				.map((outcome) => ({ book: outcome.book, message: outcome.message }));
+
+			if (successCount > 0) {
+				await loadLibrary();
+				if (options.reloadTrash) {
+					await loadTrash();
+				}
+				toastStore.add(options.successMessage(successCount), 'success');
+			}
+
+			if (failures.length > 0) {
+				toastStore.add(
+					formatBulkFailureSummary(options.actionLabel, failures),
+					'error',
+					5000
+				);
+			}
+		} finally {
+			isBulkActionPending = false;
+		}
 	}
 
 	function openResetModal(book: LibraryBook): void {
@@ -989,6 +1155,160 @@
 		toastStore.add(`Reset download status for "${book.title}"`, 'success');
 	}
 
+	function areNumberListsEqual(left: number[], right: number[]): boolean {
+		return left.length === right.length && left.every((value, index) => value === right[index]);
+	}
+
+	async function handleBulkArchiveSelected(): Promise<void> {
+		const targetBooks = getSelectedBooksOrToast();
+		if (targetBooks.length === 0) {
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: 'archive',
+			targetBooks,
+			successMessage: (successCount) =>
+				`Archived ${successCount} book${successCount === 1 ? '' : 's'}`,
+			run: async (book) => {
+				const result = await ZUI.updateLibraryBookState(book.id, { archived: true });
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
+	async function handleBulkMarkReadSelected(): Promise<void> {
+		const targetBooks = getSelectedBooksOrToast();
+		if (targetBooks.length === 0) {
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: 'mark as read',
+			targetBooks,
+			successMessage: (successCount) =>
+				`Marked ${successCount} book${successCount === 1 ? '' : 's'} as read`,
+			run: async (book) => {
+				const result = await ZUI.updateLibraryBookState(book.id, { isRead: true });
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
+	async function handleBulkMarkUnreadSelected(): Promise<void> {
+		const targetBooks = getSelectedBooksOrToast();
+		if (targetBooks.length === 0) {
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: 'mark as unread',
+			targetBooks,
+			successMessage: (successCount) =>
+				`Marked ${successCount} book${successCount === 1 ? '' : 's'} as unread`,
+			run: async (book) => {
+				const result = await ZUI.updateLibraryBookState(book.id, { isRead: false });
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
+	function requestBulkMoveToTrash(): void {
+		if (selectedBooks.length === 0 || isBulkActionPending) {
+			return;
+		}
+
+		showBulkTrashModal = true;
+	}
+
+	function cancelBulkMoveToTrash(): void {
+		if (isBulkActionPending) {
+			return;
+		}
+
+		showBulkTrashModal = false;
+	}
+
+	async function confirmBulkMoveToTrash(): Promise<void> {
+		const targetBooks = getSelectedBooksOrToast();
+		if (targetBooks.length === 0) {
+			showBulkTrashModal = false;
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: 'move to trash',
+			targetBooks,
+			reloadTrash: true,
+			successMessage: (successCount) =>
+				`Moved ${successCount} book${successCount === 1 ? '' : 's'} to trash`,
+			run: async (book) => {
+				const result = await ZUI.moveLibraryBookToTrash(book.id);
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
+	async function handleBulkResetDownloadsSelected(): Promise<void> {
+		const targetBooks = getSelectedBooksOrToast();
+		if (targetBooks.length === 0) {
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: 'reset download status for',
+			targetBooks,
+			successMessage: (successCount) =>
+				`Reset download status for ${successCount} book${successCount === 1 ? '' : 's'}`,
+			run: async (book) => {
+				const result = await ZUI.resetDownloadStatus(book.id);
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
+	async function handleBulkShelfSelection(
+		shelfId: number,
+		action: LibraryBulkShelfAction
+	): Promise<void> {
+		const requestedBooks = getSelectedBooksOrToast();
+		if (requestedBooks.length === 0) {
+			return;
+		}
+
+		const shelf = shelves.find((candidate) => candidate.id === shelfId);
+		const shelfLabel = shelf ? `"${shelf.name}"` : 'the selected shelf';
+		const actionVerb = action === 'add' ? 'add to shelf' : 'remove from shelf';
+		const successVerb = action === 'add' ? 'Added' : 'Removed';
+		const targetBooks = requestedBooks.filter((book) => {
+			const nextShelfIds = applyBulkShelfSelection(book.shelfIds, shelfId, action);
+			const currentShelfIds = [...new Set(book.shelfIds)].sort((a, b) => a - b);
+			return !areNumberListsEqual(nextShelfIds, currentShelfIds);
+		});
+
+		if (targetBooks.length === 0) {
+			toastStore.add(
+				action === 'add'
+					? `Selected books are already on ${shelfLabel}`
+					: `Selected books are not on ${shelfLabel}`,
+				'error'
+			);
+			return;
+		}
+
+		await executeBulkBookAction({
+			actionLabel: `${actionVerb}`,
+			targetBooks,
+			successMessage: (successCount) =>
+				`${successVerb} ${successCount} book${successCount === 1 ? '' : 's'} ${action === 'add' ? 'to' : 'from'} ${shelfLabel}`,
+			run: async (book) => {
+				const nextShelfIds = applyBulkShelfSelection(book.shelfIds, shelfId, action);
+				const result = await ZUI.setLibraryBookShelves(book.id, nextShelfIds);
+				return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+			}
+		});
+	}
+
 	function setBookShelfIdsState(bookId: number, shelfIds: number[]): void {
 		const normalized = [...new Set(shelfIds)].sort((a, b) => a - b);
 		const index = books.findIndex((book) => book.id === bookId);
@@ -1098,7 +1418,7 @@
 </script>
 
 <div
-	class={`${styles.root} ${isLibraryDropActive ? styles.dragActive : ''}`}
+	class={`${styles.root} ${isLibraryDropActive ? styles.dragActive : ''} ${selectionMode ? styles.selectionActive : ''}`}
 	role="region"
 	aria-label="Library content"
 	ondragenter={handleLibraryDragEnter}
@@ -1143,6 +1463,25 @@
 		onUploadChange={handleLibraryUploadChange}
 	/>
 
+	{#if currentView === 'library' && selectionMode}
+		<LibraryBulkActionsBar
+			selectedCount={selectedBookIds.length}
+			visibleCount={filteredLibraryBooks.length}
+			{shelves}
+			isPending={isBulkActionPending}
+			onDisableSelectionMode={disableSelectionMode}
+			onSelectAllVisible={selectAllVisibleBooks}
+			onClearSelection={clearSelectedBooks}
+			onArchiveSelected={() => void handleBulkArchiveSelected()}
+			onMarkReadSelected={() => void handleBulkMarkReadSelected()}
+			onMarkUnreadSelected={() => void handleBulkMarkUnreadSelected()}
+			onMoveToTrashSelected={requestBulkMoveToTrash}
+			onResetDownloadsSelected={() => void handleBulkResetDownloadsSelected()}
+			onAddSelectionToShelf={(shelfId) => void handleBulkShelfSelection(shelfId, 'add')}
+			onRemoveSelectionFromShelf={(shelfId) => void handleBulkShelfSelection(shelfId, 'remove')}
+		/>
+	{/if}
+
 	{#if currentView === 'trash'}
 		{#if filteredTrashBooks.length > 0}
 			<div class={styles.trashList}>
@@ -1171,8 +1510,13 @@
 							{book}
 							{shelves}
 							showShelfAssign={showShelfAssign === book.id}
-							showShelfAssignControl={currentView === 'library'}
+							showShelfAssignControl={currentView === 'library' && !selectionMode}
+							{selectionMode}
+							selected={selectedBookIds.includes(book.id)}
+							selectionDisabled={isBulkActionPending}
 							onOpenDetail={openDetailModal}
+							onStartSelectionMode={startSelectionModeFromBook}
+							onToggleSelected={handleToggleSelectedBook}
 							onToggleShelfAssignMenu={() => {
 								showShelfAssign = showShelfAssign === book.id ? null : book.id;
 							}}
@@ -1190,8 +1534,13 @@
 							{book}
 							{shelves}
 							showShelfAssign={showShelfAssign === book.id}
-							showShelfAssignControl={currentView === 'library'}
+							showShelfAssignControl={currentView === 'library' && !selectionMode}
+							{selectionMode}
+							selected={selectedBookIds.includes(book.id)}
+							selectionDisabled={isBulkActionPending}
 							onOpenDetail={openDetailModal}
+							onStartSelectionMode={startSelectionModeFromBook}
+							onToggleSelected={handleToggleSelectedBook}
 							onToggleShelfAssignMenu={() => {
 								showShelfAssign = showShelfAssign === book.id ? null : book.id;
 							}}
@@ -1237,6 +1586,18 @@
 	pending={deletingTrashBookId !== null}
 	onConfirm={confirmDeleteTrashedBook}
 	onCancel={cancelDeleteTrashedBook}
+/>
+
+<ConfirmModal
+	open={showBulkTrashModal}
+	title="Move selected books to trash?"
+	message={`Move ${selectedBookIds.length} selected book${selectedBookIds.length === 1 ? '' : 's'} to trash? They will stay recoverable for 30 days.`}
+	confirmLabel="Move To Trash"
+	cancelLabel="Cancel"
+	danger={true}
+	pending={isBulkActionPending}
+	onConfirm={confirmBulkMoveToTrash}
+	onCancel={cancelBulkMoveToTrash}
 />
 
 <ConfirmModal
