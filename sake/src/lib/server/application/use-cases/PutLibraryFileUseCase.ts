@@ -183,7 +183,6 @@ export class PutLibraryFileUseCase {
 			author: pickText(extractedMetadata?.author, null),
 			publisher: pickText(extractedMetadata?.publisher, metadata?.publisher),
 			series: metadata?.series ?? null,
-			series_order: metadata?.seriesOrder ?? null,
 			volume: metadata?.volume ?? null,
 			edition: metadata?.edition ?? null,
 			identifier: pickText(extractedMetadata?.identifier, metadata?.identifier),

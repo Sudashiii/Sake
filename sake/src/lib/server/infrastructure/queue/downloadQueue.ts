@@ -27,7 +27,6 @@ interface BaseQueuedDownload {
 	author: string | null;
 	publisher: string | null;
 	series: string | null;
-	seriesOrder: number | null;
 	volume: string | null;
 	edition: string | null;
 	identifier: string | null;
@@ -336,7 +335,6 @@ class DownloadQueue {
 				author: task.author ?? undefined,
 				publisher: task.publisher ?? undefined,
 				series: task.series ?? undefined,
-				seriesOrder: task.seriesOrder ?? undefined,
 				volume: task.volume ?? undefined,
 				edition: task.edition ?? undefined,
 				identifier: task.identifier ?? undefined,
@@ -436,7 +434,6 @@ class DownloadQueue {
 			author: task.author,
 			publisher: task.publisher,
 			series: task.series,
-			seriesOrder: task.seriesOrder,
 			volume: task.volume,
 			edition: task.edition,
 			identifier: task.identifier,

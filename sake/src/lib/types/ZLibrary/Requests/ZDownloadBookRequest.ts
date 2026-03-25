@@ -7,7 +7,6 @@ export interface ZDownloadBookRequest {
 	author?: string;
 	publisher?: string;
 	series?: string;
-	seriesOrder?: number;
 	volume?: string;
 	edition?: string | null;
 	identifier?: string;

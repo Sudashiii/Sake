@@ -10,7 +10,6 @@ type MetadataUpdateInput = {
 	author?: string | null;
 	publisher?: string | null;
 	series?: string | null;
-	seriesOrder?: number | null;
 	volume?: string | null;
 	edition?: string | null;
 	identifier?: string | null;
@@ -31,7 +30,6 @@ const allowedKeys = new Set<keyof MetadataUpdateInput>([
 	'author',
 	'publisher',
 	'series',
-	'seriesOrder',
 	'volume',
 	'edition',
 	'identifier',
@@ -115,7 +113,6 @@ function parseMetadataUpdateInput(body: unknown): MetadataUpdateInput {
 		author: parseNullableString(body, 'author'),
 		publisher: parseNullableString(body, 'publisher'),
 		series: parseNullableString(body, 'series'),
-		seriesOrder: parseNullableNumber(body, 'seriesOrder'),
 		volume: parseNullableString(body, 'volume'),
 		edition: parseNullableString(body, 'edition'),
 		identifier: parseNullableString(body, 'identifier'),

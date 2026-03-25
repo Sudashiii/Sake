@@ -127,13 +127,6 @@
       "when": 1778900001000,
       "tag": "0017_device_version_registry",
       "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1779000000000,
-      "tag": "0018_series_order",
-      "breakpoints": true
     }
   ]
 }

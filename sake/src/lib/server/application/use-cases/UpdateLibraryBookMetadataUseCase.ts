@@ -12,7 +12,6 @@ interface UpdateLibraryBookMetadataInput {
 		author?: string | null;
 		publisher?: string | null;
 		series?: string | null;
-		seriesOrder?: number | null;
 		volume?: string | null;
 		edition?: string | null;
 		identifier?: string | null;
@@ -62,10 +61,6 @@ export class UpdateLibraryBookMetadataUseCase {
 			publisher:
 				input.metadata.publisher === undefined ? existing.publisher : input.metadata.publisher,
 			series: input.metadata.series === undefined ? existing.series : input.metadata.series,
-			series_order:
-				input.metadata.seriesOrder === undefined
-					? existing.series_order
-					: input.metadata.seriesOrder,
 			volume: input.metadata.volume === undefined ? existing.volume : input.metadata.volume,
 			edition: input.metadata.edition === undefined ? existing.edition : input.metadata.edition,
 			identifier:

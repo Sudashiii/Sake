@@ -36,7 +36,6 @@ function toUpdateMetadataInput(existing: Awaited<ReturnType<BookRepositoryPort['
 		author: existing.author,
 		publisher: existing.publisher,
 		series: existing.series,
-		series_order: existing.series_order,
 		volume: existing.volume,
 		edition: existing.edition,
 		identifier: existing.identifier,

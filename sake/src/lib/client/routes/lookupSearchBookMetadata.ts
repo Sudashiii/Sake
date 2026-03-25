@@ -20,7 +20,6 @@ export interface LookupSearchBookMetadataResponse {
 		description: string | null;
 		publisher: string | null;
 		series: string | null;
-		seriesOrder: number | null;
 		volume: string | null;
 		edition: string | null;
 		identifier: string | null;

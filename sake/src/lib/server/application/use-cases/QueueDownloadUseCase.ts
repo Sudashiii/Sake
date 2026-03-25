@@ -31,7 +31,6 @@ export class QueueDownloadUseCase {
 			author: request.author ?? null,
 			publisher: request.publisher ?? null,
 			series: request.series ?? null,
-			seriesOrder: request.seriesOrder ?? null,
 			volume: request.volume ?? null,
 			edition: request.edition ?? null,
 			identifier: request.identifier ?? null,

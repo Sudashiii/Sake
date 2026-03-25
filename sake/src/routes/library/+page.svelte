@@ -98,7 +98,6 @@
 		author: '',
 		publisher: '',
 		series: '',
-		seriesOrder: '',
 		volume: '',
 		edition: '',
 		identifier: '',
@@ -539,7 +538,6 @@
 			author: toDraftText(detail.author),
 			publisher: toDraftText(detail.publisher),
 			series: toDraftText(detail.series),
-			seriesOrder: toDraftText(detail.seriesOrder),
 			volume: toDraftText(detail.volume),
 			edition: toDraftText(detail.edition),
 			identifier: toDraftText(detail.identifier),
@@ -572,7 +570,6 @@
 		author: string | null;
 		publisher: string | null;
 		series: string | null;
-		seriesOrder: number | null;
 		volume: string | null;
 		edition: string | null;
 		identifier: string | null;
@@ -601,7 +598,6 @@
 			author: updated.author,
 			publisher: updated.publisher,
 			series: updated.series,
-			series_order: updated.seriesOrder,
 			volume: updated.volume,
 			edition: updated.edition,
 			identifier: updated.identifier,
@@ -646,7 +642,6 @@
 				author: result.value.book.author,
 				publisher: result.value.book.publisher,
 				series: result.value.book.series,
-				seriesOrder: result.value.book.seriesOrder,
 				volume: result.value.book.volume,
 				edition: result.value.book.edition,
 				identifier: result.value.book.identifier,
@@ -696,7 +691,6 @@
 			author: metadataDraft.author.trim() || null,
 			publisher: metadataDraft.publisher.trim() || null,
 			series: metadataDraft.series.trim() || null,
-			seriesOrder: parseNullableNumber(metadataDraft.seriesOrder),
 			volume: metadataDraft.volume.trim() || null,
 			edition: metadataDraft.edition.trim() || null,
 			identifier: metadataDraft.identifier.trim() || null,

@@ -14,7 +14,6 @@ function createBook(overrides: Partial<Book>): Book {
 		author: null,
 		publisher: null,
 		series: null,
-		series_order: null,
 		volume: null,
 		edition: null,
 		identifier: null,

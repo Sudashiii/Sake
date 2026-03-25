@@ -17,7 +17,6 @@ type DbBookRow = {
 	author: string | null;
 	publisher: string | null;
 	series: string | null;
-	seriesOrder: number | null;
 	volume: string | null;
 	edition: string | null;
 	identifier: string | null;
@@ -58,7 +57,6 @@ const bookSelection = {
 	author: books.author,
 	publisher: books.publisher,
 	series: books.series,
-	seriesOrder: books.seriesOrder,
 	volume: books.volume,
 	edition: books.edition,
 	identifier: books.identifier,
@@ -96,7 +94,6 @@ function mapBookRow(row: DbBookRow): Book {
 		author: row.author,
 		publisher: row.publisher,
 		series: row.series,
-		series_order: row.seriesOrder,
 		volume: row.volume,
 		edition: row.edition,
 		identifier: row.identifier,
@@ -282,7 +279,6 @@ export class BookRepository implements BookRepositoryPort {
 				author: book.author,
 				publisher: book.publisher,
 				series: book.series,
-				seriesOrder: book.series_order,
 				volume: book.volume,
 				edition: book.edition,
 				identifier: book.identifier,
@@ -322,7 +318,6 @@ export class BookRepository implements BookRepositoryPort {
 				author: metadata.author,
 				publisher: metadata.publisher,
 				series: metadata.series,
-				seriesOrder: metadata.series_order,
 				volume: metadata.volume,
 				edition: metadata.edition,
 				identifier: metadata.identifier,
