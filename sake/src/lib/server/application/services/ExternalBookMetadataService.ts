@@ -6,6 +6,7 @@ export interface ExternalBookMetadata {
 	description: string | null;
 	publisher: string | null;
 	series: string | null;
+	seriesOrder: number | null;
 	volume: string | null;
 	edition: string | null;
 	identifier: string | null;
@@ -146,6 +147,7 @@ export class ExternalBookMetadataService {
 			description: pickFirst(google.description, openLibrary.description),
 			publisher: pickFirst(google.publisher, openLibrary.publisher),
 			series: pickFirst(google.series, openLibrary.series),
+			seriesOrder: pickFirst(google.seriesOrder, openLibrary.seriesOrder),
 			volume: pickFirst(google.volume, openLibrary.volume),
 			edition: pickFirst(google.edition, openLibrary.edition),
 			identifier: pickFirst(google.identifier, openLibrary.identifier, input.identifier),
@@ -161,6 +163,7 @@ export class ExternalBookMetadataService {
 		description: string | null;
 		publisher: string | null;
 		series: string | null;
+		seriesOrder: number | null;
 		volume: string | null;
 		edition: string | null;
 		identifier: string | null;
@@ -240,6 +243,7 @@ export class ExternalBookMetadataService {
 				description: asString(best.volumeInfo?.description),
 				publisher: asString(best.volumeInfo?.publisher),
 				series: null,
+				seriesOrder: null,
 				volume: null,
 				edition: asString(best.volumeInfo?.subtitle),
 				identifier: asString(isbn13) ?? asString(isbn10),
@@ -259,6 +263,7 @@ export class ExternalBookMetadataService {
 			description: null,
 			publisher: null,
 			series: null,
+			seriesOrder: null,
 			volume: null,
 			edition: null,
 			identifier: null,
@@ -274,6 +279,7 @@ export class ExternalBookMetadataService {
 		description: string | null;
 		publisher: string | null;
 		series: string | null;
+		seriesOrder: number | null;
 		volume: string | null;
 		edition: string | null;
 		identifier: string | null;
@@ -346,6 +352,7 @@ export class ExternalBookMetadataService {
 				description: asString(firstSentence),
 				publisher: asString(best.publisher?.[0]),
 				series: null,
+				seriesOrder: null,
 				volume: null,
 				edition: null,
 				identifier: asString(best.isbn?.[0]),
@@ -365,6 +372,7 @@ export class ExternalBookMetadataService {
 			description: null,
 			publisher: null,
 			series: null,
+			seriesOrder: null,
 			volume: null,
 			edition: null,
 			identifier: null,

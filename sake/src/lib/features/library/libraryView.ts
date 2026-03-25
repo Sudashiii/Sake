@@ -19,6 +19,7 @@ export type MetadataDraft = {
 	author: string;
 	publisher: string;
 	series: string;
+	seriesOrder: string;
 	volume: string;
 	edition: string;
 	identifier: string;

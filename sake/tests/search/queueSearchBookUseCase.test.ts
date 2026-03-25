@@ -59,6 +59,7 @@ describe('QueueSearchBookUseCase', () => {
 			author: 'Jane Austen',
 			publisher: null,
 			series: null,
+			seriesOrder: null,
 			volume: null,
 			edition: null,
 			identifier: 'OL123W',

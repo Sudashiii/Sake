@@ -229,6 +229,7 @@ export class DownloadBookUseCase {
 					author: pickText(request.author, null),
 					publisher: pickText(request.publisher, externalMetadata?.publisher),
 					series: pickText(request.series, externalMetadata?.series),
+					series_order: pickNumber(request.seriesOrder, externalMetadata?.seriesOrder),
 					volume: pickText(request.volume, externalMetadata?.volume),
 					edition: pickText(request.edition, externalMetadata?.edition),
 					identifier: pickText(request.identifier, externalMetadata?.identifier),
