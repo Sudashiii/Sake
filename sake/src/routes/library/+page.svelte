@@ -414,15 +414,17 @@
 		showBulkTrashModal = false;
 
 		try {
-			const outcomes = await Promise.all(
-				options.targetBooks.map(async (book) => {
-					const outcome = await options.run(book);
-					return {
-						book,
-						...outcome
-					};
-				})
-			);
+			const outcomes: Array<
+				| { book: LibraryBook; ok: true }
+				| { book: LibraryBook; ok: false; message: string }
+			> = [];
+			for (const book of options.targetBooks) {
+				const outcome = await options.run(book);
+				outcomes.push({
+					book,
+					...outcome
+				});
+			}
 
 			const successCount = outcomes.filter((outcome) => outcome.ok).length;
 			const failures = outcomes

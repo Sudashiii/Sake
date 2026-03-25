@@ -48,7 +48,7 @@
 	const hasVisibleBooks = $derived(visibleCount > 0);
 
 	$effect(() => {
-		if (isPending) {
+		if (isPending || !hasSelection) {
 			activeShelfMenu = null;
 		}
 	});

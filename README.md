@@ -168,6 +168,10 @@ At the top of the page there is a button "Connect Z-Library". You need to either
 
 When logging in with your password the app simply makes a post request to the login page and sets the cookies for the remix values in your browser. These values get used to make authenticated requests to z-library, so your password is safe.
 
+Make sure that the provider is enabled first, add `zlib` as value in active providers
+
+`ACTIVATED_PROVIDERS=zlib`
+
 ## Tips
 
 - Sake will download new books automatically if you set your device to sleep

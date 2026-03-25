@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import ShelfAssignMenu from '../ShelfAssignMenu/ShelfAssignMenu.svelte';
 	import styles from './LibraryGridItem.module.scss';
 	import type { LibraryBook } from '$lib/types/Library/Book';
@@ -62,6 +63,10 @@
 		pressedStartX = 0;
 		pressedStartY = 0;
 	}
+
+	onDestroy(() => {
+		resetPressState();
+	});
 
 	function handlePointerDown(event: PointerEvent): void {
 		if (selectionMode || selectionDisabled) {
