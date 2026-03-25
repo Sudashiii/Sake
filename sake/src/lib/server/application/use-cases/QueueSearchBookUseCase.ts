@@ -32,6 +32,7 @@ export class QueueSearchBookUseCase {
 			author: request.author ?? null,
 			publisher: null,
 			series: null,
+			seriesOrder: null,
 			volume: null,
 			edition: null,
 			identifier: request.identifier ?? null,

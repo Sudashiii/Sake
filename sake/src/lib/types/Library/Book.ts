@@ -6,6 +6,7 @@ export interface LibraryBook {
 	author: string | null;
 	publisher?: string | null;
 	series?: string | null;
+	series_order?: number | null;
 	volume?: string | null;
 	edition?: string | null;
 	identifier?: string | null;
