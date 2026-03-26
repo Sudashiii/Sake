@@ -359,14 +359,23 @@ export class BookRepository implements BookRepositoryPort {
 		this.repoLogger.info({ event: 'book.downloadStatus.reset', bookId }, 'Book download status reset');
 	}
 
-	async updateProgress(bookId: number, progressKey: string, progressPercent: number | null): Promise<void> {
+	async updateProgress(
+		bookId: number,
+		progressKey: string,
+		progressPercent: number | null,
+		progressUpdatedAt?: string | null
+	): Promise<void> {
+		const progressUpdatedAtValue =
+			typeof progressUpdatedAt === 'string' && progressUpdatedAt.trim().length > 0
+				? progressUpdatedAt.trim()
+				: sql`CURRENT_TIMESTAMP`;
 		const readAtValue =
-			typeof progressPercent === 'number' && progressPercent >= 1 ? sql`CURRENT_TIMESTAMP` : null;
+			typeof progressPercent === 'number' && progressPercent >= 1 ? progressUpdatedAtValue : null;
 		await drizzleDb
 			.update(books)
 			.set({
 				progressStorageKey: progressKey,
-				progressUpdatedAt: sql`CURRENT_TIMESTAMP`,
+				progressUpdatedAt: progressUpdatedAtValue,
 				progressPercent,
 				progressBeforeRead: null,
 				readAt: readAtValue
@@ -378,7 +387,9 @@ export class BookRepository implements BookRepositoryPort {
 				bookId,
 				progressStorageKey: progressKey,
 				progressPercent,
-				readAt: readAtValue === null ? null : 'CURRENT_TIMESTAMP'
+				progressUpdatedAt:
+					typeof progressUpdatedAtValue === 'string' ? progressUpdatedAtValue : 'CURRENT_TIMESTAMP',
+				readAt: readAtValue === null ? null : typeof readAtValue === 'string' ? readAtValue : 'CURRENT_TIMESTAMP'
 			},
 			'Book progress reference updated'
 		);
@@ -606,9 +617,15 @@ export class BookRepository implements BookRepositoryPort {
 	static async updateProgress(
 		bookId: number,
 		progressKey: string,
-		progressPercent: number | null
+		progressPercent: number | null,
+		progressUpdatedAt?: string | null
 	): Promise<void> {
-		return BookRepository.instance.updateProgress(bookId, progressKey, progressPercent);
+		return BookRepository.instance.updateProgress(
+			bookId,
+			progressKey,
+			progressPercent,
+			progressUpdatedAt
+		);
 	}
 
 	static async updateRating(bookId: number, rating: number | null): Promise<void> {
