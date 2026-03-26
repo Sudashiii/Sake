@@ -33,6 +33,16 @@ type LibraryFileImporter = Pick<PutLibraryFileUseCase, 'execute'>;
 
 const SUPPORTED_EXPORT_EXTENSIONS = new Set(['epub', 'pdf', 'mobi']);
 
+type StorageErrorLike = {
+	name?: unknown;
+	code?: unknown;
+	statusCode?: unknown;
+	$metadata?: {
+		httpStatusCode?: unknown;
+	};
+	message?: unknown;
+};
+
 function extensionFromFileName(fileName: string): string | null {
 	const match = fileName.trim().toLowerCase().match(/\.([a-z0-9]+)$/);
 	return match?.[1] ?? null;
@@ -40,6 +50,34 @@ function extensionFromFileName(fileName: string): string | null {
 
 function trashedDuplicateMessage(title: string): string {
 	return `A trashed book with this file name already exists. Rename the new file or permanently delete "${title}" from trash first.`;
+}
+
+function asStorageErrorLike(cause: unknown): StorageErrorLike | null {
+	if (!cause || typeof cause !== 'object') {
+		return null;
+	}
+
+	return cause as StorageErrorLike;
+}
+
+function isMissingStorageObjectError(cause: unknown): boolean {
+	const errorLike = asStorageErrorLike(cause);
+	if (!errorLike) {
+		return false;
+	}
+
+	if (
+		errorLike.name === 'NotFound' ||
+		errorLike.name === 'NoSuchKey' ||
+		errorLike.code === 'NotFound' ||
+		errorLike.code === 'NoSuchKey' ||
+		errorLike.statusCode === 404 ||
+		errorLike.$metadata?.httpStatusCode === 404
+	) {
+		return true;
+	}
+
+	return typeof errorLike.message === 'string' && /\bnot found\b/i.test(errorLike.message);
 }
 
 export class ExportDeviceLibraryBookUseCase {
@@ -129,14 +167,18 @@ export class ExportDeviceLibraryBookUseCase {
 		const incomingContent = sidecarBuffer.toString('utf8');
 		const incomingModified = extractSummaryModifiedTimestamp(incomingContent);
 
-		try {
-			const existingContent = (await this.storage.get(`library/${descriptor.progressKey}`)).toString('utf8');
-			const existingModified = extractSummaryModifiedTimestamp(existingContent);
+		const existingSidecarResult = await this.readExistingSidecarContent(
+			`library/${descriptor.progressKey}`
+		);
+		if (!existingSidecarResult.ok) {
+			return existingSidecarResult;
+		}
+
+		if (existingSidecarResult.value) {
+			const existingModified = extractSummaryModifiedTimestamp(existingSidecarResult.value);
 			if (isIncomingProgressOlder(existingModified, incomingModified)) {
 				return apiOk('skipped_older');
 			}
-		} catch {
-			// Missing existing sidecar is fine for migration imports.
 		}
 
 		const progressPercent = extractPercentFinished(incomingContent) ?? book.progress_percent ?? null;
@@ -156,5 +198,24 @@ export class ExportDeviceLibraryBookUseCase {
 		});
 
 		return apiOk('imported');
+	}
+
+	private async readExistingSidecarContent(progressStorageKey: string): Promise<ApiResult<string | null>> {
+		try {
+			if (typeof this.storage.exists === 'function') {
+				const exists = await this.storage.exists(progressStorageKey);
+				if (!exists) {
+					return apiOk(null);
+				}
+			}
+
+			return apiOk((await this.storage.get(progressStorageKey)).toString('utf8'));
+		} catch (cause) {
+			if (isMissingStorageObjectError(cause)) {
+				return apiOk(null);
+			}
+
+			return apiError('Failed to read existing progress sidecar', 500, cause);
+		}
 	}
 }

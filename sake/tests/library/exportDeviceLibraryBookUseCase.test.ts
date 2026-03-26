@@ -200,6 +200,9 @@ describe('ExportDeviceLibraryBookUseCase', () => {
 		} as unknown as DeviceProgressDownloadRepositoryPort;
 
 		const storage = {
+			async exists(): Promise<boolean> {
+				return false;
+			},
 			async put(
 				key: string,
 				body: Buffer | Uint8Array | NodeJS.ReadableStream,
@@ -266,6 +269,77 @@ describe('ExportDeviceLibraryBookUseCase', () => {
 		}
 		assert.equal(uploadedSidecar.key, 'library/Book_Title.sdr/metadata.epub.lua');
 		assert.equal(uploadedSidecar.contentType, 'application/x-lua');
+	});
+
+	test('returns an error when checking the existing sidecar fails for a non-missing reason', async () => {
+		const existingBook = createBook({ id: 8 });
+
+		const bookRepository = {
+			async getByStorageKeyIncludingTrashed(): Promise<Book | undefined> {
+				return existingBook;
+			}
+		} as unknown as BookRepositoryPort;
+
+		const deviceDownloadRepository = {
+			async ensureByDeviceAndBook(input: {
+				deviceId: string;
+				bookId: number;
+			}): Promise<{ id: number; deviceId: string; bookId: number }> {
+				return { id: 1, ...input };
+			}
+		} as unknown as DeviceDownloadRepositoryPort;
+
+		const deviceProgressDownloadRepository = {
+			async upsertByDeviceAndBook(): Promise<never> {
+				throw new Error('unexpected progress marker write');
+			}
+		} as unknown as DeviceProgressDownloadRepositoryPort;
+
+		const storage = {
+			async exists(): Promise<boolean> {
+				throw Object.assign(new Error('Access denied'), { name: 'AccessDenied' });
+			},
+			async put(): Promise<void> {
+				throw new Error('unexpected storage.put');
+			},
+			async get(): Promise<Buffer> {
+				throw new Error('unexpected storage.get');
+			},
+			async delete(): Promise<void> {
+				throw new Error('unexpected storage.delete');
+			},
+			async list(): Promise<[]> {
+				throw new Error('unexpected storage.list');
+			}
+		} as StoragePort;
+
+		const useCase = new ExportDeviceLibraryBookUseCase(
+			bookRepository,
+			deviceDownloadRepository,
+			deviceProgressDownloadRepository,
+			storage,
+			{
+				async execute(): Promise<ReturnType<typeof apiOk<{ success: true; outcome: 'created' }>>> {
+					throw new Error('unexpected importer call');
+				}
+			}
+		);
+
+		const result = await useCase.execute({
+			deviceId: 'device-1',
+			fileName: 'Book Title.epub',
+			fileData: toArrayBuffer(Buffer.from('book-data')),
+			sidecarData: toArrayBuffer(
+				Buffer.from('return {\n  ["summary"] = { ["modified"] = "2026-03-25" },\n  ["percent_finished"] = 0.4\n}\n')
+			)
+		});
+
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			throw new Error('Expected failure');
+		}
+		assert.equal(result.error.status, 500);
+		assert.equal(result.error.message, 'Failed to read existing progress sidecar');
 	});
 
 	test('treats active duplicates as successful reruns and still imports newer sidecars', async () => {

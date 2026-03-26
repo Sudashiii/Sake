@@ -4,6 +4,55 @@ local logger = require("logger")
 
 local ExportApi = {}
 local LOG_PREFIX = "[Sake] "
+local unpack_fn = table.unpack or unpack
+
+local function sanitizeHeaderValue(value)
+    return tostring(value or ""):gsub('[\r\n"]', "_")
+end
+
+local function buildFormField(boundary, name, value)
+    return table.concat({
+        "--" .. boundary,
+        'Content-Disposition: form-data; name="' .. sanitizeHeaderValue(name) .. '"',
+        "",
+        tostring(value or ""),
+        "",
+    }, "\r\n")
+end
+
+local function buildFileHeader(boundary, field_name, file_name, content_type)
+    return table.concat({
+        "--" .. boundary,
+        'Content-Disposition: form-data; name="' .. sanitizeHeaderValue(field_name) .. '"; filename="' .. sanitizeHeaderValue(file_name) .. '"',
+        "Content-Type: " .. tostring(content_type or "application/octet-stream"),
+        "",
+        "",
+    }, "\r\n")
+end
+
+local function openFileSource(path)
+    local handle, open_err = io.open(path, "rb")
+    if not handle then
+        return nil, "Cannot open file: " .. tostring(open_err)
+    end
+
+    return ltn12.source.file(handle)
+end
+
+local function getFileSize(path)
+    local handle, open_err = io.open(path, "rb")
+    if not handle then
+        return nil, "Cannot open file: " .. tostring(open_err)
+    end
+
+    local size, seek_err = handle:seek("end")
+    handle:close()
+    if not size then
+        return nil, "Cannot determine file size: " .. tostring(seek_err or path)
+    end
+
+    return size
+end
 
 local function parseError(session, response)
     local api_error = session:errorFromResponse(response)
@@ -28,38 +77,54 @@ local function parseError(session, response)
     return tostring(body)
 end
 
-function ExportApi.exportBook(session, device_id, file_name, file_content, sidecar_name, sidecar_content)
+function ExportApi.exportBook(session, device_id, file_name, file_path, sidecar_name, sidecar_path)
     local boundary = "SakeBoundary" .. os.time()
-    local body_parts = {}
+    local sources = {}
+    local content_length = 0
+    local metadata_size = nil
 
-    table.insert(body_parts, "--" .. boundary)
-    table.insert(body_parts, 'Content-Disposition: form-data; name="deviceId"')
-    table.insert(body_parts, "")
-    table.insert(body_parts, tostring(device_id or ""))
-
-    table.insert(body_parts, "--" .. boundary)
-    table.insert(body_parts, 'Content-Disposition: form-data; name="fileName"')
-    table.insert(body_parts, "")
-    table.insert(body_parts, tostring(file_name or ""))
-
-    table.insert(body_parts, "--" .. boundary)
-    table.insert(body_parts, 'Content-Disposition: form-data; name="file"; filename="' .. tostring(file_name or "book.bin") .. '"')
-    table.insert(body_parts, "Content-Type: application/octet-stream")
-    table.insert(body_parts, "")
-    table.insert(body_parts, file_content or "")
-
-    if sidecar_content and sidecar_content ~= "" then
-        table.insert(body_parts, "--" .. boundary)
-        table.insert(body_parts, 'Content-Disposition: form-data; name="sidecarFile"; filename="' .. tostring(sidecar_name or "metadata.lua") .. '"')
-        table.insert(body_parts, "Content-Type: text/x-lua; charset=utf-8")
-        table.insert(body_parts, "")
-        table.insert(body_parts, sidecar_content)
+    local function appendStringPart(content)
+        content_length = content_length + #content
+        table.insert(sources, ltn12.source.string(content))
     end
 
-    table.insert(body_parts, "--" .. boundary .. "--")
-    table.insert(body_parts, "")
+    local file_size, file_size_err = getFileSize(file_path)
+    if not file_size then
+        return false, file_size_err
+    end
 
-    local request_body = table.concat(body_parts, "\r\n")
+    if sidecar_path then
+        metadata_size, file_size_err = getFileSize(sidecar_path)
+        if not metadata_size then
+            return false, file_size_err
+        end
+    end
+
+    appendStringPart(buildFormField(boundary, "deviceId", device_id))
+    appendStringPart(buildFormField(boundary, "fileName", file_name))
+    appendStringPart(buildFileHeader(boundary, "file", file_name or "book.bin", "application/octet-stream"))
+
+    local file_source, file_source_err = openFileSource(file_path)
+    if not file_source then
+        return false, file_source_err
+    end
+    content_length = content_length + file_size
+    table.insert(sources, file_source)
+    appendStringPart("\r\n")
+
+    if sidecar_path and metadata_size then
+        appendStringPart(buildFileHeader(boundary, "sidecarFile", sidecar_name or "metadata.lua", "text/x-lua; charset=utf-8"))
+
+        local metadata_source, metadata_source_err = openFileSource(sidecar_path)
+        if not metadata_source then
+            return false, metadata_source_err
+        end
+        content_length = content_length + metadata_size
+        table.insert(sources, metadata_source)
+        appendStringPart("\r\n")
+    end
+
+    appendStringPart("--" .. boundary .. "--\r\n")
 
     logger.info(LOG_PREFIX .. "POST export for file: " .. tostring(file_name))
 
@@ -68,9 +133,9 @@ function ExportApi.exportBook(session, device_id, file_name, file_content, sidec
         method = "POST",
         headers = {
             ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
-            ["Content-Length"] = tostring(#request_body),
+            ["Content-Length"] = tostring(content_length),
         },
-        source = ltn12.source.string(request_body),
+        source = ltn12.source.cat(unpack_fn(sources)),
     }
 
     if not ok then

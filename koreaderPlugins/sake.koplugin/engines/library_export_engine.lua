@@ -39,19 +39,10 @@ function LibraryExportEngine:exportBook(book)
         return false, err
     end
 
-    local ok_content, file_content_or_err = self.storage:readBinary(book.doc_path)
-    if not ok_content then
-        return false, file_content_or_err
-    end
-
-    local sidecar_content = nil
     local sidecar_name = nil
+    local sidecar_path = nil
     if self.storage:fileExists(book.sdr_path) then
-        local ok_sidecar, sidecar_or_err = self.storage:readText(book.sdr_path)
-        if not ok_sidecar then
-            return false, sidecar_or_err
-        end
-        sidecar_content = sidecar_or_err
+        sidecar_path = book.sdr_path
         sidecar_name = Utils.basename(book.sdr_path) or "metadata.lua"
     end
 
@@ -59,9 +50,9 @@ function LibraryExportEngine:exportBook(book)
         self.session,
         self.settings.device_name,
         book.filename,
-        file_content_or_err,
+        book.doc_path,
         sidecar_name,
-        sidecar_content
+        sidecar_path
     )
 end
 
