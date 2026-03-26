@@ -1,0 +1,294 @@
+name: Execute Tests And Startup Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./sake
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check types
+        run: bun run check
+
+      - name: Run tests
+        run: bun test
+
+  startup-managed-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ./sake
+    env:
+      ACTIVATED_PROVIDERS: ''
+      HOST: 127.0.0.1
+      LIBSQL_AUTH_TOKEN: ''
+      LIBSQL_URL: libsql://ci-placeholder.turso.io
+      LOG_LEVEL: warn
+      NODE_ENV: production
+      PORT: '4173'
+      PUBLIC_WEBAPP_COMMIT_SHA: ${{ github.sha }}
+      PUBLIC_WEBAPP_GIT_TAG: ''
+      PUBLIC_WEBAPP_RELEASED_AT: ''
+      PUBLIC_WEBAPP_VERSION: ci-managed-host
+      SAKE_SKIP_STARTUP_PLUGIN_SYNC: 'true'
+      SAKE_SKIP_TRASH_PURGE: 'true'
+      S3_ACCESS_KEY_ID: ci-placeholder
+      S3_BUCKET: ci-placeholder
+      S3_ENDPOINT: https://example.r2.cloudflarestorage.com
+      S3_FORCE_PATH_STYLE: 'false'
+      S3_REGION: auto
+      S3_SECRET_ACCESS_KEY: ci-placeholder
+      VITE_ALLOWED_HOSTS: 127.0.0.1,localhost
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build app
+        run: bun run build
+
+      - name: Start built app
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun ./build >"$RUNNER_TEMP/startup-managed-host.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/startup-managed-host.pid"
+
+      - name: Smoke test managed host startup
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version_url="http://$HOST:$PORT/api/app/version"
+          version_file="$RUNNER_TEMP/startup-managed-host-version.json"
+
+          rm -f "$version_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$version_url" >"$version_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$version_file"
+          grep -q '"version":"ci-managed-host"' "$version_file"
+
+      - name: Dump managed host app logs
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/startup-managed-host.log" ]]; then
+            cat "$RUNNER_TEMP/startup-managed-host.log"
+          fi
+
+      - name: Stop managed host app
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/startup-managed-host.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/startup-managed-host.pid")" || true
+          fi
+
+  startup-selfhosted-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ./sake
+    env:
+      ACTIVATED_PROVIDERS: ''
+      AWS_ACCESS_KEY_ID: sakeadmin
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_SECRET_ACCESS_KEY: sakeadminsecret
+      HOST: 127.0.0.1
+      LIBSQL_AUTH_TOKEN: ''
+      LIBSQL_URL: file:./sake-ci-selfhosted.db
+      LOG_LEVEL: warn
+      NODE_ENV: production
+      PORT: '4174'
+      PUBLIC_WEBAPP_COMMIT_SHA: ${{ github.sha }}
+      PUBLIC_WEBAPP_GIT_TAG: ''
+      PUBLIC_WEBAPP_RELEASED_AT: ''
+      PUBLIC_WEBAPP_VERSION: ci-selfhosted-host
+      S3_ACCESS_KEY_ID: sakeadmin
+      S3_BUCKET: sake
+      S3_ENDPOINT: http://127.0.0.1:8333
+      S3_FORCE_PATH_STYLE: 'true'
+      S3_REGION: us-east-1
+      S3_SECRET_ACCESS_KEY: sakeadminsecret
+      VITE_ALLOWED_HOSTS: 127.0.0.1,localhost
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Start selfhosted storage infra
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.selfhost.yaml up -d seaweedfs seaweedfs-init
+
+      - name: Wait for selfhosted storage bucket
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            if aws --endpoint-url "$S3_ENDPOINT" s3api head-bucket --bucket "$S3_BUCKET" >/dev/null 2>&1; then
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          docker compose -f docker-compose.selfhost.yaml logs seaweedfs seaweedfs-init || true
+          exit 1
+
+      - name: Run migrations
+        run: bun run db:migrate
+
+      - name: Build app
+        run: bun run build
+
+      - name: Start built app
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun ./build >"$RUNNER_TEMP/startup-selfhosted-host.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/startup-selfhosted-host.pid"
+
+      - name: Smoke test selfhosted DB-backed route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          auth_url="http://$HOST:$PORT/api/auth/status"
+          auth_file="$RUNNER_TEMP/startup-selfhosted-auth-status.json"
+
+          rm -f "$auth_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$auth_url" >"$auth_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$auth_file"
+          grep -q '"success":true' "$auth_file"
+          grep -q '"needsBootstrap":true' "$auth_file"
+
+      - name: Smoke test selfhosted plugin metadata route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_url="http://$HOST:$PORT/api/plugin/koreader/latest"
+          latest_file="$RUNNER_TEMP/startup-selfhosted-plugin-latest.json"
+
+          rm -f "$latest_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$latest_url" >"$latest_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$latest_file"
+          grep -q '"downloadUrl"' "$latest_file"
+          grep -q '"version"' "$latest_file"
+
+      - name: Smoke test selfhosted plugin download route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          download_url="http://$HOST:$PORT/api/plugin/koreader/download"
+          headers_file="$RUNNER_TEMP/startup-selfhosted-plugin-download.headers"
+          zip_file="$RUNNER_TEMP/startup-selfhosted-plugin.zip"
+
+          rm -f "$headers_file" "$zip_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS -D "$headers_file" "$download_url" -o "$zip_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$zip_file"
+          grep -qi '^content-type: application/zip' "$headers_file"
+          grep -qi '^x-plugin-sha256:' "$headers_file"
+
+      - name: Dump selfhosted app logs
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/startup-selfhosted-host.log" ]]; then
+            cat "$RUNNER_TEMP/startup-selfhosted-host.log"
+          fi
+
+      - name: Dump selfhosted infra logs
+        if: always()
+        working-directory: .
+        shell: bash
+        run: |
+          docker compose -f docker-compose.selfhost.yaml logs seaweedfs seaweedfs-init || true
+
+      - name: Stop selfhosted app
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/startup-selfhosted-host.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/startup-selfhosted-host.pid")" || true
+          fi
+
+      - name: Stop selfhosted infra
+        if: always()
+        working-directory: .
+        shell: bash
+        run: |
+          docker compose -f docker-compose.selfhost.yaml down --volumes --remove-orphans || true

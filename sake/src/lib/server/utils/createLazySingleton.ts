@@ -1,5 +1,7 @@
 export function createLazySingleton<T extends object>(factory: () => T): T {
 	let instance: T | null = null;
+	const target = Object.create(null) as T;
+	const boundMethods = new WeakMap<Function, Function>();
 
 	function getInstance(): T {
 		if (instance === null) {
@@ -9,11 +11,24 @@ export function createLazySingleton<T extends object>(factory: () => T): T {
 		return instance;
 	}
 
-	return new Proxy(Object.create(null) as T, {
+	function getBoundMethod(method: Function, resolved: T): Function {
+		const cached = boundMethods.get(method);
+		if (cached) {
+			return cached;
+		}
+
+		const bound = method.bind(resolved);
+		boundMethods.set(method, bound);
+		return bound;
+	}
+
+	// Only proxy direct property access/mutation. Reflecting target shape to the resolved
+	// instance causes Proxy invariant issues for non-configurable properties/extensibility.
+	return new Proxy(target, {
 		get(_target, property) {
 			const resolved = getInstance();
 			const value = Reflect.get(resolved as object, property, resolved);
-			return typeof value === 'function' ? value.bind(resolved) : value;
+			return typeof value === 'function' ? getBoundMethod(value, resolved) : value;
 		},
 		set(_target, property, value) {
 			const resolved = getInstance();
@@ -21,27 +36,6 @@ export function createLazySingleton<T extends object>(factory: () => T): T {
 		},
 		has(_target, property) {
 			return Reflect.has(getInstance() as object, property);
-		},
-		ownKeys() {
-			return Reflect.ownKeys(getInstance() as object);
-		},
-		getOwnPropertyDescriptor(_target, property) {
-			return Reflect.getOwnPropertyDescriptor(getInstance() as object, property);
-		},
-		defineProperty(_target, property, attributes) {
-			return Reflect.defineProperty(getInstance() as object, property, attributes);
-		},
-		deleteProperty(_target, property) {
-			return Reflect.deleteProperty(getInstance() as object, property);
-		},
-		getPrototypeOf() {
-			return Reflect.getPrototypeOf(getInstance() as object);
-		},
-		isExtensible() {
-			return Reflect.isExtensible(getInstance() as object);
-		},
-		preventExtensions() {
-			return Reflect.preventExtensions(getInstance() as object);
 		}
 	});
 }
