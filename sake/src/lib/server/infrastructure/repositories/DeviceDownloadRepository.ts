@@ -29,6 +29,20 @@ export class DeviceDownloadRepository implements DeviceDownloadRepositoryPort {
 		return created;
 	}
 
+	async ensureByDeviceAndBook(download: Omit<DeviceDownload, 'id'>): Promise<DeviceDownload> {
+		const [existing] = await drizzleDb
+			.select()
+			.from(deviceDownloads)
+			.where(and(eq(deviceDownloads.deviceId, download.deviceId), eq(deviceDownloads.bookId, download.bookId)))
+			.limit(1);
+
+		if (existing) {
+			return existing;
+		}
+
+		return this.create(download);
+	}
+
 	async deleteByDeviceId(deviceId: string): Promise<void> {
 		await drizzleDb.delete(deviceDownloads).where(eq(deviceDownloads.deviceId, deviceId));
 	}
@@ -57,6 +71,10 @@ export class DeviceDownloadRepository implements DeviceDownloadRepositoryPort {
 
 	static async create(download: Omit<DeviceDownload, 'id'>): Promise<DeviceDownload> {
 		return DeviceDownloadRepository.instance.create(download);
+	}
+
+	static async ensureByDeviceAndBook(download: Omit<DeviceDownload, 'id'>): Promise<DeviceDownload> {
+		return DeviceDownloadRepository.instance.ensureByDeviceAndBook(download);
 	}
 
 	static async deleteByDeviceId(deviceId: string): Promise<void> {

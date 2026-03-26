@@ -86,6 +86,7 @@ import type { SearchProviderId } from '$lib/types/Search/Provider';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
+import { ExportDeviceLibraryBookUseCase } from '$lib/server/application/use-cases/ExportDeviceLibraryBookUseCase';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
@@ -186,6 +187,13 @@ export const putLibraryFileUseCase = new PutLibraryFileUseCase(
 	storage,
 	bookRepository,
 	managedBookCoverService
+);
+export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase(
+	bookRepository,
+	deviceDownloadRepository,
+	deviceProgressDownloadRepository,
+	storage,
+	putLibraryFileUseCase
 );
 export const deleteLibraryFileUseCase = new DeleteLibraryFileUseCase(storage);
 export const listDavDirectoryUseCase = new ListDavDirectoryUseCase(storage);

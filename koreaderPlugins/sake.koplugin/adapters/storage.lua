@@ -3,6 +3,10 @@ local Utils = require("core/utils")
 local Storage = {}
 Storage.__index = Storage
 
+local function shellQuote(value)
+    return "'" .. tostring(value or ""):gsub("'", "'\\''") .. "'"
+end
+
 local function ensureParentDir(path)
     local parent = path:match("^(.*)/[^/]+$")
     if not parent or parent == "" then
@@ -101,6 +105,27 @@ function Storage:readText(path)
     return true, content
 end
 
+function Storage:readBinary(path)
+    local handle = io.open(path, "rb")
+    if not handle then
+        return false, "File not found: " .. tostring(path)
+    end
+
+    local content = handle:read("*all")
+    handle:close()
+    return true, content
+end
+
+function Storage:fileExists(path)
+    local handle = io.open(path, "rb")
+    if not handle then
+        return false
+    end
+
+    handle:close()
+    return true
+end
+
 function Storage:writeText(path, content)
     local ok, err = atomicWrite(path, content, "w", true)
     if not ok then
@@ -127,6 +152,40 @@ function Storage:bookExists(storage_key)
 
     handle:close()
     return true, paths
+end
+
+function Storage:scanExportableBooks()
+    local home_dir = self:homeDir()
+    local command = table.concat({
+        "find",
+        shellQuote(home_dir),
+        "-type d -name '*.sdr' -prune -o",
+        "-type f \\( -iname '*.epub' -o -iname '*.pdf' -o -iname '*.mobi' \\) -print"
+    }, " ") .. " 2>/dev/null"
+
+    local handle = io.popen(command, "r")
+    if not handle then
+        return false, "Failed to scan library directory"
+    end
+
+    local books = {}
+    for doc_path in handle:lines() do
+        local ok_paths, paths_or_err = self:documentPaths(doc_path)
+        if ok_paths then
+            table.insert(books, paths_or_err)
+        end
+    end
+
+    local ok_close = handle:close()
+    if ok_close == false then
+        return false, "Library scan failed for " .. tostring(home_dir)
+    end
+
+    table.sort(books, function(left, right)
+        return tostring(left.doc_path or ""):lower() < tostring(right.doc_path or ""):lower()
+    end)
+
+    return true, books
 end
 
 return Storage

@@ -10,6 +10,20 @@ export function extractSummaryModified(content: string): string | null {
 	return match?.[1] ?? null;
 }
 
+export function extractSummaryModifiedTimestamp(content: string): string | null {
+	const modified = extractSummaryModified(content);
+	if (!modified) {
+		return null;
+	}
+
+	const parsed = new Date(`${modified}T00:00:00.000Z`);
+	if (Number.isNaN(parsed.getTime())) {
+		return null;
+	}
+
+	return parsed.toISOString();
+}
+
 export function extractPercentFinished(content: string): number | null {
 	const match = content.match(/\["percent_finished"\]\s*=\s*([0-9]*\.?[0-9]+)/);
 	if (!match?.[1]) {

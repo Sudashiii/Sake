@@ -17,6 +17,12 @@ function Menu.addToMainMenu(menu_items, ctx)
             end,
         },
         {
+            text = _("Export Existing Library"),
+            callback = function()
+                ctx.actions.onExportLibrary()
+            end,
+        },
+        {
             text = _("Check Plugin Updates"),
             callback = function()
                 ctx.actions.onCheckPluginUpdate()
