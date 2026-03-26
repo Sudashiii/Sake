@@ -162,6 +162,9 @@ Then open `http://localhost:5173`.
 
 8. Enjoy!
 
+
+Optionally you can export the current ebooks to the Webapp. This will take all books in the home folder and it's subfolders and upload them. The sidecar file for progress and notes is also exported.
+
 ## How to enable downloads via Z-Library
 
 At the top of the page there is a button "Connect Z-Library". You need to either login with e-mail and password (will not get stored) or login yourself on the official z-library page and copy th remix_userkey and remix_userid out of your cookies. 

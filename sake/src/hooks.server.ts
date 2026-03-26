@@ -26,7 +26,21 @@ let lastTrashPurgeStartedAt = 0;
 let runningPurgePromise: Promise<void> | null = null;
 let pluginSyncStarted = false;
 
+function shouldSkipTrashPurge(): boolean {
+	const raw = process.env.SAKE_SKIP_TRASH_PURGE?.trim().toLowerCase();
+	return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function shouldSkipStartupPluginSync(): boolean {
+	const raw = process.env.SAKE_SKIP_STARTUP_PLUGIN_SYNC?.trim().toLowerCase();
+	return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 function triggerTrashPurgeIfDue(): void {
+	if (shouldSkipTrashPurge()) {
+		return;
+	}
+
 	const now = Date.now();
 	if (runningPurgePromise) {
 		return;
@@ -63,6 +77,14 @@ function triggerPluginSyncOnStartup(): void {
 	}
 
 	pluginSyncStarted = true;
+	if (shouldSkipStartupPluginSync()) {
+		createChildLogger({ event: 'plugin.sync.startup' }).info(
+			{ skipped: true, reason: 'SAKE_SKIP_STARTUP_PLUGIN_SYNC' },
+			'Skipped KOReader plugin startup sync'
+		);
+		return;
+	}
+
 	void (async () => {
 		const pluginLogger = createChildLogger({ event: 'plugin.sync.startup' });
 		try {

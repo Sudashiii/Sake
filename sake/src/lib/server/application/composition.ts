@@ -87,9 +87,10 @@ import { ManagedBookCoverService } from '$lib/server/application/services/Manage
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
 import { ExportDeviceLibraryBookUseCase } from '$lib/server/application/use-cases/ExportDeviceLibraryBookUseCase';
+import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
-export const storage = new S3Storage();
+export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
 export const deviceRepository = new DeviceRepository();

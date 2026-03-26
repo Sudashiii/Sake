@@ -13,6 +13,7 @@ import {
 	RECOVERY_REQUEUE_REQUIRED_ERROR,
 	PERSISTED_QUEUE_USER_KEY
 } from '$lib/server/infrastructure/queue/persistence';
+import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 import type {
 	SearchImportQueueTaskInput,
 	ZLibraryQueueTaskInput
@@ -462,5 +463,4 @@ class DownloadQueue {
 	}
 }
 
-// Singleton instance
-export const downloadQueue = new DownloadQueue();
+export const downloadQueue = createLazySingleton(() => new DownloadQueue());
