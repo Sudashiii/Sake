@@ -79,7 +79,7 @@
 		<div><p class="detail-v2-caption">Author</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.author} />{:else}<p>{selectedBookDetail.author || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Publisher</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.publisher} />{:else}<p>{selectedBookDetail.publisher || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Series</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.series} />{:else}<p>{selectedBookDetail.series || '—'}</p>{/if}</div>
-		<div><p class="detail-v2-caption">Series #</p>{#if isEditingMetadata}<input class="detail-v2-input" type="number" step="any" bind:value={metadataDraft.seriesOrder} />{:else}<p>{selectedBookDetail.seriesOrder ?? '—'}</p>{/if}</div>
+		<div><p class="detail-v2-caption">Series #</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.seriesOrder} />{:else}<p>{selectedBookDetail.seriesOrder ?? '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Volume</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.volume} />{:else}<p>{selectedBookDetail.volume || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Edition</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.edition} />{:else}<p>{selectedBookDetail.edition || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Identifier</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.identifier} />{:else}<p>{selectedBookDetail.identifier || '—'}</p>{/if}</div>
