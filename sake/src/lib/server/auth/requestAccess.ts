@@ -5,6 +5,7 @@ const RESERVED_DIRECT_LIBRARY_ROUTE_SEGMENTS = new Set([
 	'trash',
 	'progress',
 	'confirmDownload',
+	'export',
 	'shelves',
 	'covers'
 ]);
@@ -63,6 +64,9 @@ export function isApiKeyAllowedRoute(pathname: string, method: string): boolean 
 		return method === 'GET';
 	}
 	if (pathname === '/api/library/progress/confirm') {
+		return method === 'POST';
+	}
+	if (pathname === '/api/library/export') {
 		return method === 'POST';
 	}
 	if (pathname === '/api/plugin/koreader/latest') {

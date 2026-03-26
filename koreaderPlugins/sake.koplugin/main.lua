@@ -14,6 +14,7 @@ local Dialogs = require("ui/dialogs")
 local Session = require("api/session")
 local DeviceApi = require("api/device")
 local BookSync = require("controllers/book_sync")
+local LibraryExport = require("controllers/library_export")
 local ProgressSync = require("controllers/progress_sync")
 local PluginMeta = require("_meta")
 
@@ -265,6 +266,7 @@ function Sake:init()
     }
 
     self.bookSync = BookSync:new(self.ctx)
+    self.libraryExport = LibraryExport:new(self.ctx)
     self.progressSync = ProgressSync:new(self.ctx)
 
     local updater_ok, updater_mod_or_err, sake_plugin_dir, plugins_root = loadUpdaterModule()
@@ -280,6 +282,7 @@ function Sake:init()
 
     self.ctx.actions.onSync = function() self.bookSync:syncNow() end
     self.ctx.actions.onProgressSync = function() self:runProgressSync() end
+    self.ctx.actions.onExportLibrary = function() self.libraryExport:start() end
     self.ctx.actions.onFetchDeviceKey = function() self:fetchDeviceKey() end
     self.ctx.actions.onCheckPluginUpdate = function() self:checkPluginUpdate({ notify = true }) end
     self.ctx.actions.showInput = function(field, title)
