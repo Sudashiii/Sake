@@ -54,6 +54,10 @@ export function getRulePlaceholder(field: RuleField): string {
 			return 'unread, reading, read';
 		case 'format':
 			return 'epub, pdf, mobi';
+		case 'series':
+			return 'e.g. Discworld';
+		case 'seriesIndex':
+			return 'e.g. 2 or 2.5';
 		case 'rating':
 			return '0-5';
 		case 'readingProgress':

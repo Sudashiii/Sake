@@ -91,8 +91,9 @@
 			<div class="search-detail-row"><span class="label">Pages</span><span class="value">{displayValue(metadata?.pages ?? book.pages)}</span></div>
 			<div class="search-detail-row"><span class="label">Filesize</span><span class="value">{formatFileSize(book.filesize)}</span></div>
 			<div class="search-detail-row"><span class="label">Publisher</span><span class="value">{displayValue(metadata?.publisher)}</span></div>
-			<div class="search-detail-row"><span class="label">Series</span><span class="value">{displayValue(metadata?.series)}</span></div>
-			<div class="search-detail-row"><span class="label">Volume</span><span class="value">{displayValue(metadata?.volume)}</span></div>
+			<div class="search-detail-row"><span class="label">Series</span><span class="value">{displayValue(metadata?.series ?? book.series)}</span></div>
+			<div class="search-detail-row"><span class="label">Series Index</span><span class="value">{displayValue(metadata?.seriesIndex ?? book.seriesIndex)}</span></div>
+			<div class="search-detail-row"><span class="label">Volume</span><span class="value">{displayValue(metadata?.volume ?? book.volume)}</span></div>
 			<div class="search-detail-row"><span class="label">Edition</span><span class="value">{displayValue(metadata?.edition)}</span></div>
 			<div class="search-detail-row">
 				<span class="label">ISBN</span>

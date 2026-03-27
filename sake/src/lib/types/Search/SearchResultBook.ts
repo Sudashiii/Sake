@@ -11,6 +11,9 @@ export interface SearchResultBook {
 	filesize: number | null;
 	cover: string | null;
 	description: string | null;
+	series: string | null;
+	volume: string | null;
+	seriesIndex: number | null;
 	identifier: string | null;
 	isbn: string | null;
 	pages: number | null;

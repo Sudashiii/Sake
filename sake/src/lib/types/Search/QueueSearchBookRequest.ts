@@ -9,6 +9,9 @@ export interface QueueSearchBookRequest {
 	title: string;
 	extension?: string | null;
 	author?: string | null;
+	series?: string | null;
+	volume?: string | null;
+	seriesIndex?: number | null;
 	identifier?: string | null;
 	pages?: number | null;
 	description?: string | null;

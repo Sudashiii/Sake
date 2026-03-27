@@ -16,6 +16,7 @@ interface RefetchLibraryBookMetadataResult {
 		publisher: string | null;
 		series: string | null;
 		volume: string | null;
+		seriesIndex: number | null;
 		edition: string | null;
 		identifier: string | null;
 		pages: number | null;
@@ -87,6 +88,7 @@ export class RefetchLibraryBookMetadataUseCase {
 			),
 			series: keepOrFillText(existingBook.series, enriched.series),
 			volume: keepOrFillText(existingBook.volume, enriched.volume),
+			series_index: keepOrFillNumber(existingBook.series_index, enriched.seriesIndex),
 			edition: keepOrFillText(existingBook.edition, enriched.edition),
 			identifier: keepOrFillText(
 				existingBook.identifier,
@@ -122,6 +124,7 @@ export class RefetchLibraryBookMetadataUseCase {
 				publisher: updated.publisher,
 				series: updated.series,
 				volume: updated.volume,
+				seriesIndex: updated.series_index,
 				edition: updated.edition,
 				identifier: updated.identifier,
 				pages: updated.pages,

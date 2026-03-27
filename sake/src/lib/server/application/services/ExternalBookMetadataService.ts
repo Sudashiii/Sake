@@ -7,6 +7,7 @@ export interface ExternalBookMetadata {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	seriesIndex: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;
@@ -147,6 +148,7 @@ export class ExternalBookMetadataService {
 			publisher: pickFirst(google.publisher, openLibrary.publisher),
 			series: pickFirst(google.series, openLibrary.series),
 			volume: pickFirst(google.volume, openLibrary.volume),
+			seriesIndex: pickFirst(google.seriesIndex, openLibrary.seriesIndex),
 			edition: pickFirst(google.edition, openLibrary.edition),
 			identifier: pickFirst(google.identifier, openLibrary.identifier, input.identifier),
 			pages: pickFirst(google.pages, openLibrary.pages),
@@ -162,6 +164,7 @@ export class ExternalBookMetadataService {
 		publisher: string | null;
 		series: string | null;
 		volume: string | null;
+		seriesIndex: number | null;
 		edition: string | null;
 		identifier: string | null;
 		pages: number | null;
@@ -241,6 +244,7 @@ export class ExternalBookMetadataService {
 				publisher: asString(best.volumeInfo?.publisher),
 				series: null,
 				volume: null,
+				seriesIndex: null,
 				edition: asString(best.volumeInfo?.subtitle),
 				identifier: asString(isbn13) ?? asString(isbn10),
 				pages: asNumber(pageSource.volumeInfo?.pageCount),
@@ -260,6 +264,7 @@ export class ExternalBookMetadataService {
 			publisher: null,
 			series: null,
 			volume: null,
+			seriesIndex: null,
 			edition: null,
 			identifier: null,
 			pages: null,
@@ -275,6 +280,7 @@ export class ExternalBookMetadataService {
 		publisher: string | null;
 		series: string | null;
 		volume: string | null;
+		seriesIndex: number | null;
 		edition: string | null;
 		identifier: string | null;
 		pages: number | null;
@@ -347,6 +353,7 @@ export class ExternalBookMetadataService {
 				publisher: asString(best.publisher?.[0]),
 				series: null,
 				volume: null,
+				seriesIndex: null,
 				edition: null,
 				identifier: asString(best.isbn?.[0]),
 				pages: asNumber(pageSource.number_of_pages_median),
@@ -366,6 +373,7 @@ export class ExternalBookMetadataService {
 			publisher: null,
 			series: null,
 			volume: null,
+			seriesIndex: null,
 			edition: null,
 			identifier: null,
 			pages: null,

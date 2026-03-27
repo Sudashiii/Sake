@@ -7,6 +7,7 @@ export interface Book {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	series_index: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;
@@ -58,6 +59,7 @@ export interface UpdateBookMetadataInput {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	series_index: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;

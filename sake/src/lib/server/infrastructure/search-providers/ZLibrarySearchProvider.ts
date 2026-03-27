@@ -7,6 +7,7 @@ import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 import { extractIsbn } from '$lib/utils/isbn';
+import { parseSeriesIndex } from '$lib/utils/series';
 import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
 import type { ZBook } from '$lib/types/ZLibrary/ZBook';
 
@@ -60,6 +61,9 @@ function mapBook(book: ZBook): SearchResultBook {
 		filesize: typeof book.filesize === 'number' ? book.filesize : null,
 		cover: book.cover?.trim() ? book.cover : null,
 		description: book.description?.trim() ? book.description : null,
+		series: book.series?.trim() ? book.series : null,
+		volume: book.volume?.trim() ? book.volume : null,
+		seriesIndex: parseSeriesIndex(book.volume),
 		identifier: book.identifier?.trim() ? book.identifier : null,
 		isbn: extractIsbn(book.identifier),
 		pages: typeof book.pages === 'number' ? book.pages : null,

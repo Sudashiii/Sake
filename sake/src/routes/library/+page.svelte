@@ -19,22 +19,26 @@
 		applyBulkShelfSelection,
 		getVisibleBookIds,
 		getBookStatus,
+		groupBooksBySeries,
 		matchesBookQuery,
 		matchesBookShelf,
 		matchesBookStatus,
 		parseNullableNumber,
 		parseViewFromUrl,
 		pruneBookSelection,
+		readStoredLibrarySort,
 		sortBooks,
 		toggleBookSelection,
 		toDraftText,
 		type DetailTab,
+		type LibraryBookGroup,
 		type LibraryBulkShelfAction,
 		type LibrarySort,
 		type LibraryStatusFilter,
 		type LibraryView,
 		type LibraryVisualMode,
-		type MetadataDraft
+		type MetadataDraft,
+		writeStoredLibrarySort
 	} from '$lib/features/library/libraryView';
 	import type { ApiError } from '$lib/types/ApiError';
 	import type { LibraryBook } from '$lib/types/Library/Book';
@@ -42,8 +46,6 @@
 	import type { BookProgressHistoryEntry } from '$lib/types/Library/BookProgressHistory';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
 	import styles from './page.module.scss';
-
-	const LIBRARY_SORT_KEY = 'librarySort';
 
 	let books = $state<LibraryBook[]>([]);
 	let shelves = $state<LibraryShelf[]>([]);
@@ -98,6 +100,7 @@
 		author: '',
 		publisher: '',
 		series: '',
+		seriesIndex: '',
 		volume: '',
 		edition: '',
 		identifier: '',
@@ -113,6 +116,7 @@
 		externalRatingCount: ''
 	});
 	let libraryDropDepth = 0;
+	let hasInitializedSortPreference = $state(false);
 
 	let activeLibraryBooks = $derived(books.filter((book) => !book.archived_at));
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
@@ -150,6 +154,9 @@
 		trashBooks.filter((book) => matchesBookQuery(book, searchQuery))
 	);
 	let visibleBooks = $derived(currentView === 'library' ? filteredLibraryBooks : filteredArchivedBooks);
+	let visibleBookGroups = $derived.by<LibraryBookGroup[]>(() =>
+		sortBy === 'series' ? groupBooksBySeries(visibleBooks) : []
+	);
 	let visibleLibraryBookIds = $derived(getVisibleBookIds(filteredLibraryBooks));
 	let selectedBooks = $derived(
 		filteredLibraryBooks.filter((book) => selectedBookIds.includes(book.id))
@@ -194,6 +201,14 @@
 		}
 	});
 
+	$effect(() => {
+		if (!hasInitializedSortPreference || typeof localStorage === 'undefined' || currentView !== 'library') {
+			return;
+		}
+
+		sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? 'dateAdded';
+	});
+
 	onMount(() => {
 		const handleShelvesChanged = () => {
 			void loadShelves();
@@ -205,11 +220,9 @@
 
 		(async () => {
 			if (typeof localStorage !== 'undefined') {
-				const stored = localStorage.getItem(LIBRARY_SORT_KEY);
-				if (stored === 'dateAdded' || stored === 'titleAsc' || stored === 'progressRecent') {
-					sortBy = stored;
-				}
+				sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? sortBy;
 			}
+			hasInitializedSortPreference = true;
 
 			const params = new URLSearchParams(window.location.search);
 			const requestedView = parseViewFromUrl(params.get('view'));
@@ -540,6 +553,7 @@
 			author: toDraftText(detail.author),
 			publisher: toDraftText(detail.publisher),
 			series: toDraftText(detail.series),
+			seriesIndex: toDraftText(detail.seriesIndex),
 			volume: toDraftText(detail.volume),
 			edition: toDraftText(detail.edition),
 			identifier: toDraftText(detail.identifier),
@@ -572,6 +586,7 @@
 		author: string | null;
 		publisher: string | null;
 		series: string | null;
+		seriesIndex: number | null;
 		volume: string | null;
 		edition: string | null;
 		identifier: string | null;
@@ -600,6 +615,7 @@
 			author: updated.author,
 			publisher: updated.publisher,
 			series: updated.series,
+			series_index: updated.seriesIndex,
 			volume: updated.volume,
 			edition: updated.edition,
 			identifier: updated.identifier,
@@ -644,6 +660,7 @@
 				author: result.value.book.author,
 				publisher: result.value.book.publisher,
 				series: result.value.book.series,
+				seriesIndex: result.value.book.seriesIndex,
 				volume: result.value.book.volume,
 				edition: result.value.book.edition,
 				identifier: result.value.book.identifier,
@@ -693,6 +710,7 @@
 			author: metadataDraft.author.trim() || null,
 			publisher: metadataDraft.publisher.trim() || null,
 			series: metadataDraft.series.trim() || null,
+			seriesIndex: parseNullableNumber(metadataDraft.seriesIndex),
 			volume: metadataDraft.volume.trim() || null,
 			edition: metadataDraft.edition.trim() || null,
 			identifier: metadataDraft.identifier.trim() || null,
@@ -1376,7 +1394,7 @@
 	function setSortBy(value: LibrarySort): void {
 		sortBy = value;
 		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem(LIBRARY_SORT_KEY, value);
+			writeStoredLibrarySort(localStorage, selectedShelfId, value);
 		}
 	}
 
@@ -1505,7 +1523,69 @@
 		{/if}
 	{:else}
 		{#if visibleBooks.length > 0}
-			{#if visualMode === 'grid'}
+			{#if sortBy === 'series'}
+				<div class={styles.seriesGroups}>
+					{#each visibleBookGroups as group (group.id)}
+						<section class={styles.seriesGroup} aria-label={`Series group ${group.label}`}>
+							<div class={styles.seriesGroupHeader}>
+								<h2>{group.label}</h2>
+								<span class={styles.seriesGroupCount}>
+									{group.books.length} book{group.books.length === 1 ? '' : 's'}
+								</span>
+							</div>
+							{#if visualMode === 'grid'}
+								<div class={styles.bookGrid}>
+									{#each group.books as book (book.id)}
+										<LibraryGridItem
+											{book}
+											{shelves}
+											showShelfAssign={showShelfAssign === book.id}
+											showShelfAssignControl={currentView === 'library' && !selectionMode}
+											{selectionMode}
+											selected={selectedBookIds.includes(book.id)}
+											selectionDisabled={isBulkActionPending}
+											onOpenDetail={openDetailModal}
+											onStartSelectionMode={startSelectionModeFromBook}
+											onToggleSelected={handleToggleSelectedBook}
+											onToggleShelfAssignMenu={() => {
+												showShelfAssign = showShelfAssign === book.id ? null : book.id;
+											}}
+											onCloseShelfAssignMenu={() => {
+												showShelfAssign = null;
+											}}
+											onToggleBookShelf={(shelfId) => void handleToggleBookShelf(book.id, shelfId)}
+										/>
+									{/each}
+								</div>
+							{:else}
+								<div class={styles.bookList}>
+									{#each group.books as book (book.id)}
+										<LibraryListItem
+											{book}
+											{shelves}
+											showShelfAssign={showShelfAssign === book.id}
+											showShelfAssignControl={currentView === 'library' && !selectionMode}
+											{selectionMode}
+											selected={selectedBookIds.includes(book.id)}
+											selectionDisabled={isBulkActionPending}
+											onOpenDetail={openDetailModal}
+											onStartSelectionMode={startSelectionModeFromBook}
+											onToggleSelected={handleToggleSelectedBook}
+											onToggleShelfAssignMenu={() => {
+												showShelfAssign = showShelfAssign === book.id ? null : book.id;
+											}}
+											onCloseShelfAssignMenu={() => {
+												showShelfAssign = null;
+											}}
+											onToggleBookShelf={(shelfId) => void handleToggleBookShelf(book.id, shelfId)}
+										/>
+									{/each}
+								</div>
+							{/if}
+						</section>
+					{/each}
+				</div>
+			{:else if visualMode === 'grid'}
 				<div class={styles.bookGrid}>
 					{#each visibleBooks as book (book.id)}
 						<LibraryGridItem

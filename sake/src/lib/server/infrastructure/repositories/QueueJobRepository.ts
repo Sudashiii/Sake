@@ -19,6 +19,7 @@ export interface QueueJobRecord {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	seriesIndex: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;
@@ -49,6 +50,7 @@ function mapQueueJobRow(row: typeof queueJobs.$inferSelect): QueueJobRecord {
 		publisher: row.publisher ?? null,
 		series: row.series ?? null,
 		volume: row.volume ?? null,
+		seriesIndex: row.seriesIndex ?? null,
 		edition: row.edition ?? null,
 		identifier: row.identifier ?? null,
 		pages: row.pages ?? null,
@@ -84,6 +86,7 @@ export class QueueJobRepository {
 			publisher: persistedJob.publisher,
 			series: persistedJob.series,
 			volume: persistedJob.volume,
+			seriesIndex: persistedJob.seriesIndex,
 			edition: persistedJob.edition,
 			identifier: persistedJob.identifier,
 			pages: persistedJob.pages,

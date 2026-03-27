@@ -15,6 +15,7 @@ export interface LibraryBookDetail {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	seriesIndex: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;
@@ -65,6 +66,7 @@ export class GetLibraryBookDetailUseCase {
 			publisher: book.publisher,
 			series: book.series,
 			volume: book.volume,
+			seriesIndex: book.series_index,
 			edition: book.edition,
 			identifier: book.identifier,
 			pages: book.pages,

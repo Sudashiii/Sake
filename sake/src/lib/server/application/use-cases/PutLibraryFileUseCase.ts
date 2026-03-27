@@ -19,6 +19,7 @@ import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { ExternalBookMetadata } from '$lib/server/application/services/ExternalBookMetadataService';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { QueueableSearchProviderId } from '$lib/types/Search/QueueSearchBookRequest';
+import { parseSeriesIndex } from '$lib/utils/series';
 
 interface PutLibraryFileResult {
 	success: true;
@@ -32,6 +33,9 @@ type ManagedCoverStorage = Pick<ManagedBookCoverService, 'storeFromSearchImport'
 interface SourceImportMetadata {
 	provider: QueueableSearchProviderId;
 	coverUrl?: string | null;
+	series?: string | null;
+	volume?: string | null;
+	seriesIndex?: number | null;
 }
 
 function stripExtension(fileName: string): string {
@@ -182,8 +186,13 @@ export class PutLibraryFileUseCase {
 			zLibId: null,
 			author: pickText(extractedMetadata?.author, null),
 			publisher: pickText(extractedMetadata?.publisher, metadata?.publisher),
-			series: metadata?.series ?? null,
-			volume: metadata?.volume ?? null,
+			series: pickText(sourceImport?.series, metadata?.series),
+			volume: pickText(sourceImport?.volume, metadata?.volume),
+			series_index:
+				sourceImport?.seriesIndex ??
+				parseSeriesIndex(sourceImport?.volume) ??
+				metadata?.seriesIndex ??
+				parseSeriesIndex(metadata?.volume),
 			edition: metadata?.edition ?? null,
 			identifier: pickText(extractedMetadata?.identifier, metadata?.identifier),
 			pages: metadata?.pages ?? null,

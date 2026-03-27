@@ -35,7 +35,16 @@ function parseBody(raw: unknown): QueueSearchBookRequest {
 		throw new Error('title is required');
 	}
 
-	const optionalStringKeys = ['extension', 'author', 'identifier', 'description', 'cover', 'language'] as const;
+	const optionalStringKeys = [
+		'extension',
+		'author',
+		'series',
+		'volume',
+		'identifier',
+		'description',
+		'cover',
+		'language'
+	] as const;
 	for (const key of optionalStringKeys) {
 		const value = raw[key];
 		if (value !== undefined && value !== null && typeof value !== 'string') {
@@ -43,7 +52,7 @@ function parseBody(raw: unknown): QueueSearchBookRequest {
 		}
 	}
 
-	for (const key of ['pages', 'filesize', 'year'] as const) {
+	for (const key of ['pages', 'filesize', 'year', 'seriesIndex'] as const) {
 		const value = raw[key];
 		if (value !== undefined && value !== null && typeof value !== 'number') {
 			throw new Error(`${key} must be a number or null`);
@@ -57,6 +66,9 @@ function parseBody(raw: unknown): QueueSearchBookRequest {
 		title: raw.title.trim(),
 		extension: (raw.extension as string | null | undefined) ?? null,
 		author: (raw.author as string | null | undefined) ?? null,
+		series: (raw.series as string | null | undefined) ?? null,
+		volume: (raw.volume as string | null | undefined) ?? null,
+		seriesIndex: (raw.seriesIndex as number | null | undefined) ?? null,
 		identifier: (raw.identifier as string | null | undefined) ?? null,
 		pages: (raw.pages as number | null | undefined) ?? null,
 		description: (raw.description as string | null | undefined) ?? null,

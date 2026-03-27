@@ -81,6 +81,7 @@
 						<button type="button" class:active={sortBy === 'dateAdded'} onclick={() => { onSetSortBy('dateAdded'); showSortMenu = false; }}>Date Added</button>
 						<button type="button" class:active={sortBy === 'titleAsc'} onclick={() => { onSetSortBy('titleAsc'); showSortMenu = false; }}>Title A-Z</button>
 						<button type="button" class:active={sortBy === 'progressRecent'} onclick={() => { onSetSortBy('progressRecent'); showSortMenu = false; }}>Recent Progress</button>
+						<button type="button" class:active={sortBy === 'series'} onclick={() => { onSetSortBy('series'); showSortMenu = false; }}>Series</button>
 					</div>
 				{/if}
 			</div>

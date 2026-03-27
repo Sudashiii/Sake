@@ -29,6 +29,7 @@ interface BaseQueuedDownload {
 	publisher: string | null;
 	series: string | null;
 	volume: string | null;
+	seriesIndex: number | null;
 	edition: string | null;
 	identifier: string | null;
 	pages: number | null;
@@ -337,6 +338,7 @@ class DownloadQueue {
 				publisher: task.publisher ?? undefined,
 				series: task.series ?? undefined,
 				volume: task.volume ?? undefined,
+				seriesIndex: task.seriesIndex ?? undefined,
 				edition: task.edition ?? undefined,
 				identifier: task.identifier ?? undefined,
 				pages: task.pages ?? undefined,
@@ -370,7 +372,10 @@ class DownloadQueue {
 			this.toArrayBuffer(downloadResult.value.fileData),
 			{
 				provider: task.provider,
-				coverUrl: task.cover
+				coverUrl: task.cover,
+				series: task.series,
+				volume: task.volume,
+				seriesIndex: task.seriesIndex
 			}
 		);
 		if (!uploadResult.ok) {
@@ -436,6 +441,7 @@ class DownloadQueue {
 			publisher: task.publisher,
 			series: task.series,
 			volume: task.volume,
+			seriesIndex: task.seriesIndex,
 			edition: task.edition,
 			identifier: task.identifier,
 			pages: task.pages,

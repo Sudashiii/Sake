@@ -4,15 +4,22 @@ import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 import type { RuleGroup, RuleNode, ShelfCondition } from '$lib/types/Library/ShelfRule';
 
-export type LibrarySort = 'dateAdded' | 'titleAsc' | 'progressRecent';
+export type LibrarySort = 'dateAdded' | 'titleAsc' | 'progressRecent' | 'series';
 export type LibraryView = 'library' | 'archived' | 'trash';
 export type LibraryStatusFilter = 'all' | 'unread' | 'reading' | 'read';
 export type LibraryVisualMode = 'grid' | 'list';
 export type DetailTab = 'overview' | 'progress' | 'metadata' | 'devices';
 export type LibraryBulkShelfAction = 'add' | 'remove';
+export interface LibraryBookGroup {
+	id: string;
+	label: string;
+	books: LibraryBook[];
+}
 
 export const LIBRARY_SELECTION_LONG_PRESS_MS = 360;
 export const LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX = 8;
+export const LEGACY_LIBRARY_SORT_STORAGE_KEY = 'librarySort';
+export const ROOT_LIBRARY_SORT_STORAGE_KEY = 'librarySort:library';
 
 export type MetadataDraft = {
 	title: string;
@@ -20,6 +27,7 @@ export type MetadataDraft = {
 	publisher: string;
 	series: string;
 	volume: string;
+	seriesIndex: string;
 	edition: string;
 	identifier: string;
 	pages: string;
@@ -41,6 +49,52 @@ export function parseViewFromUrl(value: string | null): LibraryView | null {
 		return value;
 	}
 	return null;
+}
+
+export function isLibrarySort(value: string | null | undefined): value is LibrarySort {
+	return (
+		value === 'dateAdded' ||
+		value === 'titleAsc' ||
+		value === 'progressRecent' ||
+		value === 'series'
+	);
+}
+
+export function getLibrarySortStorageKey(shelfId: number | null): string {
+	return shelfId === null
+		? ROOT_LIBRARY_SORT_STORAGE_KEY
+		: `${ROOT_LIBRARY_SORT_STORAGE_KEY}:shelf:${shelfId}`;
+}
+
+export function readStoredLibrarySort(
+	storage: Pick<Storage, 'getItem'>,
+	shelfId: number | null
+): LibrarySort | null {
+	const candidateKeys =
+		shelfId === null
+			? [ROOT_LIBRARY_SORT_STORAGE_KEY, LEGACY_LIBRARY_SORT_STORAGE_KEY]
+			: [
+					getLibrarySortStorageKey(shelfId),
+					ROOT_LIBRARY_SORT_STORAGE_KEY,
+					LEGACY_LIBRARY_SORT_STORAGE_KEY
+				];
+
+	for (const key of candidateKeys) {
+		const stored = storage.getItem(key);
+		if (isLibrarySort(stored)) {
+			return stored;
+		}
+	}
+
+	return null;
+}
+
+export function writeStoredLibrarySort(
+	storage: Pick<Storage, 'setItem'>,
+	shelfId: number | null,
+	sort: LibrarySort
+): void {
+	storage.setItem(getLibrarySortStorageKey(shelfId), sort);
 }
 
 export function toDraftText(value: string | number | null | undefined): string {
@@ -69,11 +123,20 @@ export function isImportableExternalCoverUrl(value: string | null | undefined): 
 	}
 }
 
-export function parseNullableNumber(value: string): number | null {
+export function parseNullableNumber(value: string | number | null | undefined): number | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? value : null;
+	}
+
 	const trimmed = value.trim();
 	if (!trimmed) {
 		return null;
 	}
+
 	const parsed = Number(trimmed);
 	return Number.isFinite(parsed) ? parsed : null;
 }
@@ -149,8 +212,8 @@ export function matchesBookQuery(book: LibraryBook, query: string): boolean {
 		return true;
 	}
 
-	return [book.title, book.author, book.extension, book.language]
-		.map((value) => normalizeText(value))
+	return [book.title, book.author, book.series, book.volume, book.extension, book.language, book.series_index]
+		.map((value) => normalizeText(value === null || value === undefined ? null : String(value)))
 		.some((value) => value.includes(normalizedQuery));
 }
 
@@ -178,10 +241,12 @@ export function matchesBookStatus(book: LibraryBook, filter: LibraryStatusFilter
 
 export function getRuleFieldValue(book: LibraryBook, field: ShelfCondition['field']): string | number | null {
 	if (field === 'title') return book.title;
-	if (field === 'author') return book.author;
-	if (field === 'format') return book.extension;
-	if (field === 'language') return book.language;
+	if (field === 'author') return book.author ?? null;
+	if (field === 'series') return book.series ?? null;
+	if (field === 'format') return book.extension ?? null;
+	if (field === 'language') return book.language ?? null;
 	if (field === 'status') return getBookStatus(book);
+	if (field === 'seriesIndex') return book.series_index ?? null;
 	if (field === 'rating') return book.rating;
 	if (field === 'readingProgress') return getProgressPercent(book);
 	if (field === 'year') return book.year ?? null;
@@ -356,6 +421,9 @@ export function getProgressHistoryPageRange(
 }
 
 export function getSortLabel(value: LibrarySort): string {
+	if (value === 'series') {
+		return 'Series';
+	}
 	if (value === 'titleAsc') {
 		return 'Title A-Z';
 	}
@@ -386,6 +454,9 @@ export function getFilterLabel(currentView: LibraryView, statusFilter: LibrarySt
 
 export function sortBooks(list: LibraryBook[], mode: LibrarySort): LibraryBook[] {
 	const copy = [...list];
+	if (mode === 'series') {
+		return copy.sort(compareBooksBySeries);
+	}
 	if (mode === 'titleAsc') {
 		return copy.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 	}
@@ -401,4 +472,102 @@ export function sortBooks(list: LibraryBook[], mode: LibrarySort): LibraryBook[]
 		const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
 		return bTime - aTime;
 	});
+}
+
+function normalizeSeriesLabel(value: string | null | undefined): string {
+	return value?.trim() ?? '';
+}
+
+function compareLabel(left: string, right: string): number {
+	return left.localeCompare(right, undefined, {
+		numeric: true,
+		sensitivity: 'base'
+	});
+}
+
+function compareSeriesNames(left: LibraryBook, right: LibraryBook): number {
+	const leftSeries = normalizeSeriesLabel(left.series);
+	const rightSeries = normalizeSeriesLabel(right.series);
+	if (!leftSeries && !rightSeries) {
+		return 0;
+	}
+	if (!leftSeries) {
+		return 1;
+	}
+	if (!rightSeries) {
+		return -1;
+	}
+	return compareLabel(leftSeries, rightSeries);
+}
+
+function compareSeriesIndices(left: LibraryBook, right: LibraryBook): number {
+	const leftValue =
+		typeof left.series_index === 'number' && Number.isFinite(left.series_index)
+			? left.series_index
+			: null;
+	const rightValue =
+		typeof right.series_index === 'number' && Number.isFinite(right.series_index)
+			? right.series_index
+			: null;
+
+	if (leftValue === null && rightValue === null) {
+		return 0;
+	}
+	if (leftValue === null) {
+		return 1;
+	}
+	if (rightValue === null) {
+		return -1;
+	}
+	return leftValue - rightValue;
+}
+
+function compareBooksBySeries(left: LibraryBook, right: LibraryBook): number {
+	const seriesCompare = compareSeriesNames(left, right);
+	if (seriesCompare !== 0) {
+		return seriesCompare;
+	}
+
+	const sameSeries = normalizeSeriesLabel(left.series).length > 0;
+	if (!sameSeries) {
+		return compareLabel(left.title, right.title);
+	}
+
+	const seriesIndexCompare = compareSeriesIndices(left, right);
+	if (seriesIndexCompare !== 0) {
+		return seriesIndexCompare;
+	}
+
+	const volumeCompare = compareLabel(normalizeText(left.volume), normalizeText(right.volume));
+	if (volumeCompare !== 0) {
+		return volumeCompare;
+	}
+
+	return compareLabel(left.title, right.title);
+}
+
+export function groupBooksBySeries(books: LibraryBook[]): LibraryBookGroup[] {
+	const groups: LibraryBookGroup[] = [];
+	const groupById = new Map<string, LibraryBookGroup>();
+
+	for (const book of books) {
+		const seriesLabel = normalizeSeriesLabel(book.series);
+		const id = seriesLabel ? `series:${seriesLabel.toLowerCase()}` : 'series:none';
+		const label = seriesLabel || 'No Series';
+		const existing = groupById.get(id);
+		if (existing) {
+			existing.books.push(book);
+			continue;
+		}
+
+		const group: LibraryBookGroup = {
+			id,
+			label,
+			books: [book]
+		};
+		groupById.set(id, group);
+		groups.push(group);
+	}
+
+	return groups;
 }

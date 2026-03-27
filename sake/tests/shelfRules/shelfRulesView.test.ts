@@ -24,6 +24,7 @@ describe('shelfRulesView', () => {
 
 	test('returns numeric field operators for numeric fields', () => {
 		assert.equal(getFieldType('pages'), 'number');
+		assert.equal(getFieldType('seriesIndex'), 'number');
 		assert.deepEqual(
 			getOperatorsForField('pages').map((operator) => operator.value),
 			['equals', 'not_equals', 'gt', 'lt', 'gte', 'lte']
@@ -32,6 +33,8 @@ describe('shelfRulesView', () => {
 
 	test('returns string placeholders for known fields', () => {
 		assert.equal(getRulePlaceholder('status'), 'unread, reading, read');
+		assert.equal(getRulePlaceholder('series'), 'e.g. Discworld');
+		assert.equal(getRulePlaceholder('seriesIndex'), 'e.g. 2 or 2.5');
 		assert.equal(getRulePlaceholder('pages'), 'e.g. 300');
 	});
 });

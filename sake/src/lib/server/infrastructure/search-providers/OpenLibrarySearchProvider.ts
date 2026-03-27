@@ -211,6 +211,9 @@ function mapBook(doc: OpenLibrarySearchDoc, input: SearchBooksRequest): SearchRe
 		filesize: null,
 		cover: toCoverUrl(doc.cover_i),
 		description: null,
+		series: null,
+		volume: null,
+		seriesIndex: null,
 		identifier,
 		isbn,
 		pages:

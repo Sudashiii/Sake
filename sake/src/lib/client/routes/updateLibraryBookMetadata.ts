@@ -7,6 +7,7 @@ export interface UpdateLibraryBookMetadataRequest {
 	publisher?: string | null;
 	series?: string | null;
 	volume?: string | null;
+	seriesIndex?: number | null;
 	edition?: string | null;
 	identifier?: string | null;
 	pages?: number | null;

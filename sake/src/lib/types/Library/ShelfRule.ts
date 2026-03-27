@@ -1,9 +1,11 @@
 export const RULE_FIELDS = [
 	'title',
 	'author',
+	'series',
 	'format',
 	'language',
 	'status',
+	'seriesIndex',
 	'rating',
 	'readingProgress',
 	'year',
@@ -30,9 +32,11 @@ export type RuleConnector = (typeof RULE_CONNECTORS)[number];
 export const RULE_FIELD_OPTIONS: readonly { value: RuleField; label: string; type: 'string' | 'number' }[] = [
 	{ value: 'title', label: 'Title', type: 'string' },
 	{ value: 'author', label: 'Author', type: 'string' },
+	{ value: 'series', label: 'Series', type: 'string' },
 	{ value: 'format', label: 'Format', type: 'string' },
 	{ value: 'language', label: 'Language', type: 'string' },
 	{ value: 'status', label: 'Status', type: 'string' },
+	{ value: 'seriesIndex', label: 'Series Index', type: 'number' },
 	{ value: 'rating', label: 'Rating', type: 'number' },
 	{ value: 'readingProgress', label: 'Progress', type: 'number' },
 	{ value: 'year', label: 'Year', type: 'number' },
