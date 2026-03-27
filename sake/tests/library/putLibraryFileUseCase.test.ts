@@ -748,4 +748,66 @@ describe('PutLibraryFileUseCase', () => {
 		const created = createdBook as CreateBookInput;
 		assert.equal(created.cover, '/api/library/covers/embedded-book.epub.png');
 	});
+
+	test('preserves an explicit null seriesIndex from source imports instead of falling back', async () => {
+		let createdBook: CreateBookInput | null = null;
+
+		const storage = {
+			async put(): Promise<void> {},
+			async get(): Promise<Buffer> {
+				throw new Error('not implemented');
+			},
+			async delete(): Promise<void> {
+				throw new Error('not implemented');
+			},
+			async list(): Promise<[]> {
+				throw new Error('not implemented');
+			}
+		} as StoragePort;
+
+		const repository = {
+			async getByStorageKeyIncludingTrashed(): Promise<Book | undefined> {
+				return undefined;
+			},
+			async create(book: CreateBookInput): Promise<Book> {
+				createdBook = book;
+				return createBookRecord(book);
+			}
+		} as unknown as BookRepositoryPort;
+
+		const useCase = new PutLibraryFileUseCase(
+			storage,
+			repository,
+			noopManagedCoverService(),
+			{
+				async extractUploadData(): Promise<ExtractedEpubUploadData> {
+					return extractedUploadData(null);
+				}
+			},
+			{
+				async lookup(): Promise<ExternalBookMetadata> {
+					return {
+						...emptyExternalMetadata(),
+						volume: '9',
+						seriesIndex: 9
+					};
+				}
+			}
+		);
+
+		const result = await useCase.execute('provider-book.epub', toArrayBuffer(Buffer.from('epub-data')), {
+			provider: 'openlibrary',
+			coverUrl: 'https://covers.openlibrary.org/b/id/123-L.jpg',
+			volume: '4',
+			seriesIndex: null
+		});
+
+		assert.equal(result.ok, true);
+		if (createdBook === null) {
+			throw new Error('Expected a created book record');
+		}
+
+		const created = createdBook as CreateBookInput;
+		assert.equal(created.series_index, null);
+	});
 });

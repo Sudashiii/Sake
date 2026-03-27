@@ -19,7 +19,7 @@ import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { ExternalBookMetadata } from '$lib/server/application/services/ExternalBookMetadataService';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { QueueableSearchProviderId } from '$lib/types/Search/QueueSearchBookRequest';
-import { parseSeriesIndex } from '$lib/utils/series';
+import { resolveSeriesIndex } from '$lib/utils/series';
 
 interface PutLibraryFileResult {
 	success: true;
@@ -188,11 +188,12 @@ export class PutLibraryFileUseCase {
 			publisher: pickText(extractedMetadata?.publisher, metadata?.publisher),
 			series: pickText(sourceImport?.series, metadata?.series),
 			volume: pickText(sourceImport?.volume, metadata?.volume),
-			series_index:
-				sourceImport?.seriesIndex ??
-				parseSeriesIndex(sourceImport?.volume) ??
-				metadata?.seriesIndex ??
-				parseSeriesIndex(metadata?.volume),
+			series_index: resolveSeriesIndex({
+				seriesIndex: sourceImport?.seriesIndex,
+				volume: sourceImport?.volume,
+				fallbackSeriesIndex: metadata?.seriesIndex,
+				fallbackVolume: metadata?.volume
+			}),
 			edition: metadata?.edition ?? null,
 			identifier: pickText(extractedMetadata?.identifier, metadata?.identifier),
 			pages: metadata?.pages ?? null,

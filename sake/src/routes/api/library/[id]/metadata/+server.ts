@@ -84,7 +84,8 @@ function parseOptionalString(
 
 function parseNullableNumber(
 	body: Record<string, unknown>,
-	key: keyof MetadataUpdateInput
+	key: keyof MetadataUpdateInput,
+	options?: { min?: number }
 ): number | null | undefined {
 	if (!(key in body)) {
 		return undefined;
@@ -94,6 +95,9 @@ function parseNullableNumber(
 		return null;
 	}
 	if (typeof value === 'number' && Number.isFinite(value)) {
+		if (options?.min !== undefined && value < options.min) {
+			throw new Error(`${String(key)} must be at least ${options.min}`);
+		}
 		return value;
 	}
 	throw new Error(`${String(key)} must be a number or null`);
@@ -116,7 +120,7 @@ function parseMetadataUpdateInput(body: unknown): MetadataUpdateInput {
 		publisher: parseNullableString(body, 'publisher'),
 		series: parseNullableString(body, 'series'),
 		volume: parseNullableString(body, 'volume'),
-		seriesIndex: parseNullableNumber(body, 'seriesIndex'),
+		seriesIndex: parseNullableNumber(body, 'seriesIndex', { min: 0 }),
 		edition: parseNullableString(body, 'edition'),
 		identifier: parseNullableString(body, 'identifier'),
 		pages: parseNullableNumber(body, 'pages'),

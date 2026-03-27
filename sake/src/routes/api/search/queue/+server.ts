@@ -54,9 +54,17 @@ function parseBody(raw: unknown): QueueSearchBookRequest {
 
 	for (const key of ['pages', 'filesize', 'year', 'seriesIndex'] as const) {
 		const value = raw[key];
-		if (value !== undefined && value !== null && typeof value !== 'number') {
+		if (
+			value !== undefined &&
+			value !== null &&
+			(typeof value !== 'number' || !Number.isFinite(value))
+		) {
 			throw new Error(`${key} must be a number or null`);
 		}
+	}
+
+	if (typeof raw.seriesIndex === 'number' && raw.seriesIndex < 0) {
+		throw new Error('seriesIndex must be a non-negative number or null');
 	}
 
 	return {

@@ -15,3 +15,20 @@ export function parseSeriesIndex(value: string | number | null | undefined): num
 	const parsed = Number(trimmed);
 	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
+
+export function resolveSeriesIndex(options: {
+	seriesIndex: number | null | undefined;
+	volume: string | null | undefined;
+	fallbackSeriesIndex: number | null | undefined;
+	fallbackVolume: string | null | undefined;
+}): number | null {
+	if (options.seriesIndex !== undefined) {
+		return options.seriesIndex;
+	}
+
+	return (
+		parseSeriesIndex(options.volume) ??
+		options.fallbackSeriesIndex ??
+		parseSeriesIndex(options.fallbackVolume)
+	);
+}

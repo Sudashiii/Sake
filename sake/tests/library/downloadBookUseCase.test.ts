@@ -564,4 +564,93 @@ describe('DownloadBookUseCase', () => {
 			/access denied/
 		);
 	});
+
+	test('preserves an explicit null seriesIndex instead of falling back to parsed volume metadata', async () => {
+		let createdBook: CreateBookInput | null = null;
+
+		const zlibrary = {
+			async tokenLogin(): Promise<ReturnType<typeof apiOk<void>>> {
+				return apiOk(undefined);
+			},
+			async download(): Promise<ReturnType<typeof apiOk<Response>>> {
+				return apiOk(
+					new Response(Buffer.from('pdf-data'), {
+						status: 200,
+						headers: { 'content-type': 'application/pdf' }
+					})
+				);
+			}
+		};
+
+		const repository = {
+			async getByZLibIdIncludingTrashed(): Promise<Book | undefined> {
+				return undefined;
+			},
+			async getByStorageKeyIncludingTrashed(): Promise<Book | undefined> {
+				return undefined;
+			},
+			async create(book: CreateBookInput): Promise<Book> {
+				createdBook = book;
+				return createBookRecord(book);
+			}
+		} as unknown as BookRepositoryPort;
+
+		const externalMetadataService = {
+			async lookup(): Promise<ExternalBookMetadata> {
+				return {
+					...emptyExternalMetadata(),
+					volume: '9',
+					seriesIndex: 9
+				};
+			}
+		} as unknown as ExternalBookMetadataService;
+
+		const useCase = new DownloadBookUseCase(
+			zlibrary as never,
+			repository,
+			{
+				async exists(): Promise<boolean> {
+					return false;
+				}
+			},
+			() => ({
+				async upload(): Promise<void> {}
+			}),
+			{
+				async storeFromSearchImport() {
+					return {
+						managedUrl: null,
+						sourceUrl: null
+					};
+				}
+			},
+			undefined,
+			externalMetadataService
+		);
+
+		const result = await useCase.execute({
+			request: {
+				bookId: '123',
+				hash: 'abc',
+				title: 'Example Book',
+				upload: true,
+				extension: 'pdf',
+				volume: '4',
+				seriesIndex: null,
+				downloadToDevice: false
+			},
+			credentials: {
+				userId: 'user-1',
+				userKey: 'key-1'
+			}
+		});
+
+		assert.equal(result.ok, true);
+		if (createdBook === null) {
+			throw new Error('Expected a created book record');
+		}
+
+		const created = createdBook as CreateBookInput;
+		assert.equal(created.series_index, null);
+	});
 });

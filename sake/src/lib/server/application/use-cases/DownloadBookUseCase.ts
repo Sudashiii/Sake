@@ -11,7 +11,7 @@ import { buildSanitizedBookFileName } from '$lib/server/domain/value-objects/Sto
 import { apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
-import { parseSeriesIndex } from '$lib/utils/series';
+import { resolveSeriesIndex } from '$lib/utils/series';
 
 interface UploadService {
 	upload(fileName: string, data: Buffer | Uint8Array): Promise<void>;
@@ -231,11 +231,12 @@ export class DownloadBookUseCase {
 					publisher: pickText(request.publisher, externalMetadata?.publisher),
 					series: pickText(request.series, externalMetadata?.series),
 					volume: pickText(request.volume, externalMetadata?.volume),
-					series_index:
-						request.seriesIndex ??
-						parseSeriesIndex(request.volume) ??
-						externalMetadata?.seriesIndex ??
-						parseSeriesIndex(externalMetadata?.volume),
+					series_index: resolveSeriesIndex({
+						seriesIndex: request.seriesIndex,
+						volume: request.volume,
+						fallbackSeriesIndex: externalMetadata?.seriesIndex,
+						fallbackVolume: externalMetadata?.volume
+					}),
 					edition: pickText(request.edition, externalMetadata?.edition),
 					identifier: pickText(request.identifier, externalMetadata?.identifier),
 					pages: pickNumber(request.pages, externalMetadata?.pages),
