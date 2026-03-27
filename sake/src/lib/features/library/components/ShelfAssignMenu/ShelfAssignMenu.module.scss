@@ -9,7 +9,7 @@
 }
 
 .list {
-	right: 0.55rem;
+	right: 0.75rem;
 	top: 50%;
 	transform: translateY(-50%);
 }
@@ -44,6 +44,13 @@
 		transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
 		&:hover {
+			color: var(--color-text-primary);
+			border-color: rgba(255, 255, 255, 0.3);
+		}
+
+		&:focus-visible,
+		&[aria-expanded='true'] {
+			opacity: 1;
 			color: var(--color-text-primary);
 			border-color: rgba(255, 255, 255, 0.3);
 		}

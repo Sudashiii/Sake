@@ -28,7 +28,16 @@
 
 <div class={`${styles.root} ${position === 'grid' ? styles.grid : styles.list}`}>
 	<div class="shelf-assign-wrap">
-		<button type="button" class={`shelf-assign-btn ${position === 'list' ? 'shelf-assign-btn-list' : ''}`} title="Add to shelf" onclick={(event) => { event.stopPropagation(); onToggleOpen(); }}>
+		<button
+			type="button"
+			class={`shelf-assign-btn ${position === 'list' ? 'shelf-assign-btn-list' : ''}`}
+			title="Add to shelf"
+			aria-expanded={open}
+			onclick={(event) => {
+				event.stopPropagation();
+				onToggleOpen();
+			}}
+		>
 			<BookmarkPlusIcon size={13} decorative={true} />
 		</button>
 		{#if open}
