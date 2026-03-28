@@ -166,7 +166,16 @@ The login step exchanges your password for a device API key and clears the passw
 
 You can also export ebooks from the devices home folder back to the web app, including sidecar data such as progress and notes. Great if you have a pre-existing library on your device!
 
-KOReader plugin releases are tracked in the database and the artifacts are served through S3-compatible storage
+KOReader plugin releases are tracked in the database and the artifacts are served through S3-compatible storage. If the KOReader plugin is updated and you start the app, the new version will be uploaded to S3 so you can use the updater plugin to easily update the core plugin without needing to manually mvoe the files to your KOReader device.
+
+### Concrete Usage
+- The Plugin can be found under "Settings" --> "More tools" --> "Sake"
+- Books are are downloaded when pressing "Sync Books now" or when setting the device to sleep
+- The progress gets automatically uploaded when putting the device to sleep and you are currently in the book (dont exit the book!)
+- If you use multiple devices, the progress needs to be manually downloadede with the "Sync progress now" button. (I had problems getting background sync to work, but im still working on it!)
+- Pressing "Export Existing Library" tries to upload every book and progress sidecar to the WebApp. This takes a while and the E-Reader is not usable before finishing!
+- Before using it you need to set the API URL (base url like, sake.yourdomain.com) and login to fetch the API Key. Your password will be removed from the device after logging in.
+- You can optionally change the auto generated device name. The device name will show up in the WebApp in the API-Key list and on the Book Detail you ("Downloaded on device x)
 
 ## Search providers and downloads
 
