@@ -2,6 +2,7 @@
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from "$lib/auth/responseSignals";
+	import { toastStore } from "$lib/client/stores/toastStore.svelte";
 	import { ZUI } from "$lib/client/zui";
 	import { ZLibAuthService } from "$lib/client/services/zlibAuthService";
 	import Sidebar from "$lib/components/sidebar/Sidebar/Sidebar.svelte";
@@ -27,6 +28,7 @@
 	let zlibName = $state("");
 	let authMode = $state<"password" | "remix">("password");
 	let isLoading = $state(false);
+	let isLoggingOutZLibrary = $state(false);
 	let error = $state<ApiError | null>(null);
 	let sidebarCollapsed = $state(false);
 	let sidebarMobileOpen = $state(false);
@@ -87,6 +89,7 @@
 			if (!result.ok) {
 				error = result.error;
 			} else {
+				zlibName = ZLibAuthService.getStoredUserName();
 				closeModal();
 			}
 		} else {
@@ -105,9 +108,22 @@
 		isLoading = false;
 	}
 
-	function handleLogout() {
-		ZLibAuthService.clearUserName();
+	async function handleZLibraryLogout() {
+		if (isLoggingOutZLibrary) {
+			return;
+		}
+
+		isLoggingOutZLibrary = true;
+		const result = await ZLibAuthService.logout();
+		isLoggingOutZLibrary = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to log out from Z-Library: ${result.error.message}`, 'error');
+			return;
+		}
+
 		zlibName = "";
+		toastStore.add('Logged out from Z-Library', 'success');
 	}
 
 	function handleSidebarToggle() {
@@ -194,6 +210,10 @@
 		<Sidebar
 			bind:collapsed={sidebarCollapsed}
 			bind:mobileOpen={sidebarMobileOpen}
+			{zlibName}
+			{isLoggingOutZLibrary}
+			onOpenZLibraryLogin={openModal}
+			onLogoutZLibrary={() => void handleZLibraryLogout()}
 			onToggle={handleSidebarToggle}
 		/>
 	{/if}
@@ -202,10 +222,7 @@
 		{#if !isLoginPage}
 			<AppTopBar
 				currentSection={currentSection}
-				zlibName={zlibName}
 				onToggleMobileSidebar={toggleMobileSidebar}
-				onOpenAuthModal={openModal}
-				onLogout={handleLogout}
 			/>
 		{/if}
 

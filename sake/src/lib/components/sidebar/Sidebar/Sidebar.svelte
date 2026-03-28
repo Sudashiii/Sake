@@ -31,6 +31,10 @@
 	interface Props {
 		collapsed?: boolean;
 		mobileOpen?: boolean;
+		zlibName: string;
+		isLoggingOutZLibrary?: boolean;
+		onOpenZLibraryLogin: () => void;
+		onLogoutZLibrary: () => void;
 		onToggle?: () => void;
 	}
 
@@ -41,17 +45,22 @@
 	const appEnvironment = dev ? 'Development' : 'Production';
 	const APP_SOURCE_URL = 'https://github.com/Sudashiii/Sake';
 	const APP_SOURCE_LABEL = 'https://github.com/Sudashiii/Sake';
-	const SETTINGS_SECTIONS = [
+	const SETTINGS_BASE_SECTIONS = [
 		{ id: 'app', label: 'App' },
 		{ id: 'account', label: 'Account' },
 		{ id: 'devices', label: 'Devices' }
 	] as const;
+	const LOGINS_SETTINGS_SECTION = { id: 'logins', label: 'Logins' } as const;
 
-	type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]['id'];
+	type SettingsSectionId = (typeof SETTINGS_BASE_SECTIONS)[number]['id'] | typeof LOGINS_SETTINGS_SECTION.id;
 
 	let {
 		collapsed = $bindable(false),
 		mobileOpen = $bindable(false),
+		zlibName,
+		isLoggingOutZLibrary = false,
+		onOpenZLibraryLogin,
+		onLogoutZLibrary,
 		onToggle
 	}: Props = $props();
 
@@ -116,6 +125,16 @@
 
 	let isLibraryActive = $derived($page.url.pathname === '/library');
 	let visibleMenuItems = $derived(getMenuItems($page.data.searchEnabled));
+	let showZLibraryLogin = $derived($page.data.activeSearchProviders.includes('zlibrary'));
+	let settingsSections = $derived(
+		showZLibraryLogin ? [...SETTINGS_BASE_SECTIONS, LOGINS_SETTINGS_SECTION] : SETTINGS_BASE_SECTIONS
+	);
+
+	$effect(() => {
+		if (!showZLibraryLogin && activeSettingsSection === 'logins') {
+			activeSettingsSection = 'app';
+		}
+	});
 
 	function emitShelvesChanged(): void {
 		if (typeof window !== 'undefined') {
@@ -782,8 +801,11 @@
 
 <SidebarSettingsModal
 	open={showSettingsModal}
-	sections={SETTINGS_SECTIONS}
+	sections={settingsSections}
 	bind:activeSection={activeSettingsSection}
+	{zlibName}
+	{showZLibraryLogin}
+	{isLoggingOutZLibrary}
 	{currentUser}
 	{currentUserError}
 	{isLoadingCurrentUser}
@@ -801,6 +823,8 @@
 	appSourceLabel={APP_SOURCE_LABEL}
 	{formatDateTime}
 	onClose={closeSettingsModal}
+	onOpenZLibraryLogin={onOpenZLibraryLogin}
+	onLogoutZLibrary={onLogoutZLibrary}
 	onRefreshApiKeys={() => void loadAuthApiKeys()}
 	onRevokeApiKey={(apiKeyId, deviceId) => void handleRevokeApiKey(apiKeyId, deviceId)}
 	onRefreshDevices={() => void loadDevices()}

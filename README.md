@@ -211,7 +211,7 @@ KOReader plugin releases are tracked in the database and the artifacts are serve
 Search is provider-based and routed through `POST /api/search`.
 
 - `openlibrary` and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
-- `zlibrary` also requires you to connect your Z-Library session in the UI
+- `zlibrary` also requires you to connect your Z-Library session in `Settings -> Logins`
 
 To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
 
@@ -219,7 +219,7 @@ To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
 ACTIVATED_PROVIDERS=zlib,openlib,gutenberg
 ```
 
-In the app UI, use `Connect Z-Library` and either:
+In the app UI, open `Settings -> Logins`, then use `Connect Z-Library` and either:
 
 - log in with your email and password, or
 - copy `remix_userid` and `remix_userkey` from your Z-Library cookies

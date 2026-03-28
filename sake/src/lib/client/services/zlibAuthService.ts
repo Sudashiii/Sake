@@ -6,6 +6,8 @@ import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLogi
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
 import { ZUI } from '../zui';
 
+export const ZLIBRARY_TOKEN_LOGIN_LABEL = 'Connected with remix credentials';
+
 /**
  * Service for Z-Library authentication operations.
  */
@@ -29,7 +31,23 @@ export const ZLibAuthService = {
 	 */
 	async tokenLogin(userId: string, userKey: string): Promise<Result<void, ApiError>> {
 		const payload: ZTokenLoginRequest = { userId, userKey };
-		return ZUI.tokenLogin(payload);
+		const result = await ZUI.tokenLogin(payload);
+
+		if (result.ok) {
+			this.storeUserName(ZLIBRARY_TOKEN_LOGIN_LABEL);
+		}
+
+		return result;
+	},
+
+	async logout(): Promise<Result<void, ApiError>> {
+		const result = await ZUI.logoutZLibrary();
+
+		if (result.ok) {
+			this.clearUserName();
+		}
+
+		return result;
 	},
 
 	/**

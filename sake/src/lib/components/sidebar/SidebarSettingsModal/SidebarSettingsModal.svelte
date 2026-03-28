@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import AppWindowIcon from '$lib/assets/icons/AppWindowIcon.svelte';
+	import LogInIcon from '$lib/assets/icons/LogInIcon.svelte';
 	import SmartphoneIcon from '$lib/assets/icons/SmartphoneIcon.svelte';
 	import UserCircleIcon from '$lib/assets/icons/UserCircleIcon.svelte';
 	import XIcon from '$lib/assets/icons/XIcon.svelte';
 	import SidebarSettingsAppPane from '../SidebarSettingsAppPane/SidebarSettingsAppPane.svelte';
 	import SidebarSettingsAccountPane from '../SidebarSettingsAccountPane/SidebarSettingsAccountPane.svelte';
 	import SidebarSettingsDevicesPane from '../SidebarSettingsDevicesPane/SidebarSettingsDevicesPane.svelte';
+	import SidebarSettingsLoginsPane from '../SidebarSettingsLoginsPane/SidebarSettingsLoginsPane.svelte';
 	import styles from './SidebarSettingsModal.module.scss';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
@@ -21,6 +23,9 @@
 		open?: boolean;
 		sections: readonly SettingsSection[];
 		activeSection?: string;
+		zlibName: string;
+		showZLibraryLogin: boolean;
+		isLoggingOutZLibrary?: boolean;
 		currentUser: CurrentUser | null;
 		currentUserError: string | null;
 		isLoadingCurrentUser?: boolean;
@@ -38,6 +43,8 @@
 		appSourceLabel: string;
 		formatDateTime: (value: string | null) => string;
 		onClose: () => void;
+		onOpenZLibraryLogin: () => void;
+		onLogoutZLibrary: () => void;
 		onRefreshApiKeys: () => void;
 		onRevokeApiKey: (apiKeyId: number, deviceId: string) => void;
 		onRefreshDevices: () => void;
@@ -52,6 +59,9 @@
 		open = false,
 		sections,
 		activeSection = $bindable('app'),
+		zlibName,
+		showZLibraryLogin,
+		isLoggingOutZLibrary = false,
 		currentUser,
 		currentUserError,
 		isLoadingCurrentUser = false,
@@ -69,6 +79,8 @@
 		appSourceLabel,
 		formatDateTime,
 		onClose,
+		onOpenZLibraryLogin,
+		onLogoutZLibrary,
 		onRefreshApiKeys,
 		onRevokeApiKey,
 		onRefreshDevices,
@@ -97,6 +109,9 @@
 	function getSectionIcon(sectionId: string) {
 		if (sectionId === 'app') {
 			return AppWindowIcon;
+		}
+		if (sectionId === 'logins') {
+			return LogInIcon;
 		}
 		if (sectionId === 'devices') {
 			return SmartphoneIcon;
@@ -129,6 +144,14 @@
 				<div class="settings-modal-body">
 					{#if activeSection === 'app'}
 						<SidebarSettingsAppPane {appVersion} {appEnvironment} appSourceUrl={appSourceUrl} appSourceLabel={appSourceLabel} />
+					{:else if activeSection === 'logins'}
+						<SidebarSettingsLoginsPane
+							{zlibName}
+							{showZLibraryLogin}
+							{isLoggingOutZLibrary}
+							onOpenZLibraryLogin={onOpenZLibraryLogin}
+							onLogoutZLibrary={onLogoutZLibrary}
+						/>
 					{:else if activeSection === 'account'}
 						<SidebarSettingsAccountPane
 							{currentUser}

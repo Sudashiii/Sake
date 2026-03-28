@@ -14,6 +14,7 @@ export const ZUIRoutes = {
 	searchBookMetadata: '/zlibrary/search/metadata',
 	passwordLogin: '/zlibrary/passwordLogin',
 	tokenLogin: '/zlibrary/login',
+	zlibraryLogout: '/zlibrary/logout',
 	downloadBook: '/zlibrary/download',
 	library: '/library/list'
 } as const;

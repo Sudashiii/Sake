@@ -41,66 +41,6 @@
 	}
 }
 
-.loginArea {
-	display: flex;
-	align-items: center;
-}
-
-.userInfo {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-}
-
-.userBadge {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	padding: 0.36rem 0.7rem;
-	border-radius: 999px;
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	background: var(--color-surface-2);
-	font-size: 0.75rem;
-	font-weight: 500;
-	color: var(--color-text-secondary);
-}
-
-.logoutBtn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 1.95rem;
-	height: 1.95rem;
-	border-radius: 0.55rem;
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-2);
-	color: var(--color-text-secondary);
-	cursor: pointer;
-
-	&:hover {
-		color: var(--color-text-primary);
-		background: #212531;
-	}
-}
-
-.connectBtn {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.4rem;
-	padding: 0.44rem 0.76rem;
-	border-radius: 0.58rem;
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	background: var(--color-primary);
-	color: var(--color-primary-foreground);
-	font-size: 0.76rem;
-	font-weight: 600;
-	cursor: pointer;
-
-	&:hover {
-		filter: brightness(1.05);
-	}
-}
-
 @media (max-width: 900px) {
 	.mobileMenuBtn {
 		display: inline-flex;
@@ -110,17 +50,5 @@
 @media (max-width: 640px) {
 	.root {
 		padding: 0.5rem 0.65rem;
-	}
-
-	.connectBtn {
-		padding: 0.38rem 0.58rem;
-		font-size: 0.72rem;
-	}
-
-	.userBadge {
-		max-width: 140px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 }

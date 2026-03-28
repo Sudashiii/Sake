@@ -17,6 +17,7 @@ import {
 import { downloadSearchBook } from './routes/downloadSearchBook';
 import { queueSearchBookToLibrary, type QueueSearchBookResponse } from './routes/queueSearchBookToLibrary';
 import { tokenLogin } from './routes/tokenLogin';
+import { logoutZLibrary } from './routes/logoutZLibrary';
 import { getLibrary, type LibraryResponse } from './routes/getLibrary';
 import { getLibraryTrash, type LibraryTrashResponse } from './routes/getLibraryTrash';
 import { getLibraryBookDetail } from './routes/getLibraryBookDetail';
@@ -89,6 +90,8 @@ export const ZUI = {
 
 	tokenLogin: (request: ZTokenLoginRequest): Promise<Result<void, ApiError>> =>
 		tokenLogin(request),
+
+	logoutZLibrary: (): Promise<Result<void, ApiError>> => logoutZLibrary(),
 
 	getAuthApiKeys: (): Promise<Result<AuthApiKeysResponse, ApiError>> => getAuthApiKeys(),
 
