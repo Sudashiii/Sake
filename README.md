@@ -1,51 +1,43 @@
 # Sake
 
-Sake is a small personal reading stack built around a Svelte web app and a KOReader plugin.
+Sake is a self-hostable reading stack built around a Svelte web app and a KOReader plugin.
 
-The idea is simple: keep your library in one place, sync reading progress between devices, and make the KOReader workflow less annoying.
+It keeps your library, reading progress, and device sync in one place, with optional search/download providers for importing books into your collection.
 
-## What is in this repo?
+## What lives in this repo?
 
-- `sake/` - the main web app and API (`Svelte 5` + `SvelteKit`)
-- `koreaderPlugins/` - the KOReader plugins used by Sake
+This repository has two important layers:
 
-## Features
+- `sake/` - the actual SvelteKit app (`Svelte 5` + `SvelteKit` + `Bun`)
+- `koreaderPlugins/` - the KOReader plugin shipped by the app
+- `docs/` - shared project documentation and screenshots
 
-- Personal reading hub for managing books, metadata, shelves, ratings, and reading state
-- KOReader integration for syncing books, progress, and plugin updates across devices
-- Provider-based search with direct download or import into your library
-- Local account auth plus device API keys for secure browser and device access
-- Self-hostable stack with libSQL and S3-compatible storage
-- Built to keep your library, progress, and KOReader workflow in one place
+If you are working on the app itself, run app commands from `sake/`.
 
-## Usage
+## What Sake does
 
-### Fully Selfhosted with Docker
+- Manage a personal library with metadata, shelves, ratings, and reading state
+- Sync KOReader devices with the web app
+- Keep reading progress and sidecar data in sync
+- Import books through provider-based search and download flows
+- Serve KOReader plugin updates from the same stack
+- Run on libSQL plus S3-compatible object storage
 
-Use `sake/.env.docker.selfhosted`. The included `docker-compose.selfhost.yaml` brings up the web app, a local file-backed libSQL database, SeaweedFS as the S3-compatible storage layer, and a migrator that applies schema changes on startup.
+## Choose a setup
 
-Example env:
+### 1. Self-hosted reference stack
 
-```env
-LIBSQL_URL=file:/data/sake.db
-LIBSQL_AUTH_TOKEN=
+Use this if you want the easiest all-in-one setup for local or personal self-hosting.
 
-S3_ENDPOINT=http://seaweedfs:8333
-S3_REGION=us-east-1
-S3_BUCKET=sake
-S3_ACCESS_KEY_ID=sakeadmin
-S3_SECRET_ACCESS_KEY=sakeadminsecret
-S3_FORCE_PATH_STYLE=true
+It uses:
 
-AWS_ACCESS_KEY_ID=sakeadmin
-AWS_SECRET_ACCESS_KEY=sakeadminsecret
-AWS_DEFAULT_REGION=us-east-1
+- `docker-compose.selfhost.yaml` at the repository root
+- `sake/.env.docker.selfhosted`
+- a file-backed libSQL database
+- SeaweedFS as the S3-compatible storage example
+- a one-shot migrator container that applies schema changes before the app starts
 
-ACTIVATED_PROVIDERS=openlibrary,gutenberg
-# GOOGLE_BOOKS_API_KEY=
-```
-
-Start it from the repository root:
+From the repository root:
 
 ```bash
 docker compose -f docker-compose.selfhost.yaml up --build
@@ -53,43 +45,71 @@ docker compose -f docker-compose.selfhost.yaml up --build
 
 Then open `http://localhost:5173`.
 
-### WebApp selfhosted and external db and storage
+Data is persisted under:
 
-This is the preferred setup if you want to self-host only the Sake web app while using external managed infrastructure. Turso works great as a free libSQL host, and Cloudflare R2 works great as a free S3-compatible bucket host.
+- `./.data/selfhost/libsql`
+- `./.data/selfhost/seaweedfs`
 
-Use `sake/.env.docker.managed`.
+### 2. Docker app container with external database/storage
 
-Example env:
+Use this if you want to run only the Sake containers but keep your database and object storage elsewhere, for example:
 
-```env
-LIBSQL_URL=libsql://your-database-name.turso.io
-LIBSQL_AUTH_TOKEN=your-turso-auth-token
+- Turso for libSQL
+- Cloudflare R2 or another S3-compatible storage provider
 
-S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
-S3_REGION=auto
-S3_BUCKET=your-bucket-name
-S3_ACCESS_KEY_ID=your-r2-access-key-id
-S3_SECRET_ACCESS_KEY=your-r2-secret-access-key
-S3_FORCE_PATH_STYLE=false
-
-ACTIVATED_PROVIDERS=openlibrary,gutenberg
-VITE_ALLOWED_HOSTS=
-# GOOGLE_BOOKS_API_KEY=
-```
-
-Then start the app from the repository root:
+Edit `sake/.env`, then start from the repository root:
 
 ```bash
 docker compose up --build
 ```
 
-This stack runs the web app plus a migrator container. Your database and bucket stay external.
+This Compose stack runs:
 
-### Without Docker
+- `sake-migrator` first (`bun run db:migrate`)
+- `sake` after the migration succeeds
 
-Without Docker, always use `sake/.env`.
+Then open `http://localhost:5173`.
 
-Managed example for `sake/.env`:
+### 3. Local Bun development without Docker
+
+Use this if you are developing the app locally and already have a reachable database and S3-compatible storage.
+
+Configure `sake/.env`, then run from `sake/`:
+
+```bash
+bun install
+bun run db:migrate
+bun run dev
+```
+
+Then open `http://localhost:5173`.
+
+If you are not using Docker Compose, run `bun run db:migrate` before first boot and again after future schema changes.
+
+## Configuration
+
+Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
+
+### Required groups
+
+- `LIBSQL_*` - database connection
+- `S3_*` - S3-compatible object storage connection
+
+### Optional values
+
+- `VITE_ALLOWED_HOSTS` - comma-separated host overrides for Vite/dev setups
+- `ACTIVATED_PROVIDERS` - comma-separated search providers
+- `BODY_SIZE_LIMIT` - upload/body size limit
+
+If `ACTIVATED_PROVIDERS` is unset, blank, or contains no valid values, search stays disabled and the search UI remains hidden.
+
+Accepted provider names:
+
+- `openlib` or `openlibrary`
+- `gutenberg`
+- `zlib` or `zlibrary`
+
+### Example: managed infrastructure
 
 ```env
 LIBSQL_URL=libsql://your-database-name.turso.io
@@ -98,16 +118,16 @@ LIBSQL_AUTH_TOKEN=your-turso-auth-token
 S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 S3_REGION=auto
 S3_BUCKET=your-bucket-name
-S3_ACCESS_KEY_ID=your-r2-access-key-id
-S3_SECRET_ACCESS_KEY=your-r2-secret-access-key
+S3_ACCESS_KEY_ID=your-access-key-id
+S3_SECRET_ACCESS_KEY=your-secret-access-key
 S3_FORCE_PATH_STYLE=false
 
-ACTIVATED_PROVIDERS=openlibrary,gutenberg
+ACTIVATED_PROVIDERS=openlib,gutenberg
 VITE_ALLOWED_HOSTS=
-# GOOGLE_BOOKS_API_KEY=
+BODY_SIZE_LIMIT=Infinity
 ```
 
-Fully selfhosted example for `sake/.env`:
+### Example: fully self-hosted
 
 ```env
 LIBSQL_URL=file:./sake-selfhosted.db
@@ -120,86 +140,80 @@ S3_ACCESS_KEY_ID=sakeadmin
 S3_SECRET_ACCESS_KEY=sakeadminsecret
 S3_FORCE_PATH_STYLE=true
 
-ACTIVATED_PROVIDERS=openlibrary,gutenberg
+ACTIVATED_PROVIDERS=openlib,gutenberg
 VITE_ALLOWED_HOSTS=
-# GOOGLE_BOOKS_API_KEY=
+BODY_SIZE_LIMIT=Infinity
 ```
 
-Make sure your database and S3-compatible storage are reachable from the host, then start the app:
+## First boot
+
+If the database is empty, Sake exposes the normal bootstrap flow in the UI so you can create the first account there. You do not need to predefine a user in the environment.
+
+## KOReader plugin
+
+The KOReader plugin lives in `koreaderPlugins/sake.koplugin`.
+
+Basic setup flow:
+
+1. Install the plugin in KOReader like any other plugin.
+2. Open `Settings -> More tools -> Sake`.
+3. Set the public URL of your Sake web app.
+4. Log in with the same username and password you use in the web app.
+5. Choose `Login and fetch device key`.
+6. Use the sync actions to pull books, push progress, or check for plugin updates.
+
+The login step exchanges your password for a device API key and clears the password from the device afterward.
+
+You can also export ebooks from the devices home folder back to the web app, including sidecar data such as progress and notes. Great if you have a pre-existing library on your device!
+
+KOReader plugin releases are tracked in the database and the artifacts are served through S3-compatible storage
+
+## Search providers and downloads
+
+Search is provider-based and routed through `POST /api/search`.
+
+- `openlibrary` and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
+- `zlibrary` also requires you to connect your Z-Library session in the UI
+
+To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
+
+```env
+ACTIVATED_PROVIDERS=zlib,openlib,gutenberg
+```
+
+In the app UI, use `Connect Z-Library` and either:
+
+- log in with your email and password, or
+- copy `remix_userid` and `remix_userkey` from your Z-Library cookies
+
+The app uses those session values for authenticated Z-Library requests.
+
+## Useful commands
+
+Run these from `sake/`:
 
 ```bash
-cd sake
-bun install
-bun run db:migrate
 bun run dev
+bun run build
+bun run preview
+bun run check
+bun run test
+bun run db:generate
+bun run db:migrate
+bun run db:status
 ```
 
-If you are not starting through Docker Compose, run `bun run db:migrate` once before first boot and again after future schema changes.
+## Screenshots
 
-Then open `http://localhost:5173`.
+### Web app
 
-## How to use the KOReader plugin
+<img src="./docs/img/library.png" alt="Library view" width="700">
+<img src="./docs/img/search.png" alt="Search view" width="700">
 
-1. Install the plugin as any other (by moving it into the plugin folder)
+### KOReader plugin
 
-2. Go to settings -> more tools
-
-<img src="./docs/img/SettingsMoreTools.png" alt="KOReader Settings" width="350">
-
-3. Select "Sake"
-
-<img src="./docs/img/Sake.png" alt="KOReader Settings" width="350">
-
-<img src="./docs/img/SakeMenu.png" alt="KOReader Settings" width="350">
-
-4. Set the public URL where you host the webapp (eg. sake.yourdomain.com)
-
-5. Set the username and passowrd (the same login data as the webapp)
-
-6. Press "Login and fetch device key". This will fetch an api key, store it, and clear the password from your device
-
-7. Press Sync books to download all the books in your sake library
-
-8. Enjoy!
-
-
-Optionally you can export the current ebooks to the Webapp. This will take all books in the home folder and it's subfolders and upload them. The sidecar file for progress and notes is also exported.
-
-## How to enable downloads via Z-Library
-
-At the top of the page there is a button "Connect Z-Library". You need to either login with e-mail and password (will not get stored) or login yourself on the official z-library page and copy th remix_userkey and remix_userid out of your cookies. 
-
-When logging in with your password the app simply makes a post request to the login page and sets the cookies for the remix values in your browser. These values get used to make authenticated requests to z-library, so your password is safe.
-
-Make sure that the provider is enabled first, add `zlib` as value in active providers
-
-`ACTIVATED_PROVIDERS=zlib`
-
-## Tips
-
-- Sake will download new books automatically if you set your device to sleep
-- Right now, book progress needs to be synced manually with "Sync progress now"
-- On Startup, if the version number of the sake plugin gets checked. If a version increase is detected it will be uploaded to the object storage and the "check for updates" button can be used to automatically download and install the update. This is a easy way to tweak the plugin and get it onto your device.
-
-
-## A few images
-
-### Webapp
-<img src="./docs/img/library.png" alt="Library" width="700">
-<img src="./docs/img/detail.png" alt="Detail" width="700">
-<img src="./docs/img/progress.png" alt="Progress" width="700">
-<img src="./docs/img/search.png" alt="Search" width="700">
-
-### KOReader Plugin
-<img src="./docs/img/SakeDownload.png" alt="KOReader Menu" width="350">
-<img src="./docs/img/SakeMenu.png" alt="KOReader Download" width="350">
-
-## Notes
-
-- Database migrations live in `sake/` and are managed with Drizzle.
-- KOReader plugin releases are served by the `sake` app, while plugin artifacts are stored in S3-compatible object storage.
-- API route lookup is available in the app at `/api/_routes` and `/api/docs`.
-- A self-host reference stack is available at `docker-compose.selfhost.yaml`.
+<img src="./docs/img/SakeMenu.png" alt="KOReader plugin menu" width="350">
+<img src="./docs/img/SakeDownload.png" alt="KOReader plugin download view" width="350">
 
 ## License
 
