@@ -31,13 +31,20 @@ Use this if you want the easiest all-in-one setup for local or personal self-hos
 
 It uses:
 
+- `docker-examples/docker-compose.prebuilt.selfhost.yaml` for the published image path
 - `docker-compose.selfhost.yaml` at the repository root
 - `sake/.env.docker.selfhosted`
 - a file-backed libSQL database
 - SeaweedFS as the S3-compatible storage example
 - a one-shot migrator container that applies schema changes before the app starts
 
-From the repository root:
+From the repository root with the prebuilt image:
+
+```bash
+docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up
+```
+
+Or build it locally from source:
 
 ```bash
 docker compose -f docker-compose.selfhost.yaml up --build
@@ -57,7 +64,13 @@ Use this if you want to run only the Sake containers but keep your database and 
 - Turso for libSQL
 - Cloudflare R2 or another S3-compatible storage provider
 
-Edit `sake/.env`, then start from the repository root:
+Edit `sake/.env`, then start from the repository root with the prebuilt image:
+
+```bash
+docker compose -f docker-examples/docker-compose.prebuilt.yaml up
+```
+
+Or build it locally from source:
 
 ```bash
 docker compose up --build
@@ -85,6 +98,22 @@ bun run dev
 Then open `http://localhost:5173`.
 
 If you are not using Docker Compose, run `bun run db:migrate` before first boot and again after future schema changes.
+
+### 4. Pin a prebuilt image version
+
+Published images live at `ghcr.io/sudashiii/sake`.
+
+Available tags:
+
+- `latest`
+- `<version>` where `<version>` matches the existing CalVer without the `webapp/v` prefix
+- `sha-<shortsha>`
+
+Example:
+
+```bash
+SAKE_IMAGE=ghcr.io/sudashiii/sake:2026.03.28.1 docker compose -f docker-examples/docker-compose.prebuilt.yaml up
+```
 
 ## Configuration
 
@@ -211,6 +240,13 @@ bun run db:generate
 bun run db:migrate
 bun run db:status
 ```
+
+From the repository root, these compose entry points are available:
+
+- `docker-compose.yaml` for a managed source build
+- `docker-compose.selfhost.yaml` for a self-hosted source build
+- `docker-examples/docker-compose.prebuilt.yaml` for a managed prebuilt image
+- `docker-examples/docker-compose.prebuilt.selfhost.yaml` for a self-hosted prebuilt image
 
 ## Screenshots
 

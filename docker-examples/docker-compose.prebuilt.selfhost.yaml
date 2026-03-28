@@ -1,56 +1,34 @@
 services:
   sake:
-    build:
-      context: .
-      dockerfile: ./sake/dockerfile
-      args:
-        PUBLIC_WEBAPP_VERSION: dev-selfhost
-        PUBLIC_WEBAPP_GIT_TAG: ""
-        PUBLIC_WEBAPP_COMMIT_SHA: ""
-        PUBLIC_WEBAPP_RELEASED_AT: ""
-    image: sake
+    image: ${SAKE_IMAGE:-ghcr.io/sudashiii/sake:latest}
     container_name: sake-selfhost
     ports:
       - "5173:3000"
     env_file:
-      - ./sake/.env.docker.selfhosted
-    environment:
-      PUBLIC_WEBAPP_VERSION: dev-selfhost
-      PUBLIC_WEBAPP_GIT_TAG: ""
-      PUBLIC_WEBAPP_COMMIT_SHA: ""
-      PUBLIC_WEBAPP_RELEASED_AT: ""
-    volumes:
-      - ./.data/selfhost/libsql:/data
-      - ./koreaderPlugins/sake.koplugin:/app/koreaderPlugins/sake.koplugin:ro
+      - ../sake/.env.docker.selfhosted
     depends_on:
       seaweedfs-init:
         condition: service_completed_successfully
       sake-migrator:
         condition: service_completed_successfully
+    volumes:
+      - ../.data/selfhost/libsql:/data
 
   sake-migrator:
-    build:
-      context: .
-      dockerfile: ./sake/dockerfile
-      args:
-        PUBLIC_WEBAPP_VERSION: dev-selfhost
-        PUBLIC_WEBAPP_GIT_TAG: ""
-        PUBLIC_WEBAPP_COMMIT_SHA: ""
-        PUBLIC_WEBAPP_RELEASED_AT: ""
-    image: sake
+    image: ${SAKE_IMAGE:-ghcr.io/sudashiii/sake:latest}
     container_name: sake-selfhost-migrator
     command: ["bun", "run", "db:migrate"]
     env_file:
-      - ./sake/.env.docker.selfhosted
+      - ../sake/.env.docker.selfhosted
     volumes:
-      - ./.data/selfhost/libsql:/data
+      - ../.data/selfhost/libsql:/data
     restart: "no"
 
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: sake-seaweedfs
     env_file:
-      - ./sake/.env.docker.selfhosted
+      - ../sake/.env.docker.selfhosted
     entrypoint:
       - /bin/sh
       - -ec
@@ -82,13 +60,13 @@ services:
       - "8333:8333"
       - "9333:9333"
     volumes:
-      - ./.data/selfhost/seaweedfs:/data
+      - ../.data/selfhost/seaweedfs:/data
 
   seaweedfs-init:
     image: amazon/aws-cli:2.34.7
     container_name: sake-seaweedfs-init
     env_file:
-      - ./sake/.env.docker.selfhosted
+      - ../sake/.env.docker.selfhosted
     depends_on:
       seaweedfs:
         condition: service_started

@@ -292,3 +292,181 @@ jobs:
         shell: bash
         run: |
           docker compose -f docker-compose.selfhost.yaml down --volumes --remove-orphans || true
+
+  docker-prebuilt-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: .
+    env:
+      HOST: 127.0.0.1
+      MANAGED_PORT: '4175'
+      PUBLIC_WEBAPP_COMMIT_SHA: ${{ github.sha }}
+      PUBLIC_WEBAPP_GIT_TAG: ''
+      PUBLIC_WEBAPP_RELEASED_AT: ''
+      PUBLIC_WEBAPP_VERSION: ci-prebuilt-image
+      SAKE_IMAGE: sake-ci:local
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            -f ./sake/dockerfile \
+            -t "$SAKE_IMAGE" \
+            --build-arg PUBLIC_WEBAPP_VERSION="$PUBLIC_WEBAPP_VERSION" \
+            --build-arg PUBLIC_WEBAPP_GIT_TAG="$PUBLIC_WEBAPP_GIT_TAG" \
+            --build-arg PUBLIC_WEBAPP_COMMIT_SHA="$PUBLIC_WEBAPP_COMMIT_SHA" \
+            --build-arg PUBLIC_WEBAPP_RELEASED_AT="$PUBLIC_WEBAPP_RELEASED_AT" \
+            .
+
+      - name: Start managed-host image smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name sake-prebuilt-managed \
+            -p "$MANAGED_PORT:3000" \
+            -e ACTIVATED_PROVIDERS= \
+            -e HOST=0.0.0.0 \
+            -e LIBSQL_AUTH_TOKEN= \
+            -e LIBSQL_URL=libsql://ci-placeholder.turso.io \
+            -e LOG_LEVEL=warn \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            -e PUBLIC_WEBAPP_COMMIT_SHA="$PUBLIC_WEBAPP_COMMIT_SHA" \
+            -e PUBLIC_WEBAPP_GIT_TAG="$PUBLIC_WEBAPP_GIT_TAG" \
+            -e PUBLIC_WEBAPP_RELEASED_AT="$PUBLIC_WEBAPP_RELEASED_AT" \
+            -e PUBLIC_WEBAPP_VERSION="$PUBLIC_WEBAPP_VERSION" \
+            -e SAKE_SKIP_STARTUP_PLUGIN_SYNC=true \
+            -e S3_ACCESS_KEY_ID=ci-placeholder \
+            -e S3_BUCKET=ci-placeholder \
+            -e S3_ENDPOINT=https://example.r2.cloudflarestorage.com \
+            -e S3_FORCE_PATH_STYLE=false \
+            -e S3_REGION=auto \
+            -e S3_SECRET_ACCESS_KEY=ci-placeholder \
+            -e VITE_ALLOWED_HOSTS=127.0.0.1,localhost \
+            "$SAKE_IMAGE"
+
+      - name: Smoke test managed-host image startup
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version_url="http://$HOST:$MANAGED_PORT/api/app/version"
+          version_file="$RUNNER_TEMP/docker-prebuilt-version.json"
+
+          rm -f "$version_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$version_url" >"$version_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$version_file"
+          grep -q '"version":"ci-prebuilt-image"' "$version_file"
+
+      - name: Start selfhosted prebuilt stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up -d
+
+      - name: Smoke test selfhosted prebuilt auth route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          auth_url="http://$HOST:5173/api/auth/status"
+          auth_file="$RUNNER_TEMP/docker-prebuilt-auth-status.json"
+
+          rm -f "$auth_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$auth_url" >"$auth_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$auth_file"
+          grep -q '"success":true' "$auth_file"
+          grep -q '"needsBootstrap":true' "$auth_file"
+
+      - name: Smoke test selfhosted prebuilt plugin metadata route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_url="http://$HOST:5173/api/plugin/koreader/latest"
+          latest_file="$RUNNER_TEMP/docker-prebuilt-plugin-latest.json"
+
+          rm -f "$latest_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS "$latest_url" >"$latest_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$latest_file"
+          grep -q '"downloadUrl"' "$latest_file"
+          grep -q '"version"' "$latest_file"
+
+      - name: Smoke test selfhosted prebuilt plugin download route
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          download_url="http://$HOST:5173/api/plugin/koreader/download"
+          headers_file="$RUNNER_TEMP/docker-prebuilt-plugin-download.headers"
+          zip_file="$RUNNER_TEMP/docker-prebuilt-plugin.zip"
+
+          rm -f "$headers_file" "$zip_file"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS -D "$headers_file" "$download_url" -o "$zip_file"; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          test -s "$zip_file"
+          grep -qi '^content-type: application/zip' "$headers_file"
+          grep -qi '^x-plugin-sha256:' "$headers_file"
+
+      - name: Dump managed-host image logs
+        if: always()
+        shell: bash
+        run: |
+          docker logs sake-prebuilt-managed || true
+
+      - name: Dump selfhosted prebuilt logs
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml logs || true
+
+      - name: Stop managed-host image
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f sake-prebuilt-managed || true
+
+      - name: Stop selfhosted prebuilt stack
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml down --volumes --remove-orphans || true

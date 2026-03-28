@@ -1,0 +1,19 @@
+services:
+  sake-migrator:
+    image: ${SAKE_IMAGE:-ghcr.io/sudashiii/sake:latest}
+    container_name: sake-migrator
+    command: ["bun", "run", "db:migrate"]
+    env_file:
+      - ../sake/.env
+    restart: "no"
+
+  sake:
+    image: ${SAKE_IMAGE:-ghcr.io/sudashiii/sake:latest}
+    container_name: sake
+    depends_on:
+      sake-migrator:
+        condition: service_completed_successfully
+    ports:
+      - "5173:3000"
+    env_file:
+      - ../sake/.env

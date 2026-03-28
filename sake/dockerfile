@@ -7,12 +7,8 @@ RUN if command -v apk >/dev/null 2>&1; then \
 	else \
 		echo "Unsupported base image: no apk/apt-get found" >&2; exit 1; \
 	fi
-COPY package.json bun.lock ./
-COPY .npmrc ./
+COPY sake/package.json sake/bun.lock sake/.npmrc ./
 RUN bun install --frozen-lockfile --omit peer
-
-FROM deps AS migrator
-COPY . .
 
 FROM deps AS builder
 ARG PUBLIC_WEBAPP_VERSION=dev-local
@@ -23,7 +19,7 @@ ENV PUBLIC_WEBAPP_VERSION=${PUBLIC_WEBAPP_VERSION}
 ENV PUBLIC_WEBAPP_GIT_TAG=${PUBLIC_WEBAPP_GIT_TAG}
 ENV PUBLIC_WEBAPP_COMMIT_SHA=${PUBLIC_WEBAPP_COMMIT_SHA}
 ENV PUBLIC_WEBAPP_RELEASED_AT=${PUBLIC_WEBAPP_RELEASED_AT}
-COPY . .
+COPY sake/ ./
 RUN bun run build
 
 FROM oven/bun:1 AS runtime
@@ -46,4 +42,6 @@ ENV PUBLIC_WEBAPP_VERSION=${PUBLIC_WEBAPP_VERSION}
 ENV PUBLIC_WEBAPP_GIT_TAG=${PUBLIC_WEBAPP_GIT_TAG}
 ENV PUBLIC_WEBAPP_COMMIT_SHA=${PUBLIC_WEBAPP_COMMIT_SHA}
 ENV PUBLIC_WEBAPP_RELEASED_AT=${PUBLIC_WEBAPP_RELEASED_AT}
+ENV KOREADER_PLUGIN_DIR=/app/koreaderPlugins/sake.koplugin
+COPY koreaderPlugins/sake.koplugin ./koreaderPlugins/sake.koplugin
 CMD [ "bun", "./build" ]

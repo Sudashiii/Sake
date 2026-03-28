@@ -14,3 +14,15 @@ selfhost-up:
 
 selfhost-down:
     docker compose -f docker-compose.selfhost.yaml down
+
+docker-up-prebuilt:
+    docker compose -f docker-examples/docker-compose.prebuilt.yaml up
+
+docker-down-prebuilt:
+    docker compose -f docker-examples/docker-compose.prebuilt.yaml down
+
+selfhost-up-prebuilt:
+    docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up
+
+selfhost-down-prebuilt:
+    docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml down

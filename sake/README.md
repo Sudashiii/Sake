@@ -29,13 +29,24 @@ For Cloudflare R2, use `S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.co
 
 ## Self-host reference stack
 
-The repository root includes [`docker-compose.selfhost.yaml`](../docker-compose.selfhost.yaml) as a self-host reference stack.
+The repository root includes both source-build and prebuilt-image compose files:
+
+- [`docker-compose.selfhost.yaml`](../docker-compose.selfhost.yaml) for a self-hosted source build
+- [`docker-examples/docker-compose.prebuilt.selfhost.yaml`](../docker-examples/docker-compose.prebuilt.selfhost.yaml) for the published image
+- [`docker-compose.yaml`](../docker-compose.yaml) for a managed source build
+- [`docker-examples/docker-compose.prebuilt.yaml`](../docker-examples/docker-compose.prebuilt.yaml) for a managed prebuilt image
 
 It uses:
 - a file-backed libSQL target by default (`LIBSQL_URL=file:/data/sake.db`)
 - SeaweedFS as the primary self-hosted S3-compatible object store example
 
-Start it from the repository root with:
+Start the published image from the repository root with:
+
+```bash
+docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up
+```
+
+Or build it locally from source with:
 
 ```bash
 docker compose -f docker-compose.selfhost.yaml up --build
