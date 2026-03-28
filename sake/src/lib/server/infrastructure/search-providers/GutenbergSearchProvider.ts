@@ -1,8 +1,18 @@
 import type {
 	SearchProviderContext,
+	SearchProviderDownloadInput,
+	SearchProviderDownloadPort,
 	SearchProviderPort
 } from '$lib/server/application/ports/SearchProviderPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import {
+	buildDownloadFileName,
+	contentTypeForExtension,
+	fileExtensionFromName,
+	hasText,
+	normalizePreferredDownloadExtension,
+	parseUrl
+} from '$lib/server/infrastructure/search-providers/searchProviderDownloadUtils';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 
@@ -27,8 +37,8 @@ const GUTENBERG_BOOK_CAPABILITIES = {
 	metadataCompleteness: 'medium'
 } as const;
 
-function hasText(value: string | null | undefined): value is string {
-	return typeof value === 'string' && value.trim().length > 0;
+function isTrustedGutenbergHost(hostname: string): boolean {
+	return hostname === 'gutenberg.org' || hostname.endsWith('.gutenberg.org');
 }
 
 function preferredExtensions(input: SearchBooksRequest): string[] {
@@ -118,7 +128,7 @@ function mapBook(book: GutendexBook, input: SearchBooksRequest): SearchResultBoo
 	};
 }
 
-export class GutenbergSearchProvider implements SearchProviderPort {
+export class GutenbergSearchProvider implements SearchProviderPort, SearchProviderDownloadPort {
 	readonly id = 'gutenberg' as const;
 
 	async search(
@@ -157,6 +167,55 @@ export class GutenbergSearchProvider implements SearchProviderPort {
 			return apiOk(mapped);
 		} catch (cause: unknown) {
 			return apiError('Gutenberg search failed', 502, cause);
+		}
+	}
+
+	async download(
+		input: SearchProviderDownloadInput
+	): Promise<
+		ApiResult<{
+			success: true;
+			fileName: string;
+			fileData: Uint8Array;
+			contentType: string;
+		}>
+	> {
+		const url = parseUrl(input.downloadRef.trim());
+		if (!url) {
+			return apiError('Invalid Gutenberg download URL', 400);
+		}
+		if (url.protocol !== 'https:') {
+			return apiError('Unsupported Gutenberg download URL protocol', 400);
+		}
+		if (!isTrustedGutenbergHost(url.hostname)) {
+			return apiError('Untrusted Gutenberg download host', 400);
+		}
+
+		try {
+			const response = await fetch(url, {
+				headers: {
+					'User-Agent': 'Sake/1.0 (+https://github.com/Sudashiii/Sake)'
+				}
+			});
+			if (!response.ok) {
+				return apiError(`Gutenberg download failed with status ${response.status}`, 502);
+			}
+
+			const fileData = new Uint8Array(await response.arrayBuffer());
+			const extension = normalizePreferredDownloadExtension(
+				input.extension ?? fileExtensionFromName(url.pathname) ?? 'epub'
+			);
+			const contentType =
+				response.headers.get('content-type') ?? contentTypeForExtension(extension);
+
+			return apiOk({
+				success: true,
+				fileName: buildDownloadFileName(input.title, extension),
+				fileData,
+				contentType
+			});
+		} catch (cause: unknown) {
+			return apiError('Gutenberg download failed', 502, cause);
 		}
 	}
 }

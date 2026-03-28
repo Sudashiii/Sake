@@ -1,8 +1,18 @@
 import type {
 	SearchProviderContext,
+	SearchProviderDownloadInput,
+	SearchProviderDownloadPort,
 	SearchProviderPort
 } from '$lib/server/application/ports/SearchProviderPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import {
+	buildDownloadFileName,
+	contentTypeForExtension,
+	encodePath,
+	fileExtensionFromName,
+	hasText,
+	normalizePreferredDownloadExtension
+} from '$lib/server/infrastructure/search-providers/searchProviderDownloadUtils';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 
@@ -29,12 +39,16 @@ interface OpenLibrarySearchPayload {
 	docs?: OpenLibrarySearchDoc[];
 }
 
-interface ErrorWithCode {
-	code?: string;
+interface ArchiveMetadataFile {
+	name?: string;
 }
 
-function hasText(value: string | null | undefined): value is string {
-	return typeof value === 'string' && value.trim().length > 0;
+interface ArchiveMetadataPayload {
+	files?: ArchiveMetadataFile[];
+}
+
+interface ErrorWithCode {
+	code?: string;
 }
 
 function normalizeLanguageToken(value: string): string {
@@ -185,6 +199,26 @@ function preferredExtension(input: SearchBooksRequest): string {
 	return normalized ?? 'epub';
 }
 
+function rankOpenLibraryFile(fileName: string, preferredExtension: string): number {
+	const lower = fileName.toLowerCase();
+	if (lower.endsWith(`.${preferredExtension}`)) {
+		return 100;
+	}
+	if (lower.endsWith('.epub')) {
+		return 80;
+	}
+	if (lower.endsWith('.pdf')) {
+		return 70;
+	}
+	if (lower.endsWith('.mobi')) {
+		return 60;
+	}
+	if (lower.endsWith('.azw3')) {
+		return 50;
+	}
+	return -1;
+}
+
 function mapBook(doc: OpenLibrarySearchDoc, input: SearchBooksRequest): SearchResultBook | null {
 	if (!hasText(doc.title) || !hasText(doc.key)) {
 		return null;
@@ -232,7 +266,7 @@ function mapBook(doc: OpenLibrarySearchDoc, input: SearchBooksRequest): SearchRe
 	};
 }
 
-export class OpenLibrarySearchProvider implements SearchProviderPort {
+export class OpenLibrarySearchProvider implements SearchProviderPort, SearchProviderDownloadPort {
 	readonly id = 'openlibrary' as const;
 
 	private async fetchSearch(url: string): Promise<Response> {
@@ -296,6 +330,85 @@ export class OpenLibrarySearchProvider implements SearchProviderPort {
 			return apiOk(books);
 		} catch (cause: unknown) {
 			return apiError(`OpenLibrary search failed: ${describeFailure(cause)}`, 502, cause);
+		}
+	}
+
+	async download(
+		input: SearchProviderDownloadInput
+	): Promise<
+		ApiResult<{
+			success: true;
+			fileName: string;
+			fileData: Uint8Array;
+			contentType: string;
+		}>
+	> {
+		const iaId = input.downloadRef.trim();
+		const preferredExtension = normalizePreferredDownloadExtension(input.extension);
+
+		try {
+			const metadataResponse = await fetch(
+				`https://archive.org/metadata/${encodeURIComponent(iaId)}`,
+				{
+					headers: {
+						Accept: 'application/json',
+						'User-Agent': 'Sake/1.0 (+https://github.com/Sudashiii/Sake)'
+					}
+				}
+			);
+			if (!metadataResponse.ok) {
+				return apiError(
+					`OpenLibrary metadata lookup failed with status ${metadataResponse.status}`,
+					502
+				);
+			}
+
+			const metadataPayload = (await metadataResponse.json()) as ArchiveMetadataPayload;
+			const files = metadataPayload.files ?? [];
+			const fileNames = files
+				.map((file) => file.name)
+				.filter((name): name is string => hasText(name))
+				.map((name) => name.trim());
+
+			const selectedFileName = [...fileNames]
+				.sort(
+					(left, right) =>
+						rankOpenLibraryFile(right, preferredExtension) -
+						rankOpenLibraryFile(left, preferredExtension)
+				)
+				.find((fileName) => rankOpenLibraryFile(fileName, preferredExtension) >= 0);
+
+			if (!selectedFileName) {
+				return apiError('No downloadable public-domain file found on OpenLibrary entry', 404);
+			}
+
+			const downloadUrl = `https://archive.org/download/${encodeURIComponent(iaId)}/${encodePath(selectedFileName)}`;
+			const downloadResponse = await fetch(downloadUrl, {
+				headers: {
+					'User-Agent': 'Sake/1.0 (+https://github.com/Sudashiii/Sake)'
+				}
+			});
+			if (!downloadResponse.ok) {
+				return apiError(
+					`OpenLibrary download failed with status ${downloadResponse.status}`,
+					502
+				);
+			}
+
+			const fileData = new Uint8Array(await downloadResponse.arrayBuffer());
+			const detectedExtension = fileExtensionFromName(selectedFileName) ?? preferredExtension;
+			const contentType =
+				downloadResponse.headers.get('content-type') ??
+				contentTypeForExtension(detectedExtension);
+
+			return apiOk({
+				success: true,
+				fileName: buildDownloadFileName(input.title, detectedExtension),
+				fileData,
+				contentType
+			});
+		} catch (cause: unknown) {
+			return apiError('OpenLibrary download failed', 502, cause);
 		}
 	}
 }

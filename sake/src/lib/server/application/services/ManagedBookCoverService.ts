@@ -4,6 +4,7 @@ import type { SearchProviderId } from '$lib/types/Search/Provider';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 
 const ZLIBRARY_BASE_URL = 'https://1lib.sk';
+const ANNA_ARCHIVE_COVER_HOST = 'annas-archive.gl';
 const OPEN_LIBRARY_COVER_HOST = 'covers.openlibrary.org';
 const LIBRARY_COVER_ROUTE_PREFIX = '/api/library/covers/';
 const LIBRARY_COVER_STORAGE_PREFIX = 'covers/';
@@ -581,6 +582,20 @@ export class ManagedBookCoverService {
 		if (provider === 'openlibrary') {
 			const url = parseUrl(normalized);
 			if (url === null || url.protocol !== 'https:' || url.hostname !== OPEN_LIBRARY_COVER_HOST) {
+				return null;
+			}
+			return url.toString();
+		}
+
+		if (provider === 'anna') {
+			const url = parseUrl(normalized);
+			if (url === null || url.protocol !== 'https:') {
+				return null;
+			}
+			if (
+				url.hostname !== ANNA_ARCHIVE_COVER_HOST &&
+				url.hostname !== OPEN_LIBRARY_COVER_HOST
+			) {
 				return null;
 			}
 			return url.toString();

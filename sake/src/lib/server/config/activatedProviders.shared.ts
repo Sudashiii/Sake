@@ -3,6 +3,10 @@ import { type SearchProviderId } from '$lib/types/Search/Provider';
 const PROVIDER_ALIASES: Record<string, SearchProviderId> = {
 	zlib: 'zlibrary',
 	zlibrary: 'zlibrary',
+	anna: 'anna',
+	annas: 'anna',
+	'annas-archive': 'anna',
+	annasarchive: 'anna',
 	openlib: 'openlibrary',
 	openlibrary: 'openlibrary',
 	gutenberg: 'gutenberg'

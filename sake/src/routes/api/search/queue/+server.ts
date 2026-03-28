@@ -14,7 +14,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isQueueableProvider(value: string): value is QueueableSearchProviderId {
-	return value === 'openlibrary' || value === 'gutenberg';
+	return value === 'anna' || value === 'openlibrary' || value === 'gutenberg';
 }
 
 function parseBody(raw: unknown): QueueSearchBookRequest {

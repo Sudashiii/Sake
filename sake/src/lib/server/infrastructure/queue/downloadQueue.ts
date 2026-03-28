@@ -18,6 +18,8 @@ import type {
 	SearchImportQueueTaskInput,
 	ZLibraryQueueTaskInput
 } from '$lib/server/application/ports/DownloadQueuePort';
+import { createSearchProviders } from '$lib/server/infrastructure/search-providers/searchProviderFactory';
+import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import { randomUUID } from 'node:crypto';
 
 interface BaseQueuedDownload {
@@ -88,15 +90,20 @@ class DownloadQueue {
 	private readonly storage = new S3Storage();
 	private readonly bookRepository = new BookRepository();
 	private readonly managedBookCoverService = new ManagedBookCoverService(this.storage);
+	private readonly zlibraryClient = new ZLibraryClient('https://1lib.sk');
 
 	private readonly downloadBookUseCase = new DownloadBookUseCase(
-		new ZLibraryClient('https://1lib.sk'),
+		this.zlibraryClient,
 		this.bookRepository,
 		this.storage,
 		() => DavUploadServiceFactory.createS3(),
 		this.managedBookCoverService
 	);
-	private readonly downloadSearchBookUseCase = new DownloadSearchBookUseCase();
+	private readonly downloadSearchBookUseCase = new DownloadSearchBookUseCase(
+		createSearchProviders([...SEARCH_PROVIDER_IDS], {
+			zlibrary: this.zlibraryClient
+		})
+	);
 	private readonly putLibraryFileUseCase = new PutLibraryFileUseCase(
 		this.storage,
 		this.bookRepository,

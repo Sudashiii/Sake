@@ -33,6 +33,8 @@
 		switch (book.provider) {
 			case 'zlibrary':
 				return 'Z-Library';
+			case 'anna':
+				return "Anna's Archive";
 			case 'openlibrary':
 				return 'OpenLibrary';
 			case 'gutenberg':

@@ -134,6 +134,7 @@ If `ACTIVATED_PROVIDERS` is unset, blank, or contains no valid values, search st
 
 Accepted provider names:
 
+- `anna`, `annas`, `annas-archive`, or `annasarchive`
 - `openlib` or `openlibrary`
 - `gutenberg`
 - `zlib` or `zlibrary`
@@ -151,7 +152,7 @@ S3_ACCESS_KEY_ID=your-access-key-id
 S3_SECRET_ACCESS_KEY=your-secret-access-key
 S3_FORCE_PATH_STYLE=false
 
-ACTIVATED_PROVIDERS=openlib,gutenberg
+ACTIVATED_PROVIDERS=anna,openlib,gutenberg
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity
 ```
@@ -169,7 +170,7 @@ S3_ACCESS_KEY_ID=sakeadmin
 S3_SECRET_ACCESS_KEY=sakeadminsecret
 S3_FORCE_PATH_STYLE=true
 
-ACTIVATED_PROVIDERS=openlib,gutenberg
+ACTIVATED_PROVIDERS=anna,openlib,gutenberg
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity
 ```
@@ -210,13 +211,13 @@ KOReader plugin releases are tracked in the database and the artifacts are serve
 
 Search is provider-based and routed through `POST /api/search`.
 
-- `openlibrary` and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
+- `anna`, `openlibrary`, and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
 - `zlibrary` also requires you to connect your Z-Library session in `Settings -> Logins`
 
 To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
 
 ```env
-ACTIVATED_PROVIDERS=zlib,openlib,gutenberg
+ACTIVATED_PROVIDERS=zlib,anna,openlib,gutenberg
 ```
 
 In the app UI, open `Settings -> Logins`, then use `Connect Z-Library` and either:

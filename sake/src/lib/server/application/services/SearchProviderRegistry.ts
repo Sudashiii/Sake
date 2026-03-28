@@ -19,6 +19,10 @@ export class SearchProviderRegistry {
 		return [...this.providersById.keys()];
 	}
 
+	find(providerId: SearchProviderId): SearchProviderPort | null {
+		return this.providersById.get(providerId) ?? null;
+	}
+
 	resolve(providerIds: SearchProviderId[]): ResolveProvidersResult {
 		const providers: SearchProviderPort[] = [];
 		const missingProviderIds: SearchProviderId[] = [];

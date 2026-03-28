@@ -74,6 +74,7 @@
 	const displayedBooksByProvider = $derived.by(() => {
 		const grouped: Record<SearchProviderId, SearchResultBook[]> = {
 			zlibrary: [],
+			anna: [],
 			openlibrary: [],
 			gutenberg: []
 		};

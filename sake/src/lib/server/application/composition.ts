@@ -63,9 +63,7 @@ import { DeleteShelfUseCase } from '$lib/server/application/use-cases/DeleteShel
 import { SetBookShelvesUseCase } from '$lib/server/application/use-cases/SetBookShelvesUseCase';
 import { LookupSearchBookMetadataUseCase } from '$lib/server/application/use-cases/LookupSearchBookMetadataUseCase';
 import { SearchBooksUseCase } from '$lib/server/application/use-cases/SearchBooksUseCase';
-import { ZLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/ZLibrarySearchProvider';
-import { OpenLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/OpenLibrarySearchProvider';
-import { GutenbergSearchProvider } from '$lib/server/infrastructure/search-providers/GutenbergSearchProvider';
+import { createSearchProviders } from '$lib/server/infrastructure/search-providers/searchProviderFactory';
 import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
 import { GetAuthStatusUseCase } from '$lib/server/application/use-cases/GetAuthStatusUseCase';
 import { BootstrapLocalAccountUseCase } from '$lib/server/application/use-cases/BootstrapLocalAccountUseCase';
@@ -81,8 +79,7 @@ import { ReportDeviceVersionUseCase } from '$lib/server/application/use-cases/Re
 import { ListDevicesUseCase } from '$lib/server/application/use-cases/ListDevicesUseCase';
 import { DeleteDeviceUseCase } from '$lib/server/application/use-cases/DeleteDeviceUseCase';
 import { getActivatedSearchProviders } from '$lib/server/config/activatedProviders';
-import type { SearchProviderPort } from '$lib/server/application/ports/SearchProviderPort';
-import type { SearchProviderId } from '$lib/types/Search/Provider';
+import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
@@ -117,31 +114,21 @@ export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
 export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();
 const activeSearchProviders = getActivatedSearchProviders();
-
-function createSearchProvider(providerId: SearchProviderId): SearchProviderPort {
-	switch (providerId) {
-		case 'zlibrary':
-			return new ZLibrarySearchProvider(zlibraryClient);
-		case 'openlibrary':
-			return new OpenLibrarySearchProvider();
-		case 'gutenberg':
-			return new GutenbergSearchProvider();
-		default: {
-			const exhaustiveProviderId: never = providerId;
-			throw new Error(`Unsupported search provider: ${exhaustiveProviderId}`);
-		}
-	}
-}
-
-function createActiveSearchProviders(): SearchProviderPort[] {
-	return activeSearchProviders.map((providerId) => createSearchProvider(providerId));
-}
+const searchProviderDependencies = { zlibrary: zlibraryClient };
+const activeSearchProviderInstances = createSearchProviders(
+	activeSearchProviders,
+	searchProviderDependencies
+);
+const allSearchProviderInstances = createSearchProviders(
+	[...SEARCH_PROVIDER_IDS],
+	searchProviderDependencies
+);
 
 export const searchBooksUseCase = new SearchBooksUseCase(
-	createActiveSearchProviders(),
+	activeSearchProviderInstances,
 	activeSearchProviders
 );
-export const downloadSearchBookUseCase = new DownloadSearchBookUseCase();
+export const downloadSearchBookUseCase = new DownloadSearchBookUseCase(allSearchProviderInstances);
 export const zlibraryTokenLoginUseCase = new ZLibraryTokenLoginUseCase(zlibraryClient);
 export const zlibraryPasswordLoginUseCase = new ZLibraryPasswordLoginUseCase(zlibraryClient);
 export const zlibraryLogoutUseCase = new ZLibraryLogoutUseCase();

@@ -6,6 +6,7 @@ export const SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY = 'sake.search.provider-groups
 
 export const SEARCH_PROVIDER_OPTIONS = [
 	{ value: 'zlibrary', label: 'Z-Library' },
+	{ value: 'anna', label: "Anna's Archive" },
 	{ value: 'openlibrary', label: 'OpenLibrary' },
 	{ value: 'gutenberg', label: 'Gutenberg' }
 ] as const;
@@ -54,6 +55,7 @@ export function getDefaultSelectedProviders(
 export function emptyCollapsedProviderGroups(): Record<SearchProviderId, boolean> {
 	return {
 		zlibrary: false,
+		anna: false,
 		openlibrary: false,
 		gutenberg: false
 	};
@@ -66,6 +68,9 @@ export function getBookCacheKey(provider: SearchProviderId, providerBookId: stri
 export function providerLabel(providerId: SearchProviderId): string {
 	if (providerId === 'zlibrary') {
 		return 'Z-Library';
+	}
+	if (providerId === 'anna') {
+		return "Anna's Archive";
 	}
 	if (providerId === 'openlibrary') {
 		return 'OpenLibrary';
@@ -112,7 +117,12 @@ export function parseYearInput(value: string | number | null | undefined): numbe
 }
 
 export function isProviderId(value: string): value is SearchProviderId {
-	return value === 'zlibrary' || value === 'openlibrary' || value === 'gutenberg';
+	return (
+		value === 'zlibrary' ||
+		value === 'anna' ||
+		value === 'openlibrary' ||
+		value === 'gutenberg'
+	);
 }
 
 export function normalizeProviderSelection(
@@ -180,6 +190,7 @@ export function loadStoredCollapsedProviderGroups(
 		const value = parsed as Record<string, unknown>;
 		return {
 			zlibrary: value.zlibrary === true,
+			anna: value.anna === true,
 			openlibrary: value.openlibrary === true,
 			gutenberg: value.gutenberg === true
 		};
