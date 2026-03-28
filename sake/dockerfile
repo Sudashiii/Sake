@@ -10,6 +10,11 @@ RUN if command -v apk >/dev/null 2>&1; then \
 COPY sake/package.json sake/bun.lock sake/.npmrc ./
 RUN bun install --frozen-lockfile --omit peer
 
+FROM oven/bun:1 AS prod-deps
+WORKDIR /app
+COPY sake/package.json sake/bun.lock sake/.npmrc ./
+RUN bun install --frozen-lockfile --production --omit peer
+
 FROM deps AS builder
 ARG PUBLIC_WEBAPP_VERSION=dev-local
 ARG PUBLIC_WEBAPP_GIT_TAG=
@@ -29,7 +34,7 @@ ARG PUBLIC_WEBAPP_GIT_TAG=
 ARG PUBLIC_WEBAPP_COMMIT_SHA=
 ARG PUBLIC_WEBAPP_RELEASED_AT=
 COPY --from=builder /app/build build/
-COPY --from=deps /app/node_modules node_modules/
+COPY --from=prod-deps /app/node_modules node_modules/
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/drizzle ./drizzle

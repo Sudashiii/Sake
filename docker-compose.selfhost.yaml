@@ -47,7 +47,7 @@ services:
     restart: "no"
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.17
     container_name: sake-seaweedfs
     env_file:
       - ./sake/.env.docker.selfhosted
