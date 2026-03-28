@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'webapp/v*'
+  workflow_dispatch:
+    inputs:
+      git_tag:
+        description: Existing webapp release tag to publish, for example webapp/v2026.03.28.2
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,6 +22,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.git_tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -30,16 +39,23 @@ jobs:
           set -euo pipefail
 
           repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-          version="${GITHUB_REF_NAME#webapp/v}"
+          git_tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            git_tag="${{ github.event.inputs.git_tag }}"
+          fi
+
+          version="${git_tag#webapp/v}"
           released_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          short_sha="${GITHUB_SHA::12}"
+          commit_sha="$(git rev-list -n 1 "$git_tag")"
+          short_sha="${commit_sha::12}"
 
           {
             echo "name=ghcr.io/${repository}"
             echo "version=${version}"
-            echo "git_tag=${GITHUB_REF_NAME}"
+            echo "git_tag=${git_tag}"
             echo "released_at=${released_at}"
             echo "short_sha=${short_sha}"
+            echo "commit_sha=${commit_sha}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
@@ -58,7 +74,7 @@ jobs:
             org.opencontainers.image.title=Sake
             org.opencontainers.image.description=Personal reading stack with a Svelte web app and KOReader plugin sync
             org.opencontainers.image.version=${{ steps.image.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.image.outputs.commit_sha }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.image.outputs.version }}
@@ -76,5 +92,5 @@ jobs:
           build-args: |
             PUBLIC_WEBAPP_VERSION=${{ steps.image.outputs.version }}
             PUBLIC_WEBAPP_GIT_TAG=${{ steps.image.outputs.git_tag }}
-            PUBLIC_WEBAPP_COMMIT_SHA=${{ github.sha }}
+            PUBLIC_WEBAPP_COMMIT_SHA=${{ steps.image.outputs.commit_sha }}
             PUBLIC_WEBAPP_RELEASED_AT=${{ steps.image.outputs.released_at }}

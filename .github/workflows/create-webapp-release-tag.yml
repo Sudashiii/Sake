@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   create-webapp-release-tag:
@@ -63,6 +64,9 @@ jobs:
             echo "version=$version"
             echo "tag=$tag"
             echo "should_create_tag=$should_create_tag"
+            echo "repository=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+            echo "released_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "short_sha=${GITHUB_SHA::12}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create webapp release tag
@@ -74,3 +78,46 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.version.outputs.tag }}" "$GITHUB_SHA" -m "Webapp ${{ steps.version.outputs.version }}"
           git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.version.outputs.repository }}
+          labels: |
+            org.opencontainers.image.title=Sake
+            org.opencontainers.image.description=Personal reading stack with a Svelte web app and KOReader plugin sync
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=sha-${{ steps.version.outputs.short_sha }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./sake/dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            PUBLIC_WEBAPP_VERSION=${{ steps.version.outputs.version }}
+            PUBLIC_WEBAPP_GIT_TAG=${{ steps.version.outputs.tag }}
+            PUBLIC_WEBAPP_COMMIT_SHA=${{ github.sha }}
+            PUBLIC_WEBAPP_RELEASED_AT=${{ steps.version.outputs.released_at }}
