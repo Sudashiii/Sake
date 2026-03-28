@@ -9,12 +9,24 @@
 	}
 
 	let { appVersion, appEnvironment, appSourceUrl, appSourceLabel }: Props = $props();
+
+	function getIssueUrl(sourceUrl: string): string {
+		return `${sourceUrl.replace(/\/$/, '')}/issues/new`;
+	}
 </script>
 
 <section class={styles.root}>
 	<div class="settings-pane-heading">
 		<h4>Sake</h4>
 		<p>Svelte and KOReader Ecosystem</p>
+		<div class="settings-app-actions">
+			<a href={appSourceUrl} target="_blank" rel="noopener noreferrer" class="settings-app-link-btn">
+				Open GitHub
+			</a>
+			<a href={getIssueUrl(appSourceUrl)} target="_blank" rel="noopener noreferrer" class="settings-app-link-btn settings-app-link-btn-accent">
+				Report a Bug
+			</a>
+		</div>
 	</div>
 	<div class="settings-pane-group settings-pane-group-roomy">
 		<dl class="settings-data-list">

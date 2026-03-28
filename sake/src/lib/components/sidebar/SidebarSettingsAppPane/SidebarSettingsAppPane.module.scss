@@ -9,6 +9,14 @@
 		gap: 0.25rem;
 	}
 
+	:global(.settings-app-actions) {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+		margin-top: 0.75rem;
+	}
+
 	:global(.settings-pane-heading h4) {
 		margin: 0;
 		font-size: 1.125rem;
@@ -22,6 +30,36 @@
 		font-size: 0.75rem;
 		line-height: 1.5;
 		color: var(--color-text-muted);
+	}
+
+	:global(.settings-app-link-btn) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem 0.875rem;
+		border-radius: 0.5rem;
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-text-primary);
+		font-size: 0.875rem;
+		font-weight: 500;
+		line-height: 1.5;
+		text-decoration: none;
+		transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+
+		&:hover {
+			background: rgba(30, 34, 48, 0.5);
+		}
+	}
+
+	:global(.settings-app-link-btn-accent) {
+		border-color: color-mix(in oklab, var(--color-primary), transparent 70%);
+		background: color-mix(in oklab, var(--color-primary), transparent 90%);
+		color: var(--color-primary);
+
+		&:hover {
+			background: color-mix(in oklab, var(--color-primary), transparent 82%);
+		}
 	}
 
 	:global(.settings-pane-group-roomy .settings-data-list) {
@@ -96,5 +134,15 @@
 		&:hover {
 			text-decoration: underline;
 		}
+	}
+}
+
+@media (max-width: 640px) {
+	.root :global(.settings-app-actions) {
+		display: grid;
+	}
+
+	.root :global(.settings-app-link-btn) {
+		width: 100%;
 	}
 }
