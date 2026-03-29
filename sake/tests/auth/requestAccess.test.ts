@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { isApiKeyAllowedRoute } from '$lib/server/auth/requestAccess';
+import { isApiKeyAllowedRoute, isPublicApiRoute } from '$lib/server/auth/requestAccess';
 
 describe('requestAccess', () => {
 	test('allows API keys to fetch managed library covers', () => {
@@ -17,5 +17,10 @@ describe('requestAccess', () => {
 
 	test('does not expose the export route as a direct library file GET', () => {
 		assert.equal(isApiKeyAllowedRoute('/api/library/export', 'GET'), false);
+	});
+
+	test('keeps the webapp logs stream session-only', () => {
+		assert.equal(isPublicApiRoute('/api/logs/webapp/stream', 'GET'), false);
+		assert.equal(isApiKeyAllowedRoute('/api/logs/webapp/stream', 'GET'), false);
 	});
 });

@@ -41,6 +41,12 @@ export const menuItems: MenuItem[] = [
 		label: 'Trash',
 		href: '/trash',
 		icon: 'trash'
+	},
+	{
+		id: 'logs',
+		label: 'Logs',
+		href: '/logs',
+		icon: 'logs'
 	}
 ];
 

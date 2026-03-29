@@ -54,6 +54,7 @@
 		if (path === "/stats") return "Stats";
 		if (path === "/archived") return "Archived";
 		if (path === "/trash") return "Trash";
+		if (path === "/logs") return "Logs";
 		return path === "/" ? "Login" : path.slice(1).replace(/-/g, " ");
 	});
 

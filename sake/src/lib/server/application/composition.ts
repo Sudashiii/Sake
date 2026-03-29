@@ -88,6 +88,8 @@ import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLib
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
 import { ExportDeviceLibraryBookUseCase } from '$lib/server/application/use-cases/ExportDeviceLibraryBookUseCase';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
+import { webappLogFeed } from '$lib/server/infrastructure/logging/webappLogFeed';
+import { ObserveWebappLogsUseCase } from '$lib/server/application/use-cases/ObserveWebappLogsUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = createLazySingleton(() => new S3Storage());
@@ -252,6 +254,7 @@ export const deleteDeviceUseCase = new DeleteDeviceUseCase(
 	deviceDownloadRepository,
 	deviceProgressDownloadRepository
 );
+export const observeWebappLogsUseCase = new ObserveWebappLogsUseCase(webappLogFeed);
 export const updateBookRatingUseCase = new UpdateBookRatingUseCase(bookRepository);
 export const listLibraryRatingsUseCase = new ListLibraryRatingsUseCase(bookRepository);
 export const updateLibraryBookStateUseCase = new UpdateLibraryBookStateUseCase(bookRepository);

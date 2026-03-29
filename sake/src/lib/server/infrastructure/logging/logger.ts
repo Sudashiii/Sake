@@ -1,4 +1,5 @@
 import pino, { type Logger } from 'pino';
+import { webappLogFeed } from './webappLogFeed';
 
 function resolveLogLevel(): string {
 	return process.env.LOG_LEVEL?.trim() || 'info';
@@ -32,16 +33,22 @@ export const logger: Logger = pino({
 	base: {
 		service: 'sake',
 		env: process.env.NODE_ENV ?? 'development'
-	},
-	transport: {
-		target: 'pino-pretty',
-		options: {
-			colorize: true,
-			translateTime: 'SYS:standard',
-			ignore: 'pid,hostname'
-		}
 	}
-});
+}, pino.multistream([
+	{
+		stream: pino.transport({
+			target: 'pino-pretty',
+			options: {
+				colorize: true,
+				translateTime: 'SYS:standard',
+				ignore: 'pid,hostname'
+			}
+		})
+	},
+	{
+		stream: webappLogFeed
+	}
+]));
 
 export function createChildLogger(bindings: Record<string, unknown>): Logger {
 	return logger.child(bindings);

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArchiveBoxIcon from '$lib/assets/icons/ArchiveBoxIcon.svelte';
+	import FileTextIcon from '$lib/assets/icons/FileTextIcon.svelte';
 	import LibraryIcon from '$lib/assets/icons/LibraryIcon.svelte';
 	import QueueIcon from '$lib/assets/icons/QueueIcon.svelte';
 	import SearchIcon from '$lib/assets/icons/SearchIcon.svelte';
@@ -28,4 +29,6 @@
 	<ArchiveBoxIcon size={size} class={className} decorative={true} />
 {:else if icon === 'trash'}
 	<Trash2Icon size={size} class={className} decorative={true} />
+{:else if icon === 'logs'}
+	<FileTextIcon size={size} class={className} decorative={true} />
 {/if}
