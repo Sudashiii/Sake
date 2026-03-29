@@ -24,6 +24,15 @@ export const LOGS_TABS: LogsTabDefinition[] = [
 	}
 ];
 
+const LOG_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-US', {
+	month: 'short',
+	day: 'numeric',
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+	hour12: false
+});
+
 export function isLogsSourceAvailable(source: LogsSource): boolean {
 	return source === 'webapp';
 }
@@ -34,14 +43,7 @@ export function formatLogTimestamp(value: string): string {
 		return value;
 	}
 
-	return new Intl.DateTimeFormat('en-US', {
-		month: 'short',
-		day: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hour12: false
-	}).format(date);
+	return LOG_TIMESTAMP_FORMATTER.format(date);
 }
 
 export function formatLogLevel(level: WebappLogLevel): string {

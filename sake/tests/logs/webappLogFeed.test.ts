@@ -25,7 +25,7 @@ describe('webapp log feed', () => {
 	test('parses json lines only after a newline and extracts context and errors', () => {
 		const feed = new InMemoryWebappLogFeed(5);
 
-		feed.write('{"level":50,"time":"2026-03-29T10:15:20.000Z","msg":"failed","route":"/queue"');
+		feed.write('{"level":50,"time":"2026-03-29T10:15:20.000Z","msg":"failed","route":"/queue","service":"sake","env":"development","name":"sake"');
 		assert.equal(feed.observe().snapshot.length, 0);
 
 		feed.write(',"err":{"type":"Error","message":"Boom","stack":"trace"}}\n');

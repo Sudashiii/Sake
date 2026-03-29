@@ -7,7 +7,18 @@ import {
 	type WebappLogLevel
 } from '$lib/types/Logs/WebappLogEntry';
 
-const RESERVED_LOG_KEYS = new Set(['level', 'time', 'msg', 'pid', 'hostname', 'err', 'error']);
+const RESERVED_LOG_KEYS = new Set([
+	'level',
+	'time',
+	'msg',
+	'pid',
+	'hostname',
+	'err',
+	'error',
+	'name',
+	'service',
+	'env'
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
