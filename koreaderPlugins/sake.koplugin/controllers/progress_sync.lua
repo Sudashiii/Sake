@@ -1,6 +1,7 @@
 local logger = require("logger")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
+local Network = require("adapters/network")
 local ProgressEngine = require("engines/progress_engine")
 local _ = require("gettext")
 
@@ -11,6 +12,7 @@ local LOG_PREFIX = "[Sake] "
 function ProgressSync:new(ctx)
     return setmetatable({
         engine = ProgressEngine:new(ctx),
+        network = Network:new(),
     }, self)
 end
 
@@ -29,20 +31,69 @@ function ProgressSync:hasOpenDocument()
     return self.engine:hasOpenDocument()
 end
 
-function ProgressSync:syncCurrentBookProgress(opts)
-    logger.info(LOG_PREFIX .. "Sync current book progress started.")
-    local success, percent_finished_or_err = self.engine:uploadCurrentDocumentProgress()
+function ProgressSync:uploadPreparedSnapshot(snapshot, opts, is_deferred_resume)
+    if is_deferred_resume then
+        logger.info(LOG_PREFIX .. "Deferred progress upload resumed.")
+    end
+
+    local success, percent_finished_or_err = self.engine:uploadPreparedProgressSnapshot(snapshot)
     if not success then
-        if percent_finished_or_err == "No document open" then
-            logger.info(LOG_PREFIX .. "No document open. Running remote progress download sync.")
-            return self:syncNewProgressForDevice(opts)
+        if is_deferred_resume then
+            logger.warn(LOG_PREFIX .. "Deferred progress upload failed: " .. tostring(percent_finished_or_err))
         end
         self:showError("Progress upload failed: " .. tostring(percent_finished_or_err), opts)
         return false, percent_finished_or_err
     end
 
+    if is_deferred_resume then
+        logger.info(LOG_PREFIX .. "Deferred progress upload success.")
+    else
+        logger.info(LOG_PREFIX .. "Progress upload success.")
+    end
+
+    return true, percent_finished_or_err
+end
+
+function ProgressSync:syncCurrentBookProgress(opts)
+    logger.info(LOG_PREFIX .. "Sync current book progress started.")
+    local ok_snapshot, snapshot_or_err = self.engine:prepareCurrentDocumentProgressSnapshot()
+    if not ok_snapshot then
+        if snapshot_or_err == "No document open" then
+            logger.info(LOG_PREFIX .. "No document open. Running remote progress download sync.")
+            return self:syncNewProgressForDevice(opts)
+        end
+        self:showError("Progress upload failed: " .. tostring(snapshot_or_err), opts)
+        return false, snapshot_or_err
+    end
+
+    local snapshot = snapshot_or_err
+    logger.info(
+        LOG_PREFIX
+            .. "Prepared progress snapshot for file: "
+            .. tostring(snapshot.filename)
+            .. " | percent_finished: "
+            .. tostring(snapshot.percent_finished)
+    )
+
+    -- Freeze the upload payload before handing control to NetworkMgr because
+    -- the current document may no longer be available when the callback resumes.
+    local deferred = self.network:willRerunWhenOnline(function()
+        self:uploadPreparedSnapshot(snapshot, opts, true)
+    end)
+    if deferred then
+        logger.info(LOG_PREFIX .. "Progress upload deferred waiting for network.")
+        return true, {
+            deferred = true,
+            percent_finished = snapshot.percent_finished,
+        }
+    end
+
+    local success, percent_finished_or_err = self:uploadPreparedSnapshot(snapshot, opts, false)
+    if not success then
+        return false, percent_finished_or_err
+    end
+
     logger.info(LOG_PREFIX .. "Live percent_finished: " .. tostring(percent_finished_or_err))
-    logger.info(LOG_PREFIX .. "Progress upload success.")
     return true
 end
 

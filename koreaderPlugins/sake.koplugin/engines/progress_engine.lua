@@ -35,7 +35,7 @@ function ProgressEngine:isLikelyValidLuaMetadata(content)
     return content and content ~= "" and content:find("return%s*{", 1) ~= nil
 end
 
-function ProgressEngine:uploadCurrentDocumentProgress()
+function ProgressEngine:prepareCurrentDocumentProgressSnapshot()
     local valid, settings_err = self:validateSettings()
     if not valid then
         return false, settings_err
@@ -54,18 +54,50 @@ function ProgressEngine:uploadCurrentDocumentProgress()
         return false, content_or_err
     end
 
+    return true, {
+        filename = paths.filename,
+        content = content_or_err,
+        device_id = self.settings.device_name,
+        percent_finished = live_percent_finished,
+    }
+end
+
+function ProgressEngine:uploadPreparedProgressSnapshot(snapshot)
+    local valid, settings_err = self:validateSettings()
+    if not valid then
+        return false, settings_err
+    end
+
+    if type(snapshot) ~= "table" then
+        return false, "Missing prepared progress snapshot"
+    end
+
+    local filename = tostring(snapshot.filename or "")
+    if filename == "" then
+        return false, "Missing file name"
+    end
+
     local success, msg = ProgressApi.uploadProgress(
         self.session,
-        paths.filename,
-        content_or_err,
-        self.settings.device_name,
-        live_percent_finished
+        filename,
+        snapshot.content,
+        snapshot.device_id,
+        snapshot.percent_finished
     )
     if not success then
         return false, msg
     end
 
-    return true, live_percent_finished
+    return true, snapshot.percent_finished
+end
+
+function ProgressEngine:uploadCurrentDocumentProgress()
+    local ok_snapshot, snapshot_or_err = self:prepareCurrentDocumentProgressSnapshot()
+    if not ok_snapshot then
+        return false, snapshot_or_err
+    end
+
+    return self:uploadPreparedProgressSnapshot(snapshot_or_err)
 end
 
 function ProgressEngine:applyRemoteProgress(book)
