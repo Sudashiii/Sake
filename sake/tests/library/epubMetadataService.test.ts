@@ -51,7 +51,9 @@ describe('EpubMetadataService.extractMetadata', () => {
 			identifier: '9781234567897',
 			description: 'Hello world',
 			language: 'en-us',
-			year: 2022
+			year: 2022,
+			month: 5,
+			day: 1
 		});
 	});
 
@@ -74,7 +76,134 @@ describe('EpubMetadataService.extractMetadata', () => {
 			identifier: null,
 			description: null,
 			language: 'de',
-			year: null
+			year: null,
+			month: null,
+			day: null
+		});
+	});
+
+	test('extracts partial publication dates when only year and month are present', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Month Precision</dc:title>
+		<dc:date>2022-05</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Month Precision',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: 5,
+			day: null
+		});
+	});
+
+	test('accepts non-zero-padded year-month publication dates from EPUB metadata', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Loose Month Padding</dc:title>
+		<dc:date>2022-5</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Loose Month Padding',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: 5,
+			day: null
+		});
+	});
+
+	test('accepts non-zero-padded publication dates from EPUB metadata', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Loose Date Padding</dc:title>
+		<dc:date>2022-5-1</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Loose Date Padding',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: 5,
+			day: 1
+		});
+	});
+
+	test('extracts full publication dates from timestamp values', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Timestamp Date</dc:title>
+		<dc:date>2021-09-14T08:30:00Z</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Timestamp Date',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2021,
+			month: 9,
+			day: 14
+		});
+	});
+
+	test('falls back safely when EPUB dates are malformed', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Malformed Date</dc:title>
+		<dc:date>2022-13-40</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Malformed Date',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: null,
+			day: null
 		});
 	});
 
@@ -106,7 +235,9 @@ describe('EpubMetadataService.extractMetadata', () => {
 			identifier: null,
 			description: null,
 			language: null,
-			year: null
+			year: null,
+			month: null,
+			day: null
 		});
 		assert.deepEqual(uploadData.cover, {
 			data: coverBytes,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from "$app/environment";
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from "$lib/auth/responseSignals";
@@ -59,9 +60,11 @@
 	});
 
 	$effect(() => {
-		if (!isLoginPage) {
-			void loadShelves();
+		if (!browser || isLoginPage) {
+			return;
 		}
+
+		void loadShelves();
 	});
 
 	function openModal() {

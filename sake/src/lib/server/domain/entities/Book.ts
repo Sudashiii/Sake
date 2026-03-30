@@ -22,6 +22,8 @@ export interface Book {
 	filesize: number | null;
 	language: string | null;
 	year: number | null;
+	month: number | null;
+	day: number | null;
 	progress_storage_key: string | null;
 	progress_updated_at: string | null;
 	progress_percent: number | null;
@@ -74,4 +76,6 @@ export interface UpdateBookMetadataInput {
 	filesize: number | null;
 	language: string | null;
 	year: number | null;
+	month: number | null;
+	day: number | null;
 }

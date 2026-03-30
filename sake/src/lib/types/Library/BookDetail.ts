@@ -16,6 +16,9 @@ export interface LibraryBookDetail {
 	amazonAsin: string | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
+	year: number | null;
+	month: number | null;
+	day: number | null;
 	progressPercent: number | null;
 	rating: number | null;
 	isRead: boolean;

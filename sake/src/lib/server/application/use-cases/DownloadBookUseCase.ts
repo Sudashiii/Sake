@@ -258,7 +258,9 @@ export class DownloadBookUseCase {
 					extension: pickText(request.extension, null),
 					filesize: pickNumber(request.filesize, null),
 					language: pickText(request.language, null),
-					year: pickNumber(request.year, null)
+					year: pickNumber(request.year, null),
+					month: null,
+					day: null
 				});
 				this.useCaseLogger.info(
 					{

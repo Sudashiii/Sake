@@ -94,6 +94,31 @@
 		line-height: 1.45;
 	}
 
+	:global(.detail-v2-date-field) {
+		grid-column: 1 / -1;
+	}
+
+	:global(.detail-v2-date-inputs) {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	:global(.detail-v2-date-input) {
+		width: 4.5rem;
+		text-align: center;
+		padding-inline: 0.5rem;
+	}
+
+	:global(.detail-v2-date-input-year) {
+		width: 6rem;
+	}
+
+	:global(.detail-v2-date-separator) {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+	}
+
 	:global(.detail-v2-meta-link) {
 		color: #c9a962;
 		text-decoration: underline;

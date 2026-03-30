@@ -4,6 +4,7 @@ import {
 	isManagedBookCoverUrl
 } from '$lib/server/application/services/ManagedBookCoverService';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import { validatePublicationDateParts } from '$lib/utils/publicationDate';
 
 interface UpdateLibraryBookMetadataInput {
 	bookId: number;
@@ -21,6 +22,8 @@ interface UpdateLibraryBookMetadataInput {
 		cover?: string | null;
 		language?: string | null;
 		year?: number | null;
+		month?: number | null;
+		day?: number | null;
 		externalRating?: number | null;
 		externalRatingCount?: number | null;
 		googleBooksId?: string | null;
@@ -54,6 +57,15 @@ export class UpdateLibraryBookMetadataUseCase {
 		const nextCover = input.metadata.cover === undefined ? existing.cover : input.metadata.cover;
 		const shouldDeleteManagedCover =
 			isManagedBookCoverUrl(existing.cover) && !isManagedBookCoverUrl(nextCover);
+		const nextPublicationDate = {
+			year: input.metadata.year === undefined ? existing.year : input.metadata.year,
+			month: input.metadata.month === undefined ? existing.month : input.metadata.month,
+			day: input.metadata.day === undefined ? existing.day : input.metadata.day
+		};
+		const publicationDateError = validatePublicationDateParts(nextPublicationDate);
+		if (publicationDateError) {
+			return apiError(publicationDateError, 400);
+		}
 
 		await this.bookRepository.updateMetadata(input.bookId, {
 			zLibId: existing.zLibId,
@@ -99,7 +111,9 @@ export class UpdateLibraryBookMetadataUseCase {
 			extension: existing.extension,
 			filesize: existing.filesize,
 			language: input.metadata.language === undefined ? existing.language : input.metadata.language,
-			year: input.metadata.year === undefined ? existing.year : input.metadata.year
+			year: nextPublicationDate.year,
+			month: nextPublicationDate.month,
+			day: nextPublicationDate.day
 		});
 
 		if (shouldDeleteManagedCover) {

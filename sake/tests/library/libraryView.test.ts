@@ -3,16 +3,18 @@ import { describe, test } from 'node:test';
 import {
 	applyBulkShelfSelection,
 	getLibrarySortStorageKey,
-		getVisibleBookIds,
-	groupBooksBySeries,
 	getProgressHistoryPageRange,
+	getVisibleBookIds,
+	groupBooksBySeries,
 	isImportableExternalCoverUrl,
 	matchesBookShelf,
 	parseNullableNumber,
 	pruneBookSelection,
 	readStoredLibrarySort,
 	sortBooks,
-	toggleBookSelection
+	toggleBookSelection,
+	writeStoredLibrarySort,
+	type LibrarySortPreference
 } from '$lib/features/library/libraryView';
 import type { LibraryBook } from '$lib/types/Library/Book';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
@@ -32,6 +34,8 @@ function createBook(overrides: Partial<LibraryBook> = {}): LibraryBook {
 		filesize: 1024,
 		language: 'en',
 		year: 2024,
+		month: null,
+		day: null,
 		progress_storage_key: null,
 		progress_updated_at: '2026-03-07T10:00:00.000Z',
 		rating: 4,
@@ -60,6 +64,17 @@ function createShelf(overrides: Partial<LibraryShelf> = {}): LibraryShelf {
 	};
 }
 
+function assertSortedIds(
+	books: LibraryBook[],
+	sort: LibrarySortPreference,
+	expectedIds: number[]
+): void {
+	assert.deepEqual(
+		sortBooks(books, sort).map((book) => book.id),
+		expectedIds
+	);
+}
+
 describe('libraryView', () => {
 	test('parseNullableNumber returns null for blank values and numbers for numeric input', () => {
 		assert.equal(parseNullableNumber('  '), null);
@@ -73,10 +88,10 @@ describe('libraryView', () => {
 		assert.equal(getLibrarySortStorageKey(7), 'librarySort:library:shelf:7');
 	});
 
-	test('readStoredLibrarySort prefers a shelf-specific sort and falls back to the root library sort', () => {
+	test('readStoredLibrarySort prefers a shelf-specific structured sort and falls back to the root library sort', () => {
 		const values = new Map<string, string>([
-			['librarySort:library', 'progressRecent'],
-			['librarySort:library:shelf:7', 'series']
+			['librarySort:library', 'progressUpdated:desc'],
+			['librarySort:library:shelf:7', 'series:asc']
 		]);
 		const storage = {
 			getItem(key: string): string | null {
@@ -84,19 +99,138 @@ describe('libraryView', () => {
 			}
 		};
 
-		assert.equal(readStoredLibrarySort(storage, 7), 'series');
-		assert.equal(readStoredLibrarySort(storage, 8), 'progressRecent');
-		assert.equal(readStoredLibrarySort(storage, null), 'progressRecent');
+		assert.deepEqual(readStoredLibrarySort(storage, 7), {
+			field: 'series',
+			direction: 'asc'
+		});
+		assert.deepEqual(readStoredLibrarySort(storage, 8), {
+			field: 'progressUpdated',
+			direction: 'desc'
+		});
+		assert.deepEqual(readStoredLibrarySort(storage, null), {
+			field: 'progressUpdated',
+			direction: 'desc'
+		});
 	});
 
-	test('sortBooks sorts by recent progress when requested', () => {
+	test('readStoredLibrarySort maps legacy flat sort values to the new preference shape', () => {
+		const values = new Map<string, string>([
+			['librarySort:library', 'progressRecent'],
+			['librarySort:library:shelf:7', 'titleAsc']
+		]);
+		const storage = {
+			getItem(key: string): string | null {
+				return values.get(key) ?? null;
+			}
+		};
+
+		assert.deepEqual(readStoredLibrarySort(storage, 7), {
+			field: 'title',
+			direction: 'asc'
+		});
+		assert.deepEqual(readStoredLibrarySort(storage, null), {
+			field: 'progressUpdated',
+			direction: 'desc'
+		});
+	});
+
+	test('writeStoredLibrarySort serializes the field and direction pair', () => {
+		const writes = new Map<string, string>();
+		const storage = {
+			setItem(key: string, value: string): void {
+				writes.set(key, value);
+			}
+		};
+
+		writeStoredLibrarySort(storage, 3, {
+			field: 'publishedDate',
+			direction: 'asc'
+		});
+
+		assert.equal(
+			writes.get('librarySort:library:shelf:3'),
+			'publishedDate:asc'
+		);
+	});
+
+	test('readStoredLibrarySort maps previously stored publishedYear preferences to publishedDate', () => {
+		const storage = {
+			getItem(): string | null {
+				return 'publishedYear:desc';
+			}
+		};
+
+		assert.deepEqual(readStoredLibrarySort(storage, null), {
+			field: 'publishedDate',
+			direction: 'desc'
+		});
+	});
+
+	test('sortBooks sorts by progress update direction', () => {
 		const books = [
 			createBook({ id: 1, progress_updated_at: '2026-03-01T10:00:00.000Z' }),
-			createBook({ id: 2, progress_updated_at: '2026-03-08T10:00:00.000Z' })
+			createBook({ id: 2, progress_updated_at: '2026-03-08T10:00:00.000Z' }),
+			createBook({ id: 3, progress_updated_at: null })
 		];
 
-		const sorted = sortBooks(books, 'progressRecent');
-		assert.deepEqual(sorted.map((book) => book.id), [2, 1]);
+		assertSortedIds(books, { field: 'progressUpdated', direction: 'desc' }, [2, 1, 3]);
+		assertSortedIds(books, { field: 'progressUpdated', direction: 'asc' }, [1, 2, 3]);
+	});
+
+	test('sortBooks sorts by date added direction', () => {
+		const books = [
+			createBook({ id: 1, createdAt: '2026-03-03T10:00:00.000Z' }),
+			createBook({ id: 2, createdAt: '2026-03-01T10:00:00.000Z' }),
+			createBook({ id: 3, createdAt: null })
+		];
+
+		assertSortedIds(books, { field: 'dateAdded', direction: 'desc' }, [1, 2, 3]);
+		assertSortedIds(books, { field: 'dateAdded', direction: 'asc' }, [2, 1, 3]);
+	});
+
+	test('sortBooks sorts titles in both directions', () => {
+		const books = [
+			createBook({ id: 1, title: 'Gamma' }),
+			createBook({ id: 2, title: 'Alpha' }),
+			createBook({ id: 3, title: 'Beta' })
+		];
+
+		assertSortedIds(books, { field: 'title', direction: 'asc' }, [2, 3, 1]);
+		assertSortedIds(books, { field: 'title', direction: 'desc' }, [1, 3, 2]);
+	});
+
+	test('sortBooks sorts authors with empty values last in both directions', () => {
+		const books = [
+			createBook({ id: 1, author: 'Frank Herbert' }),
+			createBook({ id: 2, author: null }),
+			createBook({ id: 3, author: 'Terry Pratchett' })
+		];
+
+		assertSortedIds(books, { field: 'author', direction: 'asc' }, [1, 3, 2]);
+		assertSortedIds(books, { field: 'author', direction: 'desc' }, [3, 1, 2]);
+	});
+
+	test('sortBooks sorts publication dates with empty values last in both directions', () => {
+		const books = [
+			createBook({ id: 1, year: 1965, month: 8, day: 1 }),
+			createBook({ id: 2, year: null }),
+			createBook({ id: 3, year: 1983, month: 6, day: 1 })
+		];
+
+		assertSortedIds(books, { field: 'publishedDate', direction: 'desc' }, [3, 1, 2]);
+		assertSortedIds(books, { field: 'publishedDate', direction: 'asc' }, [1, 3, 2]);
+	});
+
+	test('sortBooks compares publication year, month, and day with partial dates sorted last within the same year', () => {
+		const books = [
+			createBook({ id: 1, title: 'Year Only', year: 2024, month: null, day: null }),
+			createBook({ id: 2, title: 'January', year: 2024, month: 1, day: null }),
+			createBook({ id: 3, title: 'January 15', year: 2024, month: 1, day: 15 }),
+			createBook({ id: 4, title: 'February 2', year: 2024, month: 2, day: 2 })
+		];
+
+		assertSortedIds(books, { field: 'publishedDate', direction: 'asc' }, [3, 2, 4, 1]);
+		assertSortedIds(books, { field: 'publishedDate', direction: 'desc' }, [4, 3, 2, 1]);
 	});
 
 	test('sortBooks sorts by series name, then series index, then volume, then title', () => {
@@ -104,12 +238,35 @@ describe('libraryView', () => {
 			createBook({ id: 1, title: 'Standalone', series: null, series_index: null }),
 			createBook({ id: 2, title: 'Dune Messiah', series: 'Dune', series_index: 2 }),
 			createBook({ id: 3, title: 'Dune', series: 'Dune', series_index: 1 }),
-			createBook({ id: 4, title: 'Wyrd Sisters', series: 'Discworld', series_index: null, volume: '6' }),
-			createBook({ id: 5, title: 'Mort', series: 'Discworld', series_index: null, volume: '4' })
+			createBook({
+				id: 4,
+				title: 'Wyrd Sisters',
+				series: 'Discworld',
+				series_index: null,
+				volume: '6'
+			}),
+			createBook({
+				id: 5,
+				title: 'Mort',
+				series: 'Discworld',
+				series_index: null,
+				volume: '4'
+			})
 		];
 
-		const sorted = sortBooks(books, 'series');
-		assert.deepEqual(sorted.map((book) => book.id), [5, 4, 3, 2, 1]);
+		assertSortedIds(books, { field: 'series', direction: 'asc' }, [5, 4, 3, 2, 1]);
+	});
+
+	test('sortBooks reverses series groups without reversing in-series reading order', () => {
+		const books = [
+			createBook({ id: 1, title: 'Standalone', series: null, series_index: null }),
+			createBook({ id: 2, title: 'Dune Messiah', series: 'Dune', series_index: 2 }),
+			createBook({ id: 3, title: 'Dune', series: 'Dune', series_index: 1 }),
+			createBook({ id: 4, title: 'Wyrd Sisters', series: 'Discworld', volume: '6' }),
+			createBook({ id: 5, title: 'Mort', series: 'Discworld', volume: '4' })
+		];
+
+		assertSortedIds(books, { field: 'series', direction: 'desc' }, [3, 2, 5, 4, 1]);
 	});
 
 	test('groupBooksBySeries creates visible series sections with a trailing no-series bucket', () => {

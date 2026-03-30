@@ -22,6 +22,8 @@ export interface LibraryBook {
 	filesize: number | null;
 	language: string | null;
 	year: number | null;
+	month: number | null;
+	day: number | null;
 	progress_storage_key: string | null;
 	progress_updated_at: string | null;
 	rating: number | null;

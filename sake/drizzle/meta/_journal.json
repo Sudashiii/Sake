@@ -134,6 +134,13 @@
       "when": 1778900002000,
       "tag": "0018_book_series_index",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1778900003000,
+      "tag": "0019_book_publication_month_day",
+      "breakpoints": true
     }
   ]
 }

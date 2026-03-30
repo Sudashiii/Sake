@@ -55,7 +55,9 @@ function createBook(overrides: Partial<Book> = {}): Book {
 			extension: 'epub',
 			filesize: 12,
 			language: null,
-			year: null
+			year: null,
+			month: null,
+			day: null
 		},
 		overrides
 	);

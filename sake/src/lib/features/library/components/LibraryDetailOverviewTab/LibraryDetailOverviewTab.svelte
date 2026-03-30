@@ -5,10 +5,12 @@
 	import {
 		clampProgress,
 		formatFileSize,
+		formatLibraryPublicationDate,
 		getCurrentPage,
 		getDetailStatusClass,
 		getDetailStatusLabel,
 		getFormatBadgeClass,
+		parseNullableNumber,
 		type MetadataDraft
 	} from '$lib/features/library/libraryView';
 	import styles from './LibraryDetailOverviewTab.module.scss';
@@ -122,7 +124,20 @@
 	</div>
 
 	<div class="detail-v2-quick-meta">
-		<div><p class="detail-v2-caption">Year</p><strong>{metadataDraft.year || selectedBook.year || '—'}</strong></div>
+		<div>
+			<p class="detail-v2-caption">Published Date</p>
+			<strong>
+				{#if isEditingMetadata}
+					{formatLibraryPublicationDate({
+						year: parseNullableNumber(metadataDraft.year),
+						month: parseNullableNumber(metadataDraft.month),
+						day: parseNullableNumber(metadataDraft.day)
+					})}
+				{:else}
+					{formatLibraryPublicationDate(selectedBookDetail)}
+				{/if}
+			</strong>
+		</div>
 		<div><p class="detail-v2-caption">Pages</p><strong>{metadataDraft.pages || selectedBookDetail.pages || '—'}</strong></div>
 		<div><p class="detail-v2-caption">Language</p><strong>{metadataDraft.language || selectedBook.language || '—'}</strong></div>
 	</div>
