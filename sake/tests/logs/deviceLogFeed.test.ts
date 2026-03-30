@@ -82,7 +82,7 @@ describe('device log feed', () => {
 		assert.deepEqual(seen, ['live entry']);
 	});
 
-	test('evicts the oldest inactive device states when the tracked device limit is exceeded', () => {
+	test('evicts the least recently used device backlogs when the tracked device limit is exceeded', () => {
 		const feed = new InMemoryDeviceLogFeed(5, 2);
 
 		feed.append({
@@ -99,7 +99,6 @@ describe('device log feed', () => {
 			message: 'second device',
 			source: 'sake'
 		});
-		const keepDeviceBActive = feed.observe('device-b').subscribe(() => {});
 		feed.append({
 			deviceId: 'device-c',
 			timestamp: '2026-03-29T10:02:00.000Z',
@@ -117,7 +116,46 @@ describe('device log feed', () => {
 			['third device']
 		);
 		assert.deepEqual(feed.observe('device-a').snapshot, []);
+	});
 
-		keepDeviceBActive();
+	test('keeps active subscribers attached when an older backlog is evicted', () => {
+		const feed = new InMemoryDeviceLogFeed(5, 1);
+		const seen: string[] = [];
+		const unsubscribe = feed.observe('device-a').subscribe((entry) => {
+			seen.push(entry.message);
+		});
+
+		feed.append({
+			deviceId: 'device-a',
+			timestamp: '2026-03-29T10:00:00.000Z',
+			level: 'info',
+			message: 'first device',
+			source: 'sake'
+		});
+		feed.append({
+			deviceId: 'device-b',
+			timestamp: '2026-03-29T10:01:00.000Z',
+			level: 'info',
+			message: 'second device',
+			source: 'sake'
+		});
+
+		assert.deepEqual(feed.observe('device-a').snapshot, []);
+
+		feed.append({
+			deviceId: 'device-a',
+			timestamp: '2026-03-29T10:02:00.000Z',
+			level: 'warn',
+			message: 'device returns',
+			source: 'sake'
+		});
+
+		assert.deepEqual(seen, ['first device', 'device returns']);
+		assert.deepEqual(
+			feed.observe('device-a').snapshot.map((entry) => entry.message),
+			['device returns']
+		);
+
+		unsubscribe();
 	});
 });

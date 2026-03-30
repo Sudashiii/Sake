@@ -10,9 +10,10 @@ import {
 
 const MAX_TRACKED_DEVICE_STATES = 100;
 
+type DeviceLogListener = (entry: DeviceLogEntry) => void;
+
 interface DeviceLogState {
 	entries: DeviceLogEntry[];
-	subscribers: Set<(entry: DeviceLogEntry) => void>;
 	lastTouchedOrder: number;
 }
 
@@ -24,6 +25,7 @@ export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 	private readonly backlogLimit: number;
 	private readonly maxTrackedDevices: number;
 	private readonly deviceStates = new Map<string, DeviceLogState>();
+	private readonly deviceSubscribers = new Map<string, Set<DeviceLogListener>>();
 	private sequence = 0;
 	private touchSequence = 0;
 
@@ -48,7 +50,7 @@ export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 			state.entries.splice(0, state.entries.length - this.backlogLimit);
 		}
 
-		for (const subscriber of state.subscribers) {
+		for (const subscriber of this.deviceSubscribers.get(entry.deviceId) ?? []) {
 			subscriber(cloneEntry(storedEntry));
 		}
 
@@ -56,13 +58,21 @@ export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 	}
 
 	observe(deviceId: string): DeviceLogObservation {
-		const state = this.getDeviceState(deviceId);
+		const state = this.deviceStates.get(deviceId);
+		if (state) {
+			state.lastTouchedOrder = this.nextTouchOrder();
+		}
+
 		return {
-			snapshot: state.entries.map(cloneEntry),
+			snapshot: state?.entries.map(cloneEntry) ?? [],
 			subscribe: (listener) => {
-				state.subscribers.add(listener);
+				const subscribers = this.getSubscribers(deviceId);
+				subscribers.add(listener);
 				return () => {
-					state.subscribers.delete(listener);
+					subscribers.delete(listener);
+					if (subscribers.size === 0) {
+						this.deviceSubscribers.delete(deviceId);
+					}
 				};
 			}
 		};
@@ -73,23 +83,32 @@ export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 		if (!state) {
 			state = {
 				entries: [],
-				subscribers: new Set(),
 				lastTouchedOrder: this.nextTouchOrder()
 			};
 			this.deviceStates.set(deviceId, state);
-			this.pruneInactiveDeviceStates();
+			this.pruneDeviceStates();
 		}
 		state.lastTouchedOrder = this.nextTouchOrder();
 		return state;
 	}
 
-	private pruneInactiveDeviceStates(): void {
+	private getSubscribers(deviceId: string): Set<DeviceLogListener> {
+		const existingSubscribers = this.deviceSubscribers.get(deviceId);
+		if (existingSubscribers) {
+			return existingSubscribers;
+		}
+
+		const subscribers = new Set<DeviceLogListener>();
+		this.deviceSubscribers.set(deviceId, subscribers);
+		return subscribers;
+	}
+
+	private pruneDeviceStates(): void {
 		if (this.deviceStates.size <= this.maxTrackedDevices) {
 			return;
 		}
 
 		const evictableStates = [...this.deviceStates.entries()]
-			.filter(([, state]) => state.subscribers.size === 0)
 			.sort((left, right) => left[1].lastTouchedOrder - right[1].lastTouchedOrder);
 
 		while (this.deviceStates.size > this.maxTrackedDevices && evictableStates.length > 0) {

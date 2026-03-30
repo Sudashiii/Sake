@@ -24,6 +24,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return errorResponse('Invalid JSON body', 400);
 		}
 
+		if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+			requestLogger.warn(
+				{
+					event: 'device.logs.invalid_body_shape',
+					bodyType: Array.isArray(body) ? 'array' : body === null ? 'null' : typeof body
+				},
+				'Invalid JSON body'
+			);
+			return errorResponse('Invalid JSON body', 400);
+		}
+
 		const payload = body as {
 			deviceId?: unknown;
 			timestamp?: unknown;

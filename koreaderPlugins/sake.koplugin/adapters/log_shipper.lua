@@ -90,12 +90,19 @@ function LogShipper.flushNext()
     flush_in_progress = true
 
     local payload = pending_logs[1]
-    local Session = require("api/session")
-    local DeviceLogsApi = require("api/device_logs")
-    local session = Session:new(settings_ref)
-    local ok = DeviceLogsApi.postLog(session, payload)
+    local call_ok, ok = pcall(function()
+        local Session = require("api/session")
+        local DeviceLogsApi = require("api/device_logs")
+        local session = Session:new(settings_ref)
+        return DeviceLogsApi.postLog(session, payload)
+    end)
 
     flush_in_progress = false
+
+    if not call_ok then
+        registerRetryWhenOnline()
+        return
+    end
 
     if ok then
         table.remove(pending_logs, 1)
