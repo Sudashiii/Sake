@@ -45,16 +45,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					deviceId: suppliedDeviceId,
 					statusCode: deviceResult.ok ? 400 : deviceResult.status,
 					reason: deviceResult.ok
-						? 'deviceId, timestamp, level, message, and source are required'
+						? 'timestamp, level, message, and source are required'
 						: deviceResult.message
 				},
 				deviceResult.ok
-					? 'deviceId, timestamp, level, message, and source are required'
+					? 'timestamp, level, message, and source are required'
 					: deviceResult.message
 			);
 			return errorResponse(
 				deviceResult.ok
-					? 'deviceId, timestamp, level, message, and source are required'
+					? 'timestamp, level, message, and source are required'
 					: deviceResult.message,
 				deviceResult.ok ? 400 : deviceResult.status
 			);

@@ -418,12 +418,13 @@
 			</div>
 		</section>
 	{:else}
+		{@const selectedDevice = getSelectedDevice()}
 		<section class={styles.feedPanel}>
 			<div class={styles.feedToolbar}>
 				<div class={styles.toolbarMeta}>
 					<span>{deviceEntries.length} buffered entr{deviceEntries.length === 1 ? 'y' : 'ies'}</span>
-					{#if getSelectedDevice()}
-						<span>Viewing {getSelectedDevice()?.deviceId}</span>
+					{#if selectedDevice}
+						<span>Viewing {selectedDevice.deviceId}</span>
 					{:else}
 						<span>Select a device to start streaming</span>
 					{/if}

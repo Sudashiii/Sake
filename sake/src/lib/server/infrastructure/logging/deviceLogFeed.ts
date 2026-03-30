@@ -8,9 +8,12 @@ import {
 	type DeviceLogEntry
 } from '$lib/types/Logs/DeviceLogEntry';
 
+const MAX_TRACKED_DEVICE_STATES = 100;
+
 interface DeviceLogState {
 	entries: DeviceLogEntry[];
 	subscribers: Set<(entry: DeviceLogEntry) => void>;
+	lastTouchedOrder: number;
 }
 
 function cloneEntry(entry: DeviceLogEntry): DeviceLogEntry {
@@ -19,11 +22,17 @@ function cloneEntry(entry: DeviceLogEntry): DeviceLogEntry {
 
 export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 	private readonly backlogLimit: number;
+	private readonly maxTrackedDevices: number;
 	private readonly deviceStates = new Map<string, DeviceLogState>();
 	private sequence = 0;
+	private touchSequence = 0;
 
-	constructor(backlogLimit = DEVICE_LOG_BACKLOG_LIMIT) {
+	constructor(
+		backlogLimit = DEVICE_LOG_BACKLOG_LIMIT,
+		maxTrackedDevices = MAX_TRACKED_DEVICE_STATES
+	) {
 		this.backlogLimit = backlogLimit;
+		this.maxTrackedDevices = maxTrackedDevices;
 	}
 
 	append(entry: AppendDeviceLogEntry): DeviceLogEntry {
@@ -64,11 +73,34 @@ export class InMemoryDeviceLogFeed implements DeviceLogFeedPort {
 		if (!state) {
 			state = {
 				entries: [],
-				subscribers: new Set()
+				subscribers: new Set(),
+				lastTouchedOrder: this.nextTouchOrder()
 			};
 			this.deviceStates.set(deviceId, state);
+			this.pruneInactiveDeviceStates();
 		}
+		state.lastTouchedOrder = this.nextTouchOrder();
 		return state;
+	}
+
+	private pruneInactiveDeviceStates(): void {
+		if (this.deviceStates.size <= this.maxTrackedDevices) {
+			return;
+		}
+
+		const evictableStates = [...this.deviceStates.entries()]
+			.filter(([, state]) => state.subscribers.size === 0)
+			.sort((left, right) => left[1].lastTouchedOrder - right[1].lastTouchedOrder);
+
+		while (this.deviceStates.size > this.maxTrackedDevices && evictableStates.length > 0) {
+			const [deviceId] = evictableStates.shift()!;
+			this.deviceStates.delete(deviceId);
+		}
+	}
+
+	private nextTouchOrder(): number {
+		this.touchSequence += 1;
+		return this.touchSequence;
 	}
 }
 

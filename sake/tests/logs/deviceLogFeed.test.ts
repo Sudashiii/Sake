@@ -81,4 +81,43 @@ describe('device log feed', () => {
 
 		assert.deepEqual(seen, ['live entry']);
 	});
+
+	test('evicts the oldest inactive device states when the tracked device limit is exceeded', () => {
+		const feed = new InMemoryDeviceLogFeed(5, 2);
+
+		feed.append({
+			deviceId: 'device-a',
+			timestamp: '2026-03-29T10:00:00.000Z',
+			level: 'info',
+			message: 'first device',
+			source: 'sake'
+		});
+		feed.append({
+			deviceId: 'device-b',
+			timestamp: '2026-03-29T10:01:00.000Z',
+			level: 'info',
+			message: 'second device',
+			source: 'sake'
+		});
+		const keepDeviceBActive = feed.observe('device-b').subscribe(() => {});
+		feed.append({
+			deviceId: 'device-c',
+			timestamp: '2026-03-29T10:02:00.000Z',
+			level: 'info',
+			message: 'third device',
+			source: 'sake'
+		});
+
+		assert.deepEqual(
+			feed.observe('device-b').snapshot.map((entry) => entry.message),
+			['second device']
+		);
+		assert.deepEqual(
+			feed.observe('device-c').snapshot.map((entry) => entry.message),
+			['third device']
+		);
+		assert.deepEqual(feed.observe('device-a').snapshot, []);
+
+		keepDeviceBActive();
+	});
 });
