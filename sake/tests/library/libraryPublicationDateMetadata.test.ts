@@ -10,6 +10,7 @@ import type {
 	ExternalBookMetadataService
 } from '$lib/server/application/services/ExternalBookMetadataService';
 import { parseLibraryMetadataUpdateInput } from '$lib/server/http/libraryMetadataUpdate';
+import { validatePublicationDateParts } from '$lib/utils/publicationDate';
 
 function createBook(overrides: Partial<Book> = {}): Book {
 	return {
@@ -94,6 +95,11 @@ describe('Library publication date metadata', () => {
 			() => parseLibraryMetadataUpdateInput({ year: 2024, month: 2, day: 30 }),
 			/published date is not a valid calendar date/
 		);
+	});
+
+	test('validatePublicationDateParts accepts full dates for years below 100', () => {
+		assert.equal(validatePublicationDateParts({ year: 98, month: 1, day: 1 }), null);
+		assert.equal(validatePublicationDateParts({ year: 99, month: 2, day: 29 }), 'published date is not a valid calendar date');
 	});
 
 	test('UpdateLibraryBookMetadataUseCase persists valid year, month, and day values', async () => {

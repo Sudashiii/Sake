@@ -31,7 +31,8 @@ export function validatePublicationDateParts(parts: PublicationDateParts): strin
 		return 'day requires year and month';
 	}
 	if (year !== null && month !== null && day !== null) {
-		const candidate = new Date(Date.UTC(year, month - 1, day));
+		const candidate = new Date(Date.UTC(2000, month - 1, day));
+		candidate.setUTCFullYear(year);
 		if (
 			candidate.getUTCFullYear() !== year ||
 			candidate.getUTCMonth() !== month - 1 ||
@@ -83,7 +84,7 @@ export function parsePublicationDateString(value: string | null | undefined): Pu
 		return null;
 	}
 
-	const isoMatch = trimmed.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:[T\s].*)?$/);
+	const isoMatch = trimmed.match(/^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:[T\s].*)?$/);
 	if (isoMatch) {
 		const year = Number.parseInt(isoMatch[1], 10);
 		const month = isoMatch[2] ? Number.parseInt(isoMatch[2], 10) : null;

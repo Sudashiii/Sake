@@ -107,6 +107,56 @@ describe('EpubMetadataService.extractMetadata', () => {
 		});
 	});
 
+	test('accepts non-zero-padded year-month publication dates from EPUB metadata', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Loose Month Padding</dc:title>
+		<dc:date>2022-5</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Loose Month Padding',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: 5,
+			day: null
+		});
+	});
+
+	test('accepts non-zero-padded publication dates from EPUB metadata', async () => {
+		const service = new EpubMetadataService();
+		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+	<metadata>
+		<dc:title>Loose Date Padding</dc:title>
+		<dc:date>2022-5-1</dc:date>
+	</metadata>
+</package>`);
+
+		const metadata = await service.extractMetadata(epub);
+
+		assert.deepEqual(metadata, {
+			title: 'Loose Date Padding',
+			author: null,
+			publisher: null,
+			identifier: null,
+			description: null,
+			language: null,
+			year: 2022,
+			month: 5,
+			day: 1
+		});
+	});
+
 	test('extracts full publication dates from timestamp values', async () => {
 		const service = new EpubMetadataService();
 		const epub = await buildEpub(`<?xml version="1.0" encoding="UTF-8"?>
