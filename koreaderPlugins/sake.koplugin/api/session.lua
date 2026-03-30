@@ -1,7 +1,7 @@
 local json = require("json")
 local ltn12 = require("ltn12")
 local socket = require("socket.url")
-local logger = require("logger")
+local logger = require("core/log")
 
 local Client = require("api/client")
 local Settings = require("core/settings")
@@ -166,28 +166,9 @@ function Session:fetchDeviceKey()
     return ok, result
 end
 
-function Session:request(opts)
+function Session:requestWithStoredKey(opts, api_key, allow_retry_auth)
     local response_chunks = opts.response_chunks or {}
     local headers = copyTable(opts.headers)
-    local api_key = self:storedApiKey()
-
-    if api_key == "" then
-        local paired, api_key_or_err = self:pairDevice()
-        if not paired then
-            if type(api_key_or_err) == "table" and api_key_or_err.status_code then
-                return true, api_key_or_err
-            end
-            return false, {
-                status_code = nil,
-                headers = nil,
-                request_error = tostring(api_key_or_err or "Request failed"),
-                body_chunks = {},
-                body = "",
-            }
-        end
-
-        api_key = tostring(api_key_or_err)
-    end
 
     headers[API_KEY_HEADER] = api_key
     headers[SAKE_VERSION_HEADER] = self:pluginVersion()
@@ -215,7 +196,7 @@ function Session:request(opts)
         return false, response
     end
 
-    if response.status_code == 401 and not opts._retry_auth and self:hasPairingCredentials() then
+    if allow_retry_auth and response.status_code == 401 and not opts._retry_auth and self:hasPairingCredentials() then
         self:clearStoredApiKey()
         local retry_opts = copyTable(opts)
         retry_opts._retry_auth = true
@@ -223,6 +204,45 @@ function Session:request(opts)
     end
 
     return true, response
+end
+
+function Session:request(opts)
+    local api_key = self:storedApiKey()
+
+    if api_key == "" then
+        local paired, api_key_or_err = self:pairDevice()
+        if not paired then
+            if type(api_key_or_err) == "table" and api_key_or_err.status_code then
+                return true, api_key_or_err
+            end
+            return false, {
+                status_code = nil,
+                headers = nil,
+                request_error = tostring(api_key_or_err or "Request failed"),
+                body_chunks = {},
+                body = "",
+            }
+        end
+
+        api_key = tostring(api_key_or_err)
+    end
+
+    return self:requestWithStoredKey(opts, api_key, true)
+end
+
+function Session:requestIfAuthenticated(opts)
+    local api_key = self:storedApiKey()
+    if api_key == "" then
+        return false, {
+            status_code = nil,
+            headers = nil,
+            request_error = "Missing API key",
+            body_chunks = {},
+            body = "",
+        }
+    end
+
+    return self:requestWithStoredKey(opts, api_key, false)
 end
 
 function Session:errorFromResponse(response)

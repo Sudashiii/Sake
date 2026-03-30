@@ -1,4 +1,4 @@
-local logger = require("logger")
+local logger = require("core/log")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local Network = require("adapters/network")

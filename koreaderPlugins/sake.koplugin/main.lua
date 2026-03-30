@@ -3,7 +3,7 @@ local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local logger = require("logger")
+local logger = require("core/log")
 local _ = require("gettext")
 
 local Settings = require("core/settings")
@@ -236,6 +236,7 @@ end
 function Sake:init()
     self:onDispatcherRegisterActions()
     self.settings = Settings.load()
+    logger.configure(self.settings)
     self.init_error_message = nil
     if has_sake_device and SakeDevice and SakeDevice.ensure then
         local ensured, device_or_err = pcall(SakeDevice.ensure, self.settings)
@@ -285,6 +286,9 @@ function Sake:init()
     self.ctx.actions.onExportLibrary = function() self.libraryExport:start() end
     self.ctx.actions.onFetchDeviceKey = function() self:fetchDeviceKey() end
     self.ctx.actions.onCheckPluginUpdate = function() self:checkPluginUpdate({ notify = true }) end
+    self.ctx.actions.onToggleLogShipping = function(touchmenu_instance)
+        self:toggleLogShipping(touchmenu_instance)
+    end
     self.ctx.actions.showInput = function(field, title)
         Dialogs.showStringInput(self.ctx, field, title)
     end
@@ -301,6 +305,38 @@ end
 
 function Sake:addToMainMenu(menu_items)
     Menu.addToMainMenu(menu_items, self.ctx)
+end
+
+function Sake:toggleLogShipping(touchmenu_instance)
+    local currently_enabled = self.settings.log_shipping_enabled == true
+    Settings.saveField(self.settings, "log_shipping_enabled", not currently_enabled)
+
+    if self.settings.log_shipping_enabled ~= true then
+        logger.clearPendingRemoteLogs()
+    end
+
+    if self.settings.log_shipping_enabled == true then
+        logger.info("[Sake] Remote log shipping enabled.")
+        UIManager:show(InfoMessage:new{
+            text = _("Remote log shipping enabled."),
+            timeout = 4
+        })
+
+        if touchmenu_instance then
+            touchmenu_instance:updateItems()
+        end
+        return
+    end
+
+    logger.info("[Sake] Remote log shipping disabled.")
+    UIManager:show(InfoMessage:new{
+        text = _("Remote log shipping disabled."),
+        timeout = 4
+    })
+
+    if touchmenu_instance then
+        touchmenu_instance:updateItems()
+    end
 end
 
 function Sake:handleSuspend()

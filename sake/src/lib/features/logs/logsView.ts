@@ -1,3 +1,5 @@
+import type { DeviceLogEntry } from '$lib/types/Logs/DeviceLogEntry';
+import type { LogLevel } from '$lib/types/Logs/LogLevel';
 import type { WebappLogEntry, WebappLogLevel } from '$lib/types/Logs/WebappLogEntry';
 
 export type LogsSource = 'webapp' | 'devices';
@@ -19,8 +21,8 @@ export const LOGS_TABS: LogsTabDefinition[] = [
 	{
 		key: 'devices',
 		label: 'Devices',
-		available: false,
-		description: 'Device logs are planned for a later update.'
+		available: true,
+		description: 'Live logs shipped from connected Sake devices.'
 	}
 ];
 
@@ -34,7 +36,7 @@ const LOG_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-US', {
 });
 
 export function isLogsSourceAvailable(source: LogsSource): boolean {
-	return source === 'webapp';
+	return source === 'webapp' || source === 'devices';
 }
 
 export function formatLogTimestamp(value: string): string {
@@ -46,7 +48,7 @@ export function formatLogTimestamp(value: string): string {
 	return LOG_TIMESTAMP_FORMATTER.format(date);
 }
 
-export function formatLogLevel(level: WebappLogLevel): string {
+export function formatLogLevel(level: WebappLogLevel | LogLevel): string {
 	return level === 'unknown' ? 'UNKNOWN' : level.toUpperCase();
 }
 
@@ -91,4 +93,13 @@ export function formatLogDetails(entry: WebappLogEntry): string {
 	}
 
 	return JSON.stringify(payload, null, 2);
+}
+
+export function formatDeviceLogSource(source: DeviceLogEntry['source']): string {
+	const trimmed = source.trim();
+	if (!trimmed) {
+		return 'Unknown source';
+	}
+
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }

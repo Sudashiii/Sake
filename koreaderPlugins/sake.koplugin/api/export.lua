@@ -1,6 +1,6 @@
 local json = require("json")
 local ltn12 = require("ltn12")
-local logger = require("logger")
+local logger = require("core/log")
 
 local ExportApi = {}
 local LOG_PREFIX = "[Sake] "

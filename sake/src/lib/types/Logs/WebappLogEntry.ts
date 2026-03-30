@@ -1,6 +1,8 @@
+import type { LogLevel } from './LogLevel';
+
 export const WEBAPP_LOG_BACKLOG_LIMIT = 500;
 
-export type WebappLogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'unknown';
+export type WebappLogLevel = LogLevel;
 
 export interface WebappLogError {
 	name: string;

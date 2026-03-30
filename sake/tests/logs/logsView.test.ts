@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
 	LOGS_TABS,
+	formatDeviceLogSource,
 	formatLogContextValue,
 	formatLogDetails,
 	formatLogLevel,
@@ -25,16 +26,16 @@ const sampleEntry: WebappLogEntry = {
 };
 
 describe('logsView', () => {
-	test('defines a webapp tab and a disabled devices tab', () => {
+	test('defines webapp and device tabs as available sources', () => {
 		assert.deepEqual(
 			LOGS_TABS.map((tab) => ({ key: tab.key, available: tab.available })),
 			[
 				{ key: 'webapp', available: true },
-				{ key: 'devices', available: false }
+				{ key: 'devices', available: true }
 			]
 		);
 		assert.equal(isLogsSourceAvailable('webapp'), true);
-		assert.equal(isLogsSourceAvailable('devices'), false);
+		assert.equal(isLogsSourceAvailable('devices'), true);
 	});
 
 	test('formats log level and timestamp fallbacks safely', () => {
@@ -55,5 +56,10 @@ describe('logsView', () => {
 			formatLogDetails(sampleEntry),
 			JSON.stringify({ context: sampleEntry.context }, null, 2)
 		);
+	});
+
+	test('formats device log source labels safely', () => {
+		assert.equal(formatDeviceLogSource('sake'), 'Sake');
+		assert.equal(formatDeviceLogSource(''), 'Unknown source');
 	});
 });

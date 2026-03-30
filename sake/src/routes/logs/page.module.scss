@@ -155,9 +155,40 @@
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: space-between;
+	align-items: center;
 	gap: 0.75rem;
 	color: var(--color-text-secondary);
 	font-size: 0.88rem;
+}
+
+.toolbarMeta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+.devicePicker {
+	display: grid;
+	gap: 0.35rem;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--color-text-secondary);
+}
+
+.deviceSelect {
+	min-width: 16rem;
+	padding: 0.55rem 0.8rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.65rem;
+	background: var(--color-surface-2);
+	color: var(--color-text-primary);
+	font: inherit;
+	appearance: none;
+
+	&:disabled {
+		color: var(--color-text-muted);
+		cursor: not-allowed;
+	}
 }
 
 .feed {
@@ -203,6 +234,13 @@
 	font-size: 0.78rem;
 }
 
+.entryHeaderMeta {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
 .levelBadge {
 	display: inline-flex;
 	align-items: center;
@@ -238,6 +276,19 @@
 .level_unknown {
 	background: rgba(168, 85, 247, 0.16);
 	color: #d8b4fe;
+}
+
+.sourceBadge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.2rem 0.5rem;
+	border-radius: 999px;
+	border: 1px solid var(--color-border);
+	background: var(--color-surface);
+	color: var(--color-text-secondary);
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.03em;
 }
 
 .message {
@@ -314,6 +365,10 @@
 
 	.feed {
 		max-height: 56vh;
+	}
+
+	.deviceSelect {
+		min-width: min(100%, 16rem);
 	}
 
 	.contextChip span:last-child {

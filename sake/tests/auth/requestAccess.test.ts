@@ -15,6 +15,10 @@ describe('requestAccess', () => {
 		assert.equal(isApiKeyAllowedRoute('/api/library/export', 'POST'), true);
 	});
 
+	test('allows API keys to post device logs', () => {
+		assert.equal(isApiKeyAllowedRoute('/api/devices/logs', 'POST'), true);
+	});
+
 	test('does not expose the export route as a direct library file GET', () => {
 		assert.equal(isApiKeyAllowedRoute('/api/library/export', 'GET'), false);
 	});
@@ -22,5 +26,10 @@ describe('requestAccess', () => {
 	test('keeps the webapp logs stream session-only', () => {
 		assert.equal(isPublicApiRoute('/api/logs/webapp/stream', 'GET'), false);
 		assert.equal(isApiKeyAllowedRoute('/api/logs/webapp/stream', 'GET'), false);
+	});
+
+	test('keeps the device logs stream session-only', () => {
+		assert.equal(isPublicApiRoute('/api/devices/device-a/logs/stream', 'GET'), false);
+		assert.equal(isApiKeyAllowedRoute('/api/devices/device-a/logs/stream', 'GET'), false);
 	});
 });

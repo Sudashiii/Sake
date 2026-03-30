@@ -6,6 +6,7 @@ import {
 	type WebappLogError,
 	type WebappLogLevel
 } from '$lib/types/Logs/WebappLogEntry';
+import { normalizeLogLevel } from '$lib/types/Logs/LogLevel';
 
 const RESERVED_LOG_KEYS = new Set([
 	'level',
@@ -38,24 +39,7 @@ function toTimestamp(value: unknown): string {
 }
 
 function toLevel(value: unknown): WebappLogLevel {
-	if (typeof value === 'string') {
-		if (value === 'fatal' || value === 'error' || value === 'warn' || value === 'info' || value === 'debug' || value === 'trace') {
-			return value;
-		}
-		return 'unknown';
-	}
-
-	if (typeof value !== 'number') {
-		return 'unknown';
-	}
-
-	if (value >= 60) return 'fatal';
-	if (value >= 50) return 'error';
-	if (value >= 40) return 'warn';
-	if (value >= 30) return 'info';
-	if (value >= 20) return 'debug';
-	if (value >= 10) return 'trace';
-	return 'unknown';
+	return normalizeLogLevel(value);
 }
 
 function toError(value: unknown): WebappLogError | undefined {
