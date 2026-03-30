@@ -21,6 +21,8 @@ const makeBook = (overrides: Partial<LibraryBook> = {}): LibraryBook => ({
 	filesize: null,
 	language: null,
 	year: null,
+	month: null,
+	day: null,
 	progress_storage_key: null,
 	progress_updated_at: null,
 	rating: null,

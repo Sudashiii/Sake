@@ -210,7 +210,9 @@ export class PutLibraryFileUseCase {
 			extension,
 			filesize: body.byteLength,
 			language: pickText(extractedMetadata?.language, null),
-			year: pickNumber(extractedMetadata?.year, null)
+			year: pickNumber(extractedMetadata?.year, null),
+			month: pickNumber(extractedMetadata?.month, null),
+			day: pickNumber(extractedMetadata?.day, null)
 		});
 		this.useCaseLogger.info(
 			{

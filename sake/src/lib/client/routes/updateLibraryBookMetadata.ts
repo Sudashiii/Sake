@@ -15,6 +15,8 @@ export interface UpdateLibraryBookMetadataRequest {
 	cover?: string | null;
 	language?: string | null;
 	year?: number | null;
+	month?: number | null;
+	day?: number | null;
 	externalRating?: number | null;
 	externalRatingCount?: number | null;
 	googleBooksId?: string | null;

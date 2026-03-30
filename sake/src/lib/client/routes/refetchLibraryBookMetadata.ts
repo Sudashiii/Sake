@@ -27,6 +27,8 @@ export interface RefetchLibraryBookMetadataResponse {
 		filesize: number | null;
 		language: string | null;
 		year: number | null;
+		month: number | null;
+		day: number | null;
 	};
 }
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { MAX_MANAGED_BOOK_COVER_BYTES } from '$lib/server/application/services/ManagedBookCoverService';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
+import { parsePublicationDateString } from '$lib/utils/publicationDate';
 
 const CONTAINER_PATH = 'META-INF/container.xml';
 const MIMETYPE_PATH = 'mimetype';
@@ -48,6 +49,8 @@ export interface ExtractedUploadMetadata {
 	description: string | null;
 	language: string | null;
 	year: number | null;
+	month: number | null;
+	day: number | null;
 }
 
 export interface ExtractedUploadCover {
@@ -203,20 +206,19 @@ function pickAuthor(xml: string): string | null {
 	return creators.length > 0 ? creators.join(', ') : null;
 }
 
-function pickYear(xml: string): number | null {
+function pickPublicationDate(xml: string): { year: number | null; month: number | null; day: number | null } {
 	for (const dateValue of extractTagValues(xml, 'date')) {
-		const yearMatch = dateValue.match(/\b(1\d{3}|2\d{3})\b/);
-		if (yearMatch) {
-			return Number.parseInt(yearMatch[1], 10);
-		}
-
-		const parsedTimestamp = Date.parse(dateValue);
-		if (Number.isFinite(parsedTimestamp)) {
-			return new Date(parsedTimestamp).getUTCFullYear();
+		const parsed = parsePublicationDateString(dateValue);
+		if (parsed) {
+			return parsed;
 		}
 	}
 
-	return null;
+	return {
+		year: null,
+		month: null,
+		day: null
+	};
 }
 
 function normalizeLanguage(value: string | null): string | null {
@@ -439,6 +441,7 @@ export class EpubMetadataService {
 		}
 
 		const { opfXml } = packageResult.value;
+		const publicationDate = pickPublicationDate(opfXml);
 		const metadata: ExtractedUploadMetadata = {
 			title: extractFirstTagValue(opfXml, 'title'),
 			author: pickAuthor(opfXml),
@@ -446,7 +449,9 @@ export class EpubMetadataService {
 			identifier: pickIdentifier(opfXml),
 			description: extractFirstTagValue(opfXml, 'description'),
 			language: normalizeLanguage(extractFirstTagValue(opfXml, 'language')),
-			year: pickYear(opfXml)
+			year: publicationDate.year,
+			month: publicationDate.month,
+			day: publicationDate.day
 		};
 
 		return {

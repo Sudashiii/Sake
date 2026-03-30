@@ -33,6 +33,8 @@ type DbBookRow = {
 	filesize: number | null;
 	language: string | null;
 	year: number | null;
+	month: number | null;
+	day: number | null;
 	progressStorageKey: string | null;
 	progressUpdatedAt: string | null;
 	progressPercent: number | null;
@@ -74,6 +76,8 @@ const bookSelection = {
 	filesize: books.filesize,
 	language: books.language,
 	year: books.year,
+	month: books.month,
+	day: books.day,
 	progressStorageKey: books.progressStorageKey,
 	progressUpdatedAt: books.progressUpdatedAt,
 	progressPercent: books.progressPercent,
@@ -112,6 +116,8 @@ function mapBookRow(row: DbBookRow): Book {
 		filesize: row.filesize,
 		language: row.language,
 		year: row.year,
+		month: row.month,
+		day: row.day,
 		progress_storage_key: row.progressStorageKey,
 		progress_updated_at: row.progressUpdatedAt,
 		progress_percent: row.progressPercent,
@@ -297,7 +303,9 @@ export class BookRepository implements BookRepositoryPort {
 				extension: book.extension,
 				filesize: book.filesize,
 				language: book.language,
-				year: book.year
+				year: book.year,
+				month: book.month,
+				day: book.day
 			})
 			.returning(bookSelection);
 
@@ -337,7 +345,9 @@ export class BookRepository implements BookRepositoryPort {
 				extension: metadata.extension,
 				filesize: metadata.filesize,
 				language: metadata.language,
-				year: metadata.year
+				year: metadata.year,
+				month: metadata.month,
+				day: metadata.day
 			})
 			.where(eq(books.id, id))
 			.returning(bookSelection);

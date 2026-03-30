@@ -2,6 +2,7 @@
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import {
+		formatLibraryPublicationDate,
 		isImportableExternalCoverUrl,
 		toGoogleBooksUrl,
 		toOpenLibraryUrl,
@@ -83,7 +84,20 @@
 		<div><p class="detail-v2-caption">Volume</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.volume} />{:else}<p>{selectedBookDetail.volume || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Edition</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.edition} />{:else}<p>{selectedBookDetail.edition || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Identifier</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.identifier} />{:else}<p>{selectedBookDetail.identifier || '—'}</p>{/if}</div>
-		<div><p class="detail-v2-caption">Year</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.year} />{:else}<p>{selectedBook.year || '—'}</p>{/if}</div>
+		<div class="detail-v2-date-field">
+			<p class="detail-v2-caption">Published Date</p>
+			{#if isEditingMetadata}
+				<div class="detail-v2-date-inputs">
+					<input class="detail-v2-input detail-v2-date-input detail-v2-date-input-year" bind:value={metadataDraft.year} placeholder="YYYY" inputmode="numeric" />
+					<span class="detail-v2-date-separator">/</span>
+					<input class="detail-v2-input detail-v2-date-input" bind:value={metadataDraft.month} placeholder="MM" inputmode="numeric" />
+					<span class="detail-v2-date-separator">/</span>
+					<input class="detail-v2-input detail-v2-date-input" bind:value={metadataDraft.day} placeholder="DD" inputmode="numeric" />
+				</div>
+			{:else}
+				<p>{formatLibraryPublicationDate(selectedBookDetail)}</p>
+			{/if}
+		</div>
 		<div><p class="detail-v2-caption">Pages</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.pages} />{:else}<p>{selectedBookDetail.pages || '—'}</p>{/if}</div>
 		<div><p class="detail-v2-caption">Language</p>{#if isEditingMetadata}<input class="detail-v2-input" bind:value={metadataDraft.language} />{:else}<p>{selectedBook.language || '—'}</p>{/if}</div>
 		<div>

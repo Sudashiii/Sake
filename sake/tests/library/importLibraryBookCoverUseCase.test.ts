@@ -30,6 +30,8 @@ function createBook(overrides: Partial<Book>): Book {
 		filesize: 10,
 		language: null,
 		year: null,
+		month: null,
+		day: null,
 		progress_storage_key: null,
 		progress_updated_at: null,
 		progress_percent: null,

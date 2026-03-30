@@ -113,6 +113,8 @@
 		cover: '',
 		language: '',
 		year: '',
+		month: '',
+		day: '',
 		googleBooksId: '',
 		openLibraryKey: '',
 		amazonAsin: '',
@@ -567,7 +569,9 @@
 			description: toDraftText(detail.description),
 			cover: toDraftText(selectedBook?.cover ?? ''),
 			language: toDraftText(selectedBook?.language ?? ''),
-			year: toDraftText(selectedBook?.year ?? ''),
+			year: toDraftText(detail.year),
+			month: toDraftText(detail.month),
+			day: toDraftText(detail.day),
 			googleBooksId: toDraftText(detail.googleBooksId),
 			openLibraryKey: toDraftText(detail.openLibraryKey),
 			amazonAsin: toDraftText(detail.amazonAsin),
@@ -608,6 +612,8 @@
 		filesize: number | null;
 		language: string | null;
 		year: number | null;
+		month: number | null;
+		day: number | null;
 	}): void {
 		const index = books.findIndex((book) => book.id === updated.id);
 		if (index === -1) {
@@ -636,7 +642,9 @@
 			extension: updated.extension,
 			filesize: updated.filesize,
 			language: updated.language,
-			year: updated.year
+			year: updated.year,
+			month: updated.month,
+			day: updated.day
 		};
 
 		books = [...books.slice(0, index), updatedBook, ...books.slice(index + 1)];
@@ -676,7 +684,10 @@
 				openLibraryKey: result.value.book.openLibraryKey,
 				amazonAsin: result.value.book.amazonAsin,
 				externalRating: result.value.book.externalRating,
-				externalRatingCount: result.value.book.externalRatingCount
+				externalRatingCount: result.value.book.externalRatingCount,
+				year: result.value.book.year,
+				month: result.value.book.month,
+				day: result.value.book.day
 			};
 			initializeMetadataDraft(selectedBookDetail);
 		}
@@ -710,6 +721,18 @@
 			return;
 		}
 
+		const year = parseNullableNumber(metadataDraft.year);
+		const month = parseNullableNumber(metadataDraft.month);
+		const day = parseNullableNumber(metadataDraft.day);
+		if (year === null && (month !== null || day !== null)) {
+			toastStore.add('Published date month and day require a year', 'error');
+			return;
+		}
+		if (month === null && day !== null) {
+			toastStore.add('Published date day requires a month', 'error');
+			return;
+		}
+
 		isSavingMetadata = true;
 		const updateResult = await ZUI.updateLibraryBookMetadata(selectedBook.id, {
 			title,
@@ -724,7 +747,9 @@
 			description: metadataDraft.description.trim() || null,
 			cover: metadataDraft.cover.trim() || null,
 			language: metadataDraft.language.trim() || null,
-			year: parseNullableNumber(metadataDraft.year),
+			year,
+			month: year === null ? null : month,
+			day: year === null || month === null ? null : day,
 			googleBooksId: metadataDraft.googleBooksId.trim() || null,
 			openLibraryKey: metadataDraft.openLibraryKey.trim() || null,
 			amazonAsin: metadataDraft.amazonAsin.trim() || null,

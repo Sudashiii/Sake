@@ -3,13 +3,14 @@ import type { LibraryBook } from '$lib/types/Library/Book';
 import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 import type { RuleGroup, RuleNode, ShelfCondition } from '$lib/types/Library/ShelfRule';
+import { formatPublicationDate } from '$lib/utils/publicationDate';
 
 export type LibrarySortField =
 	| 'dateAdded'
 	| 'title'
 	| 'author'
 	| 'series'
-	| 'publishedYear'
+	| 'publishedDate'
 	| 'progressUpdated';
 export type LibrarySortDirection = 'asc' | 'desc';
 export interface LibrarySortPreference {
@@ -43,7 +44,7 @@ export const LIBRARY_SORT_FIELD_OPTIONS = [
 	{ value: 'title', label: 'Title' },
 	{ value: 'author', label: 'Author' },
 	{ value: 'series', label: 'Series' },
-	{ value: 'publishedYear', label: 'Date Published' },
+	{ value: 'publishedDate', label: 'Date Published' },
 	{ value: 'progressUpdated', label: 'Progress Updated' }
 ] as const satisfies ReadonlyArray<{ value: LibrarySortField; label: string }>;
 
@@ -66,6 +67,8 @@ export type MetadataDraft = {
 	cover: string;
 	language: string;
 	year: string;
+	month: string;
+	day: string;
 	googleBooksId: string;
 	openLibraryKey: string;
 	amazonAsin: string;
@@ -88,7 +91,7 @@ export function isLibrarySortField(value: string | null | undefined): value is L
 		value === 'title' ||
 		value === 'author' ||
 		value === 'series' ||
-		value === 'publishedYear' ||
+		value === 'publishedDate' ||
 		value === 'progressUpdated'
 	);
 }
@@ -140,6 +143,10 @@ function parseStoredLibrarySort(
 	const [field, direction, extra] = trimmed.split(':');
 	if (extra !== undefined) {
 		return null;
+	}
+
+	if (field === 'publishedYear' && isLibrarySortDirection(direction)) {
+		return { field: 'publishedDate', direction };
 	}
 
 	if (!isLibrarySortField(field) || !isLibrarySortDirection(direction)) {
@@ -268,6 +275,20 @@ export function formatDateTime(dateStr: string): string {
 		dateStyle: 'medium',
 		timeStyle: 'short'
 	}).format(new Date(dateStr));
+}
+
+export function formatLibraryPublicationDate(parts: {
+	year: number | null | undefined;
+	month: number | null | undefined;
+	day: number | null | undefined;
+}): string {
+	return (
+		formatPublicationDate({
+			year: parts.year ?? null,
+			month: parts.month ?? null,
+			day: parts.day ?? null
+		}) ?? '—'
+	);
 }
 
 export function normalizeText(value: string | null | undefined): string {
@@ -681,6 +702,24 @@ function compareBooksBySeries(
 	return compareTieBreakers(left, right);
 }
 
+function compareBooksByPublicationDate(
+	left: LibraryBook,
+	right: LibraryBook,
+	direction: LibrarySortDirection
+): number {
+	const yearCompare = compareOptionalNumber(left.year, right.year, direction);
+	if (yearCompare !== 0) {
+		return yearCompare;
+	}
+
+	const monthCompare = compareOptionalNumber(left.month, right.month, direction);
+	if (monthCompare !== 0) {
+		return monthCompare;
+	}
+
+	return compareOptionalNumber(left.day, right.day, direction);
+}
+
 function compareBooks(
 	left: LibraryBook,
 	right: LibraryBook,
@@ -696,8 +735,8 @@ function compareBooks(
 		primaryCompare = compareOptionalText(left.author, right.author, sort.direction);
 	} else if (sort.field === 'series') {
 		primaryCompare = compareBooksBySeries(left, right, sort.direction);
-	} else if (sort.field === 'publishedYear') {
-		primaryCompare = compareOptionalNumber(left.year, right.year, sort.direction);
+	} else if (sort.field === 'publishedDate') {
+		primaryCompare = compareBooksByPublicationDate(left, right, sort.direction);
 	} else {
 		primaryCompare = compareOptionalTimestamp(
 			left.progress_updated_at,

@@ -51,7 +51,9 @@ function toUpdateMetadataInput(existing: Awaited<ReturnType<BookRepositoryPort['
 		extension: existing.extension,
 		filesize: existing.filesize,
 		language: existing.language,
-		year: existing.year
+		year: existing.year,
+		month: existing.month,
+		day: existing.day
 	};
 }
 

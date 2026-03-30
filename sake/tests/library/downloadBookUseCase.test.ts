@@ -51,7 +51,9 @@ function createBook(overrides: Partial<Book>): Book {
 			extension: 'pdf',
 			filesize: 8,
 			language: null,
-			year: null
+			year: null,
+			month: null,
+			day: null
 		}),
 		...overrides
 	};
@@ -72,7 +74,10 @@ function emptyExternalMetadata(): ExternalBookMetadata {
 		identifier: null,
 		pages: null,
 		externalRating: null,
-		externalRatingCount: null
+		externalRatingCount: null,
+		year: null,
+		month: null,
+		day: null
 	};
 }
 

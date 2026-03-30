@@ -34,6 +34,8 @@ function createBook(overrides: Partial<LibraryBook> = {}): LibraryBook {
 		filesize: 1024,
 		language: 'en',
 		year: 2024,
+		month: null,
+		day: null,
 		progress_storage_key: null,
 		progress_updated_at: '2026-03-07T10:00:00.000Z',
 		rating: 4,
@@ -141,14 +143,27 @@ describe('libraryView', () => {
 		};
 
 		writeStoredLibrarySort(storage, 3, {
-			field: 'publishedYear',
+			field: 'publishedDate',
 			direction: 'asc'
 		});
 
 		assert.equal(
 			writes.get('librarySort:library:shelf:3'),
-			'publishedYear:asc'
+			'publishedDate:asc'
 		);
+	});
+
+	test('readStoredLibrarySort maps previously stored publishedYear preferences to publishedDate', () => {
+		const storage = {
+			getItem(): string | null {
+				return 'publishedYear:desc';
+			}
+		};
+
+		assert.deepEqual(readStoredLibrarySort(storage, null), {
+			field: 'publishedDate',
+			direction: 'desc'
+		});
 	});
 
 	test('sortBooks sorts by progress update direction', () => {
@@ -195,15 +210,27 @@ describe('libraryView', () => {
 		assertSortedIds(books, { field: 'author', direction: 'desc' }, [3, 1, 2]);
 	});
 
-	test('sortBooks sorts publication year with empty values last in both directions', () => {
+	test('sortBooks sorts publication dates with empty values last in both directions', () => {
 		const books = [
-			createBook({ id: 1, year: 1965 }),
+			createBook({ id: 1, year: 1965, month: 8, day: 1 }),
 			createBook({ id: 2, year: null }),
-			createBook({ id: 3, year: 1983 })
+			createBook({ id: 3, year: 1983, month: 6, day: 1 })
 		];
 
-		assertSortedIds(books, { field: 'publishedYear', direction: 'desc' }, [3, 1, 2]);
-		assertSortedIds(books, { field: 'publishedYear', direction: 'asc' }, [1, 3, 2]);
+		assertSortedIds(books, { field: 'publishedDate', direction: 'desc' }, [3, 1, 2]);
+		assertSortedIds(books, { field: 'publishedDate', direction: 'asc' }, [1, 3, 2]);
+	});
+
+	test('sortBooks compares publication year, month, and day with partial dates sorted last within the same year', () => {
+		const books = [
+			createBook({ id: 1, title: 'Year Only', year: 2024, month: null, day: null }),
+			createBook({ id: 2, title: 'January', year: 2024, month: 1, day: null }),
+			createBook({ id: 3, title: 'January 15', year: 2024, month: 1, day: 15 }),
+			createBook({ id: 4, title: 'February 2', year: 2024, month: 2, day: 2 })
+		];
+
+		assertSortedIds(books, { field: 'publishedDate', direction: 'asc' }, [3, 2, 4, 1]);
+		assertSortedIds(books, { field: 'publishedDate', direction: 'desc' }, [4, 3, 2, 1]);
 	});
 
 	test('sortBooks sorts by series name, then series index, then volume, then title', () => {
