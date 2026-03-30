@@ -16,10 +16,12 @@
 	import LibraryToolbar from '$lib/features/library/components/LibraryToolbar/LibraryToolbar.svelte';
 	import TrashBookCard from '$lib/features/library/components/TrashBookCard/TrashBookCard.svelte';
 	import {
+		DEFAULT_LIBRARY_SORT_PREFERENCE,
 		applyBulkShelfSelection,
 		getVisibleBookIds,
 		getBookStatus,
 		groupBooksBySeries,
+		isSeriesSortPreference,
 		matchesBookQuery,
 		matchesBookShelf,
 		matchesBookStatus,
@@ -33,7 +35,9 @@
 		type DetailTab,
 		type LibraryBookGroup,
 		type LibraryBulkShelfAction,
-		type LibrarySort,
+		type LibrarySortDirection,
+		type LibrarySortField,
+		type LibrarySortPreference,
 		type LibraryStatusFilter,
 		type LibraryView,
 		type LibraryVisualMode,
@@ -52,13 +56,13 @@
 	let trashBooks = $state<LibraryBook[]>([]);
 	let isLoading = $state(true);
 	let error = $state<ApiError | null>(null);
-	let sortBy = $state<LibrarySort>('dateAdded');
+	let sortPreference = $state<LibrarySortPreference>({ ...DEFAULT_LIBRARY_SORT_PREFERENCE });
 	let currentView = $state<LibraryView>('library');
 	let searchQuery = $state('');
 	let statusFilter = $state<LibraryStatusFilter>('all');
 	let visualMode = $state<LibraryVisualMode>('grid');
 	let showFilters = $state(false);
-	let showSortMenu = $state(false);
+	let showSortFieldMenu = $state(false);
 	let showShelfAssign = $state<number | null>(null);
 	let selectionMode = $state(false);
 	let selectedBookIds = $state<number[]>([]);
@@ -120,8 +124,8 @@
 
 	let activeLibraryBooks = $derived(books.filter((book) => !book.archived_at));
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
-	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortBy));
-	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortBy));
+	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortPreference));
+	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortPreference));
 	let shelvesById = $derived(new Map(shelves.map((shelf) => [shelf.id, shelf] as const)));
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== '/library') {
@@ -155,7 +159,7 @@
 	);
 	let visibleBooks = $derived(currentView === 'library' ? filteredLibraryBooks : filteredArchivedBooks);
 	let visibleBookGroups = $derived.by<LibraryBookGroup[]>(() =>
-		sortBy === 'series' ? groupBooksBySeries(visibleBooks) : []
+		isSeriesSortPreference(sortPreference) ? groupBooksBySeries(visibleBooks) : []
 	);
 	let visibleLibraryBookIds = $derived(getVisibleBookIds(filteredLibraryBooks));
 	let selectedBooks = $derived(
@@ -206,7 +210,8 @@
 			return;
 		}
 
-		sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? 'dateAdded';
+		sortPreference =
+			readStoredLibrarySort(localStorage, selectedShelfId) ?? { ...DEFAULT_LIBRARY_SORT_PREFERENCE };
 	});
 
 	onMount(() => {
@@ -220,7 +225,8 @@
 
 		(async () => {
 			if (typeof localStorage !== 'undefined') {
-				sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? sortBy;
+				sortPreference =
+					readStoredLibrarySort(localStorage, selectedShelfId) ?? { ...DEFAULT_LIBRARY_SORT_PREFERENCE };
 			}
 			hasInitializedSortPreference = true;
 
@@ -1391,10 +1397,20 @@
 		setBookShelfIdsState(selectedBook.id, result.value.shelfIds);
 	}
 
-	function setSortBy(value: LibrarySort): void {
-		sortBy = value;
+	function setSortField(value: LibrarySortField): void {
+		const nextSortPreference = { ...sortPreference, field: value };
+		sortPreference = nextSortPreference;
 		if (typeof localStorage !== 'undefined') {
-			writeStoredLibrarySort(localStorage, selectedShelfId, value);
+			writeStoredLibrarySort(localStorage, selectedShelfId, nextSortPreference);
+		}
+	}
+
+	function setSortDirection(value: LibrarySortDirection): void {
+		showFilters = false;
+		const nextSortPreference = { ...sortPreference, direction: value };
+		sortPreference = nextSortPreference;
+		if (typeof localStorage !== 'undefined') {
+			writeStoredLibrarySort(localStorage, selectedShelfId, nextSortPreference);
 		}
 	}
 
@@ -1423,7 +1439,7 @@
 			return;
 		}
 		resetLibraryDropState();
-		showSortMenu = false;
+		showSortFieldMenu = false;
 		showFilters = false;
 		currentView = nextView;
 		if (!showDetailModal) {
@@ -1473,12 +1489,13 @@
 		{currentView}
 		bind:searchQuery
 		{statusFilter}
-		{sortBy}
+		{sortPreference}
 		bind:visualMode
 		bind:showFilters
-		bind:showSortMenu
+		bind:showSortFieldMenu
 		{isUploadingLibraryFile}
-		onSetSortBy={setSortBy}
+		onSetSortField={setSortField}
+		onSetSortDirection={setSortDirection}
 		onSelectFilterOption={selectFilterOption}
 		onUploadChange={handleLibraryUploadChange}
 	/>
@@ -1523,7 +1540,7 @@
 		{/if}
 	{:else}
 		{#if visibleBooks.length > 0}
-			{#if sortBy === 'series'}
+			{#if isSeriesSortPreference(sortPreference)}
 				<div class={styles.seriesGroups}>
 					{#each visibleBookGroups as group (group.id)}
 						<section class={styles.seriesGroup} aria-label={`Series group ${group.label}`}>
