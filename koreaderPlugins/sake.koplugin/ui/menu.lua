@@ -28,6 +28,15 @@ function Menu.addToMainMenu(menu_items, ctx)
                 ctx.actions.onCheckPluginUpdate()
             end,
         },
+        {
+            text = _("Send Logs to Sake"),
+            checked_func = function()
+                return ctx.settings.log_shipping_enabled == true
+            end,
+            callback = function(touchmenu_instance)
+                ctx.actions.onToggleLogShipping(touchmenu_instance)
+            end,
+        },
     }
 
     table.insert(sub_items, {

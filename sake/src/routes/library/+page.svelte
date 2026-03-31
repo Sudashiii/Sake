@@ -16,10 +16,12 @@
 	import LibraryToolbar from '$lib/features/library/components/LibraryToolbar/LibraryToolbar.svelte';
 	import TrashBookCard from '$lib/features/library/components/TrashBookCard/TrashBookCard.svelte';
 	import {
+		DEFAULT_LIBRARY_SORT_PREFERENCE,
 		applyBulkShelfSelection,
 		getVisibleBookIds,
 		getBookStatus,
 		groupBooksBySeries,
+		isSeriesSortPreference,
 		matchesBookQuery,
 		matchesBookShelf,
 		matchesBookStatus,
@@ -33,7 +35,9 @@
 		type DetailTab,
 		type LibraryBookGroup,
 		type LibraryBulkShelfAction,
-		type LibrarySort,
+		type LibrarySortDirection,
+		type LibrarySortField,
+		type LibrarySortPreference,
 		type LibraryStatusFilter,
 		type LibraryView,
 		type LibraryVisualMode,
@@ -52,13 +56,13 @@
 	let trashBooks = $state<LibraryBook[]>([]);
 	let isLoading = $state(true);
 	let error = $state<ApiError | null>(null);
-	let sortBy = $state<LibrarySort>('dateAdded');
+	let sortPreference = $state<LibrarySortPreference>({ ...DEFAULT_LIBRARY_SORT_PREFERENCE });
 	let currentView = $state<LibraryView>('library');
 	let searchQuery = $state('');
 	let statusFilter = $state<LibraryStatusFilter>('all');
 	let visualMode = $state<LibraryVisualMode>('grid');
 	let showFilters = $state(false);
-	let showSortMenu = $state(false);
+	let showSortFieldMenu = $state(false);
 	let showShelfAssign = $state<number | null>(null);
 	let selectionMode = $state(false);
 	let selectedBookIds = $state<number[]>([]);
@@ -109,6 +113,8 @@
 		cover: '',
 		language: '',
 		year: '',
+		month: '',
+		day: '',
 		googleBooksId: '',
 		openLibraryKey: '',
 		amazonAsin: '',
@@ -120,8 +126,8 @@
 
 	let activeLibraryBooks = $derived(books.filter((book) => !book.archived_at));
 	let archivedBooks = $derived(books.filter((book) => Boolean(book.archived_at)));
-	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortBy));
-	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortBy));
+	let sortedBooks = $derived(sortBooks(activeLibraryBooks, sortPreference));
+	let sortedArchivedBooks = $derived(sortBooks(archivedBooks, sortPreference));
 	let shelvesById = $derived(new Map(shelves.map((shelf) => [shelf.id, shelf] as const)));
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== '/library') {
@@ -155,7 +161,7 @@
 	);
 	let visibleBooks = $derived(currentView === 'library' ? filteredLibraryBooks : filteredArchivedBooks);
 	let visibleBookGroups = $derived.by<LibraryBookGroup[]>(() =>
-		sortBy === 'series' ? groupBooksBySeries(visibleBooks) : []
+		isSeriesSortPreference(sortPreference) ? groupBooksBySeries(visibleBooks) : []
 	);
 	let visibleLibraryBookIds = $derived(getVisibleBookIds(filteredLibraryBooks));
 	let selectedBooks = $derived(
@@ -206,7 +212,8 @@
 			return;
 		}
 
-		sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? 'dateAdded';
+		sortPreference =
+			readStoredLibrarySort(localStorage, selectedShelfId) ?? { ...DEFAULT_LIBRARY_SORT_PREFERENCE };
 	});
 
 	onMount(() => {
@@ -220,7 +227,8 @@
 
 		(async () => {
 			if (typeof localStorage !== 'undefined') {
-				sortBy = readStoredLibrarySort(localStorage, selectedShelfId) ?? sortBy;
+				sortPreference =
+					readStoredLibrarySort(localStorage, selectedShelfId) ?? { ...DEFAULT_LIBRARY_SORT_PREFERENCE };
 			}
 			hasInitializedSortPreference = true;
 
@@ -561,7 +569,9 @@
 			description: toDraftText(detail.description),
 			cover: toDraftText(selectedBook?.cover ?? ''),
 			language: toDraftText(selectedBook?.language ?? ''),
-			year: toDraftText(selectedBook?.year ?? ''),
+			year: toDraftText(detail.year),
+			month: toDraftText(detail.month),
+			day: toDraftText(detail.day),
 			googleBooksId: toDraftText(detail.googleBooksId),
 			openLibraryKey: toDraftText(detail.openLibraryKey),
 			amazonAsin: toDraftText(detail.amazonAsin),
@@ -602,6 +612,8 @@
 		filesize: number | null;
 		language: string | null;
 		year: number | null;
+		month: number | null;
+		day: number | null;
 	}): void {
 		const index = books.findIndex((book) => book.id === updated.id);
 		if (index === -1) {
@@ -630,7 +642,9 @@
 			extension: updated.extension,
 			filesize: updated.filesize,
 			language: updated.language,
-			year: updated.year
+			year: updated.year,
+			month: updated.month,
+			day: updated.day
 		};
 
 		books = [...books.slice(0, index), updatedBook, ...books.slice(index + 1)];
@@ -670,7 +684,10 @@
 				openLibraryKey: result.value.book.openLibraryKey,
 				amazonAsin: result.value.book.amazonAsin,
 				externalRating: result.value.book.externalRating,
-				externalRatingCount: result.value.book.externalRatingCount
+				externalRatingCount: result.value.book.externalRatingCount,
+				year: result.value.book.year,
+				month: result.value.book.month,
+				day: result.value.book.day
 			};
 			initializeMetadataDraft(selectedBookDetail);
 		}
@@ -704,6 +721,18 @@
 			return;
 		}
 
+		const year = parseNullableNumber(metadataDraft.year);
+		const month = parseNullableNumber(metadataDraft.month);
+		const day = parseNullableNumber(metadataDraft.day);
+		if (year === null && (month !== null || day !== null)) {
+			toastStore.add('Published date month and day require a year', 'error');
+			return;
+		}
+		if (month === null && day !== null) {
+			toastStore.add('Published date day requires a month', 'error');
+			return;
+		}
+
 		isSavingMetadata = true;
 		const updateResult = await ZUI.updateLibraryBookMetadata(selectedBook.id, {
 			title,
@@ -718,7 +747,9 @@
 			description: metadataDraft.description.trim() || null,
 			cover: metadataDraft.cover.trim() || null,
 			language: metadataDraft.language.trim() || null,
-			year: parseNullableNumber(metadataDraft.year),
+			year,
+			month: year === null ? null : month,
+			day: year === null || month === null ? null : day,
 			googleBooksId: metadataDraft.googleBooksId.trim() || null,
 			openLibraryKey: metadataDraft.openLibraryKey.trim() || null,
 			amazonAsin: metadataDraft.amazonAsin.trim() || null,
@@ -1391,10 +1422,20 @@
 		setBookShelfIdsState(selectedBook.id, result.value.shelfIds);
 	}
 
-	function setSortBy(value: LibrarySort): void {
-		sortBy = value;
+	function setSortField(value: LibrarySortField): void {
+		const nextSortPreference = { ...sortPreference, field: value };
+		sortPreference = nextSortPreference;
 		if (typeof localStorage !== 'undefined') {
-			writeStoredLibrarySort(localStorage, selectedShelfId, value);
+			writeStoredLibrarySort(localStorage, selectedShelfId, nextSortPreference);
+		}
+	}
+
+	function setSortDirection(value: LibrarySortDirection): void {
+		showFilters = false;
+		const nextSortPreference = { ...sortPreference, direction: value };
+		sortPreference = nextSortPreference;
+		if (typeof localStorage !== 'undefined') {
+			writeStoredLibrarySort(localStorage, selectedShelfId, nextSortPreference);
 		}
 	}
 
@@ -1423,7 +1464,7 @@
 			return;
 		}
 		resetLibraryDropState();
-		showSortMenu = false;
+		showSortFieldMenu = false;
 		showFilters = false;
 		currentView = nextView;
 		if (!showDetailModal) {
@@ -1473,12 +1514,13 @@
 		{currentView}
 		bind:searchQuery
 		{statusFilter}
-		{sortBy}
+		{sortPreference}
 		bind:visualMode
 		bind:showFilters
-		bind:showSortMenu
+		bind:showSortFieldMenu
 		{isUploadingLibraryFile}
-		onSetSortBy={setSortBy}
+		onSetSortField={setSortField}
+		onSetSortDirection={setSortDirection}
 		onSelectFilterOption={selectFilterOption}
 		onUploadChange={handleLibraryUploadChange}
 	/>
@@ -1523,7 +1565,7 @@
 		{/if}
 	{:else}
 		{#if visibleBooks.length > 0}
-			{#if sortBy === 'series'}
+			{#if isSeriesSortPreference(sortPreference)}
 				<div class={styles.seriesGroups}>
 					{#each visibleBookGroups as group (group.id)}
 						<section class={styles.seriesGroup} aria-label={`Series group ${group.label}`}>

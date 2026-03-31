@@ -3,8 +3,20 @@ import type { LibraryBook } from '$lib/types/Library/Book';
 import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 import type { LibraryShelf } from '$lib/types/Library/Shelf';
 import type { RuleGroup, RuleNode, ShelfCondition } from '$lib/types/Library/ShelfRule';
+import { formatPublicationDate } from '$lib/utils/publicationDate';
 
-export type LibrarySort = 'dateAdded' | 'titleAsc' | 'progressRecent' | 'series';
+export type LibrarySortField =
+	| 'dateAdded'
+	| 'title'
+	| 'author'
+	| 'series'
+	| 'publishedDate'
+	| 'progressUpdated';
+export type LibrarySortDirection = 'asc' | 'desc';
+export interface LibrarySortPreference {
+	field: LibrarySortField;
+	direction: LibrarySortDirection;
+}
 export type LibraryView = 'library' | 'archived' | 'trash';
 export type LibraryStatusFilter = 'all' | 'unread' | 'reading' | 'read';
 export type LibraryVisualMode = 'grid' | 'list';
@@ -20,6 +32,26 @@ export const LIBRARY_SELECTION_LONG_PRESS_MS = 360;
 export const LIBRARY_SELECTION_PRESS_CANCEL_DISTANCE_PX = 8;
 export const LEGACY_LIBRARY_SORT_STORAGE_KEY = 'librarySort';
 export const ROOT_LIBRARY_SORT_STORAGE_KEY = 'librarySort:library';
+export const DEFAULT_LIBRARY_SORT_PREFERENCE: LibrarySortPreference = {
+	field: 'dateAdded',
+	direction: 'desc'
+};
+
+type LegacyLibrarySort = 'dateAdded' | 'titleAsc' | 'progressRecent' | 'series';
+
+export const LIBRARY_SORT_FIELD_OPTIONS = [
+	{ value: 'dateAdded', label: 'Date Added' },
+	{ value: 'title', label: 'Title' },
+	{ value: 'author', label: 'Author' },
+	{ value: 'series', label: 'Series' },
+	{ value: 'publishedDate', label: 'Date Published' },
+	{ value: 'progressUpdated', label: 'Progress Updated' }
+] as const satisfies ReadonlyArray<{ value: LibrarySortField; label: string }>;
+
+export const LIBRARY_SORT_DIRECTION_OPTIONS = [
+	{ value: 'asc', label: 'Asc' },
+	{ value: 'desc', label: 'Desc' }
+] as const satisfies ReadonlyArray<{ value: LibrarySortDirection; label: string }>;
 
 export type MetadataDraft = {
 	title: string;
@@ -35,6 +67,8 @@ export type MetadataDraft = {
 	cover: string;
 	language: string;
 	year: string;
+	month: string;
+	day: string;
 	googleBooksId: string;
 	openLibraryKey: string;
 	amazonAsin: string;
@@ -51,13 +85,85 @@ export function parseViewFromUrl(value: string | null): LibraryView | null {
 	return null;
 }
 
-export function isLibrarySort(value: string | null | undefined): value is LibrarySort {
+export function isLibrarySortField(value: string | null | undefined): value is LibrarySortField {
+	return (
+		value === 'dateAdded' ||
+		value === 'title' ||
+		value === 'author' ||
+		value === 'series' ||
+		value === 'publishedDate' ||
+		value === 'progressUpdated'
+	);
+}
+
+export function isLibrarySortDirection(
+	value: string | null | undefined
+): value is LibrarySortDirection {
+	return value === 'asc' || value === 'desc';
+}
+
+function isLegacyLibrarySort(value: string | null | undefined): value is LegacyLibrarySort {
 	return (
 		value === 'dateAdded' ||
 		value === 'titleAsc' ||
 		value === 'progressRecent' ||
 		value === 'series'
 	);
+}
+
+function mapLegacyLibrarySort(value: LegacyLibrarySort): LibrarySortPreference {
+	if (value === 'titleAsc') {
+		return { field: 'title', direction: 'asc' };
+	}
+	if (value === 'progressRecent') {
+		return { field: 'progressUpdated', direction: 'desc' };
+	}
+	if (value === 'series') {
+		return { field: 'series', direction: 'asc' };
+	}
+	return { field: 'dateAdded', direction: 'desc' };
+}
+
+function parseStoredLibrarySort(
+	value: string | null | undefined
+): LibrarySortPreference | null {
+	if (typeof value !== 'string') {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	if (isLegacyLibrarySort(trimmed)) {
+		return mapLegacyLibrarySort(trimmed);
+	}
+
+	const [field, direction, extra] = trimmed.split(':');
+	if (extra !== undefined) {
+		return null;
+	}
+
+	if (field === 'publishedYear' && isLibrarySortDirection(direction)) {
+		return { field: 'publishedDate', direction };
+	}
+
+	if (!isLibrarySortField(field) || !isLibrarySortDirection(direction)) {
+		return null;
+	}
+
+	return { field, direction };
+}
+
+export function serializeLibrarySortPreference(
+	sort: LibrarySortPreference
+): string {
+	return `${sort.field}:${sort.direction}`;
+}
+
+export function isSeriesSortPreference(sort: LibrarySortPreference): boolean {
+	return sort.field === 'series';
 }
 
 export function getLibrarySortStorageKey(shelfId: number | null): string {
@@ -69,7 +175,7 @@ export function getLibrarySortStorageKey(shelfId: number | null): string {
 export function readStoredLibrarySort(
 	storage: Pick<Storage, 'getItem'>,
 	shelfId: number | null
-): LibrarySort | null {
+): LibrarySortPreference | null {
 	const candidateKeys =
 		shelfId === null
 			? [ROOT_LIBRARY_SORT_STORAGE_KEY, LEGACY_LIBRARY_SORT_STORAGE_KEY]
@@ -81,8 +187,9 @@ export function readStoredLibrarySort(
 
 	for (const key of candidateKeys) {
 		const stored = storage.getItem(key);
-		if (isLibrarySort(stored)) {
-			return stored;
+		const parsed = parseStoredLibrarySort(stored);
+		if (parsed) {
+			return parsed;
 		}
 	}
 
@@ -92,9 +199,9 @@ export function readStoredLibrarySort(
 export function writeStoredLibrarySort(
 	storage: Pick<Storage, 'setItem'>,
 	shelfId: number | null,
-	sort: LibrarySort
+	sort: LibrarySortPreference
 ): void {
-	storage.setItem(getLibrarySortStorageKey(shelfId), sort);
+	storage.setItem(getLibrarySortStorageKey(shelfId), serializeLibrarySortPreference(sort));
 }
 
 export function toDraftText(value: string | number | null | undefined): string {
@@ -168,6 +275,20 @@ export function formatDateTime(dateStr: string): string {
 		dateStyle: 'medium',
 		timeStyle: 'short'
 	}).format(new Date(dateStr));
+}
+
+export function formatLibraryPublicationDate(parts: {
+	year: number | null | undefined;
+	month: number | null | undefined;
+	day: number | null | undefined;
+}): string {
+	return (
+		formatPublicationDate({
+			year: parts.year ?? null,
+			month: parts.month ?? null,
+			day: parts.day ?? null
+		}) ?? '—'
+	);
 }
 
 export function normalizeText(value: string | null | undefined): string {
@@ -420,17 +541,12 @@ export function getProgressHistoryPageRange(
 	return `Read from page ${normalizedFromPage} to ${normalizedToPage}`;
 }
 
-export function getSortLabel(value: LibrarySort): string {
-	if (value === 'series') {
-		return 'Series';
-	}
-	if (value === 'titleAsc') {
-		return 'Title A-Z';
-	}
-	if (value === 'progressRecent') {
-		return 'Recent Progress';
-	}
-	return 'Date Added';
+export function getSortFieldLabel(value: LibrarySortField): string {
+	return LIBRARY_SORT_FIELD_OPTIONS.find((option) => option.value === value)?.label ?? 'Date Added';
+}
+
+export function getSortDirectionLabel(value: LibrarySortDirection): string {
+	return value === 'asc' ? 'Asc' : 'Desc';
 }
 
 export function getFilterLabel(currentView: LibraryView, statusFilter: LibraryStatusFilter): string {
@@ -452,26 +568,9 @@ export function getFilterLabel(currentView: LibraryView, statusFilter: LibrarySt
 	return 'All';
 }
 
-export function sortBooks(list: LibraryBook[], mode: LibrarySort): LibraryBook[] {
+export function sortBooks(list: LibraryBook[], sort: LibrarySortPreference): LibraryBook[] {
 	const copy = [...list];
-	if (mode === 'series') {
-		return copy.sort(compareBooksBySeries);
-	}
-	if (mode === 'titleAsc') {
-		return copy.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-	}
-	if (mode === 'progressRecent') {
-		return copy.sort((a, b) => {
-			const aTime = a.progress_updated_at ? Date.parse(a.progress_updated_at) : 0;
-			const bTime = b.progress_updated_at ? Date.parse(b.progress_updated_at) : 0;
-			return bTime - aTime;
-		});
-	}
-	return copy.sort((a, b) => {
-		const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
-		const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
-		return bTime - aTime;
-	});
+	return copy.sort((left, right) => compareBooks(left, right, sort));
 }
 
 function normalizeSeriesLabel(value: string | null | undefined): string {
@@ -485,30 +584,43 @@ function compareLabel(left: string, right: string): number {
 	});
 }
 
-function compareSeriesNames(left: LibraryBook, right: LibraryBook): number {
-	const leftSeries = normalizeSeriesLabel(left.series);
-	const rightSeries = normalizeSeriesLabel(right.series);
-	if (!leftSeries && !rightSeries) {
-		return 0;
-	}
-	if (!leftSeries) {
-		return 1;
-	}
-	if (!rightSeries) {
-		return -1;
-	}
-	return compareLabel(leftSeries, rightSeries);
+function compareRequiredText(
+	left: string,
+	right: string,
+	direction: LibrarySortDirection
+): number {
+	const ascending = compareLabel(left, right);
+	return direction === 'asc' ? ascending : -ascending;
 }
 
-function compareSeriesIndices(left: LibraryBook, right: LibraryBook): number {
-	const leftValue =
-		typeof left.series_index === 'number' && Number.isFinite(left.series_index)
-			? left.series_index
-			: null;
-	const rightValue =
-		typeof right.series_index === 'number' && Number.isFinite(right.series_index)
-			? right.series_index
-			: null;
+function compareOptionalText(
+	left: string | null | undefined,
+	right: string | null | undefined,
+	direction: LibrarySortDirection
+): number {
+	const leftValue = normalizeSeriesLabel(left);
+	const rightValue = normalizeSeriesLabel(right);
+
+	if (!leftValue && !rightValue) {
+		return 0;
+	}
+	if (!leftValue) {
+		return 1;
+	}
+	if (!rightValue) {
+		return -1;
+	}
+
+	return compareRequiredText(leftValue, rightValue, direction);
+}
+
+function compareOptionalNumber(
+	left: number | null | undefined,
+	right: number | null | undefined,
+	direction: LibrarySortDirection
+): number {
+	const leftValue = typeof left === 'number' && Number.isFinite(left) ? left : null;
+	const rightValue = typeof right === 'number' && Number.isFinite(right) ? right : null;
 
 	if (leftValue === null && rightValue === null) {
 		return 0;
@@ -519,18 +631,62 @@ function compareSeriesIndices(left: LibraryBook, right: LibraryBook): number {
 	if (rightValue === null) {
 		return -1;
 	}
-	return leftValue - rightValue;
+
+	return direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
 }
 
-function compareBooksBySeries(left: LibraryBook, right: LibraryBook): number {
-	const seriesCompare = compareSeriesNames(left, right);
+function parseSortTimestamp(value: string | null | undefined): number | null {
+	if (!value) {
+		return null;
+	}
+
+	const parsed = Date.parse(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function compareOptionalTimestamp(
+	left: string | null | undefined,
+	right: string | null | undefined,
+	direction: LibrarySortDirection
+): number {
+	return compareOptionalNumber(
+		parseSortTimestamp(left),
+		parseSortTimestamp(right),
+		direction
+	);
+}
+
+function compareTieBreakers(left: LibraryBook, right: LibraryBook): number {
+	const titleCompare = compareLabel(left.title, right.title);
+	if (titleCompare !== 0) {
+		return titleCompare;
+	}
+
+	const createdAtCompare = compareOptionalTimestamp(left.createdAt, right.createdAt, 'desc');
+	if (createdAtCompare !== 0) {
+		return createdAtCompare;
+	}
+
+	return left.id - right.id;
+}
+
+function compareSeriesIndices(left: LibraryBook, right: LibraryBook): number {
+	return compareOptionalNumber(left.series_index, right.series_index, 'asc');
+}
+
+function compareBooksBySeries(
+	left: LibraryBook,
+	right: LibraryBook,
+	direction: LibrarySortDirection
+): number {
+	const seriesCompare = compareOptionalText(left.series, right.series, direction);
 	if (seriesCompare !== 0) {
 		return seriesCompare;
 	}
 
 	const sameSeries = normalizeSeriesLabel(left.series).length > 0;
 	if (!sameSeries) {
-		return compareLabel(left.title, right.title);
+		return compareTieBreakers(left, right);
 	}
 
 	const seriesIndexCompare = compareSeriesIndices(left, right);
@@ -538,12 +694,62 @@ function compareBooksBySeries(left: LibraryBook, right: LibraryBook): number {
 		return seriesIndexCompare;
 	}
 
-	const volumeCompare = compareLabel(normalizeText(left.volume), normalizeText(right.volume));
+	const volumeCompare = compareOptionalText(left.volume, right.volume, 'asc');
 	if (volumeCompare !== 0) {
 		return volumeCompare;
 	}
 
-	return compareLabel(left.title, right.title);
+	return compareTieBreakers(left, right);
+}
+
+function compareBooksByPublicationDate(
+	left: LibraryBook,
+	right: LibraryBook,
+	direction: LibrarySortDirection
+): number {
+	const yearCompare = compareOptionalNumber(left.year, right.year, direction);
+	if (yearCompare !== 0) {
+		return yearCompare;
+	}
+
+	const monthCompare = compareOptionalNumber(left.month, right.month, direction);
+	if (monthCompare !== 0) {
+		return monthCompare;
+	}
+
+	return compareOptionalNumber(left.day, right.day, direction);
+}
+
+function compareBooks(
+	left: LibraryBook,
+	right: LibraryBook,
+	sort: LibrarySortPreference
+): number {
+	let primaryCompare = 0;
+
+	if (sort.field === 'dateAdded') {
+		primaryCompare = compareOptionalTimestamp(left.createdAt, right.createdAt, sort.direction);
+	} else if (sort.field === 'title') {
+		primaryCompare = compareRequiredText(left.title, right.title, sort.direction);
+	} else if (sort.field === 'author') {
+		primaryCompare = compareOptionalText(left.author, right.author, sort.direction);
+	} else if (sort.field === 'series') {
+		primaryCompare = compareBooksBySeries(left, right, sort.direction);
+	} else if (sort.field === 'publishedDate') {
+		primaryCompare = compareBooksByPublicationDate(left, right, sort.direction);
+	} else {
+		primaryCompare = compareOptionalTimestamp(
+			left.progress_updated_at,
+			right.progress_updated_at,
+			sort.direction
+		);
+	}
+
+	if (primaryCompare !== 0) {
+		return primaryCompare;
+	}
+
+	return compareTieBreakers(left, right);
 }
 
 export function groupBooksBySeries(books: LibraryBook[]): LibraryBookGroup[] {

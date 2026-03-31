@@ -1,3 +1,5 @@
+import { parsePublicationDateString } from '$lib/utils/publicationDate';
+
 export interface ExternalBookMetadata {
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
@@ -13,6 +15,9 @@ export interface ExternalBookMetadata {
 	pages: number | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
+	year: number | null;
+	month: number | null;
+	day: number | null;
 }
 
 const googleBooksApiKey = process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
@@ -39,6 +44,20 @@ function pickFirst<T>(...values: Array<T | null | undefined>): T | null {
 		}
 	}
 	return null;
+}
+
+function parseExternalPublicationDate(value: string | null | undefined): {
+	year: number | null;
+	month: number | null;
+	day: number | null;
+} {
+	return (
+		parsePublicationDateString(value) ?? {
+			year: null,
+			month: null,
+			day: null
+		}
+	);
 }
 
 function normalizeForMatch(value: string | null | undefined): string {
@@ -153,7 +172,10 @@ export class ExternalBookMetadataService {
 			identifier: pickFirst(google.identifier, openLibrary.identifier, input.identifier),
 			pages: pickFirst(google.pages, openLibrary.pages),
 			externalRating: pickFirst(google.externalRating, openLibrary.externalRating),
-			externalRatingCount: pickFirst(google.externalRatingCount, openLibrary.externalRatingCount)
+			externalRatingCount: pickFirst(google.externalRatingCount, openLibrary.externalRatingCount),
+			year: pickFirst(google.year, openLibrary.year),
+			month: pickFirst(google.month, openLibrary.month),
+			day: pickFirst(google.day, openLibrary.day)
 		};
 	}
 
@@ -170,6 +192,9 @@ export class ExternalBookMetadataService {
 		pages: number | null;
 		externalRating: number | null;
 		externalRatingCount: number | null;
+		year: number | null;
+		month: number | null;
+		day: number | null;
 	}> {
 		const queryParts = [`intitle:${input.title}`];
 		if (input.author) {
@@ -203,6 +228,7 @@ export class ExternalBookMetadataService {
 						pageCount?: number;
 						averageRating?: number;
 						ratingsCount?: number;
+						publishedDate?: string;
 						imageLinks?: { thumbnail?: string; smallThumbnail?: string };
 						industryIdentifiers?: Array<{ type?: string; identifier?: string }>;
 					};
@@ -231,6 +257,7 @@ export class ExternalBookMetadataService {
 
 			const best = [...items].sort((a, b) => scoreGoogleItem(b) - scoreGoogleItem(a))[0] ?? items[0];
 			const pageSource = items.find((item) => asNumber(item.volumeInfo?.pageCount) !== null) ?? best;
+			const publishedDate = parseExternalPublicationDate(best.volumeInfo?.publishedDate);
 
 			const identifiers = best.volumeInfo?.industryIdentifiers ?? [];
 			const isbn13 = identifiers.find((item) => item.type === 'ISBN_13')?.identifier;
@@ -249,7 +276,10 @@ export class ExternalBookMetadataService {
 				identifier: asString(isbn13) ?? asString(isbn10),
 				pages: asNumber(pageSource.volumeInfo?.pageCount),
 				externalRating: asNumber(best.volumeInfo?.averageRating),
-				externalRatingCount: asNumber(best.volumeInfo?.ratingsCount)
+				externalRatingCount: asNumber(best.volumeInfo?.ratingsCount),
+				year: publishedDate.year,
+				month: publishedDate.month,
+				day: publishedDate.day
 			};
 		} catch {
 			return this.emptyGoogle();
@@ -269,7 +299,10 @@ export class ExternalBookMetadataService {
 			identifier: null,
 			pages: null,
 			externalRating: null,
-			externalRatingCount: null
+			externalRatingCount: null,
+			year: null,
+			month: null,
+			day: null
 		};
 	}
 
@@ -286,6 +319,9 @@ export class ExternalBookMetadataService {
 		pages: number | null;
 		externalRating: number | null;
 		externalRatingCount: number | null;
+		year: number | null;
+		month: number | null;
+		day: number | null;
 	}> {
 		const targetLanguages = languageTokens(input.language);
 		const preferredLanguage =
@@ -358,7 +394,10 @@ export class ExternalBookMetadataService {
 				identifier: asString(best.isbn?.[0]),
 				pages: asNumber(pageSource.number_of_pages_median),
 				externalRating: asNumber(best.ratings_average),
-				externalRatingCount: asNumber(best.ratings_count)
+				externalRatingCount: asNumber(best.ratings_count),
+				year: null,
+				month: null,
+				day: null
 			};
 		} catch {
 			return this.emptyOpenLibrary();
@@ -378,7 +417,10 @@ export class ExternalBookMetadataService {
 			identifier: null,
 			pages: null,
 			externalRating: null,
-			externalRatingCount: null
+			externalRatingCount: null,
+			year: null,
+			month: null,
+			day: null
 		};
 	}
 

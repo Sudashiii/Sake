@@ -25,6 +25,9 @@ export interface LibraryBookDetail {
 	amazonAsin: string | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
+	year: number | null;
+	month: number | null;
+	day: number | null;
 	progressPercent: number | null;
 	rating: number | null;
 	isRead: boolean;
@@ -76,6 +79,9 @@ export class GetLibraryBookDetailUseCase {
 			amazonAsin: book.amazon_asin,
 			externalRating: book.external_rating,
 			externalRatingCount: book.external_rating_count,
+			year: book.year,
+			month: book.month,
+			day: book.day,
 			progressPercent,
 			rating: book.rating,
 			isRead: Boolean(book.read_at),

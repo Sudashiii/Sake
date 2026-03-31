@@ -1,6 +1,6 @@
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
-local logger = require("logger")
+local logger = require("core/log")
 local _ = require("gettext")
 
 local BookEngine = require("engines/book_engine")

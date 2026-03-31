@@ -1,9 +1,4 @@
-export interface WebappVersion {
-	version: string;
-	gitTag: string | null;
-	commitSha: string | null;
-	releasedAt: string | null;
-}
+import type { WebappVersion } from '$lib/types/App/AppVersion';
 
 export interface WebappVersionInput {
 	version?: string | null;

@@ -1,4 +1,4 @@
-local logger = require("logger")
+local logger = require("core/log")
 
 local Settings = {}
 
@@ -8,8 +8,14 @@ local KEY_MAP = {
     api_pass = "sake_api_pass",
     api_key = "sake_api_key",
     device_name = "sake_device_name",
+    log_shipping_enabled = "sake_log_shipping_enabled",
     home_dir = "home_dir",
 }
+
+local function readBooleanSetting(key)
+    local value = G_reader_settings:readSetting(key)
+    return value == true or value == "true"
+end
 
 function Settings.load()
     return {
@@ -18,6 +24,7 @@ function Settings.load()
         api_pass = G_reader_settings:readSetting(KEY_MAP.api_pass) or "",
         api_key = G_reader_settings:readSetting(KEY_MAP.api_key) or "",
         device_name = G_reader_settings:readSetting(KEY_MAP.device_name),
+        log_shipping_enabled = readBooleanSetting(KEY_MAP.log_shipping_enabled),
         home_dir = G_reader_settings:readSetting(KEY_MAP.home_dir) or ".",
     }
 end

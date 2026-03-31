@@ -11,6 +11,7 @@
 	import SidebarSettingsLoginsPane from '../SidebarSettingsLoginsPane/SidebarSettingsLoginsPane.svelte';
 	import styles from './SidebarSettingsModal.module.scss';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
+	import type { DatabaseVersionInfo } from '$lib/types/App/AppVersion';
 	import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
 	import type { RegisteredDevice } from '$lib/types/Auth/Device';
 
@@ -38,6 +39,9 @@
 		isLoadingDevices?: boolean;
 		deletingDeviceId: string | null;
 		appVersion: string;
+		databaseVersion: DatabaseVersionInfo | null;
+		appVersionError: string | null;
+		isLoadingAppVersion?: boolean;
 		appEnvironment: string;
 		appSourceUrl: string;
 		appSourceLabel: string;
@@ -74,6 +78,9 @@
 		isLoadingDevices = false,
 		deletingDeviceId,
 		appVersion,
+		databaseVersion,
+		appVersionError,
+		isLoadingAppVersion = false,
 		appEnvironment,
 		appSourceUrl,
 		appSourceLabel,
@@ -143,7 +150,15 @@
 				</nav>
 				<div class="settings-modal-body">
 					{#if activeSection === 'app'}
-						<SidebarSettingsAppPane {appVersion} {appEnvironment} appSourceUrl={appSourceUrl} appSourceLabel={appSourceLabel} />
+						<SidebarSettingsAppPane
+							{appVersion}
+							{databaseVersion}
+							{appVersionError}
+							{isLoadingAppVersion}
+							{appEnvironment}
+							appSourceUrl={appSourceUrl}
+							appSourceLabel={appSourceLabel}
+						/>
 					{:else if activeSection === 'logins'}
 						<SidebarSettingsLoginsPane
 							{zlibName}
@@ -180,7 +195,15 @@
 							onDelete={onDeleteDevice}
 						/>
 					{:else}
-						<SidebarSettingsAppPane {appVersion} {appEnvironment} appSourceUrl={appSourceUrl} appSourceLabel={appSourceLabel} />
+						<SidebarSettingsAppPane
+							{appVersion}
+							{databaseVersion}
+							{appVersionError}
+							{isLoadingAppVersion}
+							{appEnvironment}
+							appSourceUrl={appSourceUrl}
+							appSourceLabel={appSourceLabel}
+						/>
 					{/if}
 				</div>
 			</div>

@@ -78,6 +78,9 @@ export function isApiKeyAllowedRoute(pathname: string, method: string): boolean 
 	if (pathname === '/api/devices/version') {
 		return method === 'POST';
 	}
+	if (pathname === '/api/devices/logs') {
+		return method === 'POST';
+	}
 	if (pathname.startsWith('/api/library/covers/')) {
 		return method === 'GET';
 	}

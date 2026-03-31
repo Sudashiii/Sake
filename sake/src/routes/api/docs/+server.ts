@@ -39,7 +39,7 @@ a { color: #7fc2ff; }
 <main>
 <h1>API Route Catalog</h1>
 <p>JSON version: <a href="/api/_routes"><code>/api/_routes</code></a></p>
-<p>App version: <a href="/api/app/version"><code>/api/app/version</code></a></p>
+<p>App + DB version: <a href="/api/app/version"><code>/api/app/version</code></a></p>
 <table>
 <thead><tr><th>Path</th><th>Methods</th></tr></thead>
 <tbody>${rows}</tbody>

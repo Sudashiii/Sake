@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from "$app/environment";
 	import { page } from "$app/stores";
 	import { onMount } from "svelte";
 	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from "$lib/auth/responseSignals";
@@ -54,13 +55,16 @@
 		if (path === "/stats") return "Stats";
 		if (path === "/archived") return "Archived";
 		if (path === "/trash") return "Trash";
+		if (path === "/logs") return "Logs";
 		return path === "/" ? "Login" : path.slice(1).replace(/-/g, " ");
 	});
 
 	$effect(() => {
-		if (!isLoginPage) {
-			void loadShelves();
+		if (!browser || isLoginPage) {
+			return;
 		}
+
+		void loadShelves();
 	});
 
 	function openModal() {

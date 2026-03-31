@@ -57,7 +57,9 @@ function createBook(overrides: Partial<Book>): Book {
 			extension: 'epub',
 			filesize: 10,
 			language: null,
-			year: null
+			year: null,
+			month: null,
+			day: null
 		}),
 		...overrides
 	};
@@ -78,7 +80,10 @@ function emptyExternalMetadata(): ExternalBookMetadata {
 		identifier: null,
 		pages: null,
 		externalRating: null,
-		externalRatingCount: null
+		externalRatingCount: null,
+		year: null,
+		month: null,
+		day: null
 	};
 }
 
@@ -157,7 +162,9 @@ describe('PutLibraryFileUseCase', () => {
 					identifier: null,
 					description: null,
 					language: 'en',
-					year: 2024
+					year: 2024,
+					month: null,
+					day: null
 				});
 			}
 		};
@@ -224,7 +231,9 @@ describe('PutLibraryFileUseCase', () => {
 			extension: 'epub',
 			filesize: 9,
 			language: 'en',
-			year: 2024
+			year: 2024,
+			month: null,
+			day: null
 		});
 	});
 
@@ -405,7 +414,9 @@ describe('PutLibraryFileUseCase', () => {
 					extension: 'epub',
 					filesize: 10,
 					language: null,
-					year: null
+					year: null,
+					month: null,
+					day: null
 				});
 			}
 		} as unknown as BookRepositoryPort;
@@ -711,7 +722,9 @@ describe('PutLibraryFileUseCase', () => {
 							identifier: null,
 							description: null,
 							language: null,
-							year: null
+							year: null,
+							month: null,
+							day: null
 						},
 						{
 							data: coverBuffer,

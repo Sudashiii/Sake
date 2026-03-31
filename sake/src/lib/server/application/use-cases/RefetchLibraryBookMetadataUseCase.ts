@@ -1,6 +1,7 @@
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
 import { ExternalBookMetadataService } from '$lib/server/application/services/ExternalBookMetadataService';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import { validatePublicationDateParts } from '$lib/utils/publicationDate';
 
 interface RefetchLibraryBookMetadataInput {
 	bookId: number;
@@ -31,6 +32,8 @@ interface RefetchLibraryBookMetadataResult {
 		filesize: number | null;
 		language: string | null;
 		year: number | null;
+		month: number | null;
+		day: number | null;
 	};
 }
 
@@ -57,6 +60,24 @@ function keepOrFillPages(current: number | null | undefined, fallback: number | 
 	return normalizedCurrent ?? normalizedFallback;
 }
 
+function mergePublicationDate(
+	current: { year: number | null; month: number | null; day: number | null },
+	fallback: { year: number | null; month: number | null; day: number | null }
+): { year: number | null; month: number | null; day: number | null } {
+	const year = current.year ?? fallback.year ?? null;
+	if (year === null) {
+		return { year: null, month: null, day: null };
+	}
+
+	const canUseFallbackDetails = fallback.year !== null && fallback.year === year;
+	const month = current.month ?? (canUseFallbackDetails ? fallback.month ?? null : null);
+	const canUseFallbackDay =
+		canUseFallbackDetails && month !== null && fallback.month !== null && fallback.month === month;
+	const day = current.day ?? (canUseFallbackDay ? fallback.day ?? null : null);
+
+	return { year, month, day };
+}
+
 export class RefetchLibraryBookMetadataUseCase {
 	constructor(
 		private readonly bookRepository: BookRepositoryPort,
@@ -77,6 +98,22 @@ export class RefetchLibraryBookMetadataUseCase {
 			identifier: existingBook.identifier ?? null,
 			language: existingBook.language ?? null
 		});
+		const nextPublicationDate = mergePublicationDate(
+			{
+				year: existingBook.year,
+				month: existingBook.month,
+				day: existingBook.day
+			},
+			{
+				year: enriched.year,
+				month: enriched.month,
+				day: enriched.day
+			}
+		);
+		const publicationDateError = validatePublicationDateParts(nextPublicationDate);
+		if (publicationDateError) {
+			return apiError(publicationDateError, 400);
+		}
 
 		const updated = await this.bookRepository.updateMetadata(existingBook.id, {
 			zLibId: existingBook.zLibId,
@@ -111,7 +148,9 @@ export class RefetchLibraryBookMetadataUseCase {
 			extension: existingBook.extension,
 			filesize: existingBook.filesize,
 			language: existingBook.language,
-			year: existingBook.year
+			year: nextPublicationDate.year,
+			month: nextPublicationDate.month,
+			day: nextPublicationDate.day
 		});
 
 		return apiOk({
@@ -138,7 +177,9 @@ export class RefetchLibraryBookMetadataUseCase {
 				extension: updated.extension,
 				filesize: updated.filesize,
 				language: updated.language,
-				year: updated.year
+				year: updated.year,
+				month: updated.month,
+				day: updated.day
 			}
 		});
 	}

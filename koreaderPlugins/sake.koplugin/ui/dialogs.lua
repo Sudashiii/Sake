@@ -1,7 +1,7 @@
 local InfoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager = require("ui/uimanager")
-local logger = require("logger")
+local logger = require("core/log")
 local _ = require("gettext")
 
 local Settings = require("core/settings")

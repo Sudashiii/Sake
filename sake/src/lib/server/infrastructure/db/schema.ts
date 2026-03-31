@@ -25,6 +25,8 @@ export const books = sqliteTable('Books', {
 	filesize: integer('filesize'),
 	language: text('language'),
 	year: integer('year'),
+	month: integer('month'),
+	day: integer('day'),
 	progressStorageKey: text('progress_storage_key'),
 	progressUpdatedAt: text('progress_updated_at'),
 	progressPercent: real('progress_percent'),
