@@ -1,20 +1,37 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
+about: Suggest an improvement for the web app, KOReader plugin, sync flow, or self-hosted setup
+title: '[Feature]: '
 labels: ''
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**Checklist**
+- [ ] I searched existing issues first.
+- [ ] This request fits Sake as an open-source self-hosted reading stack.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**What problem are you trying to solve?**
+Describe the user problem, workflow gap, or limitation behind the request.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**Which part of Sake would this affect?**
+- [ ] Web app
+- [ ] API
+- [ ] KOReader plugin
+- [ ] Sync/progress/device flow
+- [ ] Search/download providers
+- [ ] Self-hosting / deployment
+- [ ] Documentation
+- [ ] Something else
+
+**What would you like to see?**
+Describe the behavior, UI, API, or workflow you want.
+
+**Why is this valuable?**
+Explain how this would improve daily use, setup, syncing, importing, or maintenance.
+
+**Alternatives or workarounds**
+Describe any alternative solutions, workarounds, or related ideas you have considered.
 
 **Additional context**
-Add any other context or screenshots about the feature request here.
+Add mockups, screenshots, links, or implementation notes here if helpful.
