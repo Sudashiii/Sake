@@ -1,19 +1,17 @@
 <script lang="ts">
-	import { browser } from "$app/environment";
-	import { page } from "$app/stores";
-	import { onMount } from "svelte";
-	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from "$lib/auth/responseSignals";
-	import { toastStore } from "$lib/client/stores/toastStore.svelte";
-	import { ZUI } from "$lib/client/zui";
-	import { ZLibAuthService } from "$lib/client/services/zlibAuthService";
-	import Sidebar from "$lib/components/sidebar/Sidebar/Sidebar.svelte";
-	import AppTopBar from "$lib/components/layout/AppTopBar/AppTopBar.svelte";
-	import MobileSidebarBackdrop from "$lib/components/layout/MobileSidebarBackdrop/MobileSidebarBackdrop.svelte";
-	import ToastContainer from "$lib/components/ToastContainer/ToastContainer.svelte";
-	import ZLibraryAuthModal from "$lib/components/layout/ZLibraryAuthModal/ZLibraryAuthModal.svelte";
-	import type { ApiError } from "$lib/types/ApiError";
-	import type { LibraryShelf } from "$lib/types/Library/Shelf";
-	import type { Snippet } from "svelte";
+	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
+	import { ZLIBRARY_AUTH_CLEARED_EVENT_NAME } from '$lib/auth/responseSignals';
+	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import { shelfStore } from '$lib/client/stores/shelfStore.svelte';
+	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
+	import Sidebar from '$lib/components/sidebar/Sidebar/Sidebar.svelte';
+	import AppTopBar from '$lib/components/layout/AppTopBar/AppTopBar.svelte';
+	import MobileSidebarBackdrop from '$lib/components/layout/MobileSidebarBackdrop/MobileSidebarBackdrop.svelte';
+	import ToastContainer from '$lib/components/ToastContainer/ToastContainer.svelte';
+	import ZLibraryAuthModal from '$lib/components/layout/ZLibraryAuthModal/ZLibraryAuthModal.svelte';
+	import type { ApiError } from '$lib/types/ApiError';
+	import type { Snippet } from 'svelte';
 
 	interface Props {
 		children: Snippet;
@@ -21,50 +19,40 @@
 
 	const { children }: Props = $props();
 
-	const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
+	const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 
 	let showModal = $state(false);
-	let username = $state("");
-	let password = $state("");
-	let zlibName = $state("");
-	let authMode = $state<"password" | "remix">("password");
+	let username = $state('');
+	let password = $state('');
+	let zlibName = $state('');
+	let authMode = $state<'password' | 'remix'>('password');
 	let isLoading = $state(false);
 	let isLoggingOutZLibrary = $state(false);
 	let error = $state<ApiError | null>(null);
 	let sidebarCollapsed = $state(false);
 	let sidebarMobileOpen = $state(false);
-	let shelves = $state<LibraryShelf[]>([]);
-
 	// Check if we're on the login page (don't show sidebar there)
-	let isLoginPage = $derived($page.url.pathname === "/");
+	let isLoginPage = $derived($page.url.pathname === '/');
 	let currentSection = $derived.by(() => {
 		const path = $page.url.pathname;
-		if (path === "/library") {
-			const raw = $page.url.searchParams.get("shelf");
+		if (path === '/library') {
+			const raw = $page.url.searchParams.get('shelf');
 			if (!raw) {
-				return "Library";
+				return 'Library';
 			}
 			const shelfId = Number.parseInt(raw, 10);
 			if (!Number.isInteger(shelfId) || shelfId <= 0) {
-				return "Library";
+				return 'Library';
 			}
-			return shelves.find((shelf) => shelf.id === shelfId)?.name ?? "Library";
+			return shelfStore.shelves.find((shelf) => shelf.id === shelfId)?.name ?? 'Library';
 		}
-		if (path === "/queue") return "Queue";
-		if (path === "/search") return "Search";
-		if (path === "/stats") return "Stats";
-		if (path === "/archived") return "Archived";
-		if (path === "/trash") return "Trash";
-		if (path === "/logs") return "Logs";
-		return path === "/" ? "Login" : path.slice(1).replace(/-/g, " ");
-	});
-
-	$effect(() => {
-		if (!browser || isLoginPage) {
-			return;
-		}
-
-		void loadShelves();
+		if (path === '/queue') return 'Queue';
+		if (path === '/search') return 'Search';
+		if (path === '/stats') return 'Stats';
+		if (path === '/archived') return 'Archived';
+		if (path === '/trash') return 'Trash';
+		if (path === '/logs') return 'Logs';
+		return path === '/' ? 'Login' : path.slice(1).replace(/-/g, ' ');
 	});
 
 	function openModal() {
@@ -74,9 +62,9 @@
 
 	function closeModal() {
 		showModal = false;
-		username = "";
-		password = "";
-		authMode = "password";
+		username = '';
+		password = '';
+		authMode = 'password';
 		error = null;
 	}
 
@@ -88,7 +76,7 @@
 		isLoading = true;
 		error = null;
 
-		if (authMode === "remix") {
+		if (authMode === 'remix') {
 			const result = await ZLibAuthService.tokenLogin(username, password);
 			if (!result.ok) {
 				error = result.error;
@@ -126,12 +114,12 @@
 			return;
 		}
 
-		zlibName = "";
+		zlibName = '';
 		toastStore.add('Logged out from Z-Library', 'success');
 	}
 
 	function handleSidebarToggle() {
-		if (typeof localStorage !== "undefined") {
+		if (typeof localStorage !== 'undefined') {
 			localStorage.setItem(
 				SIDEBAR_COLLAPSED_KEY,
 				String(sidebarCollapsed),
@@ -143,48 +131,40 @@
 		sidebarMobileOpen = !sidebarMobileOpen;
 	}
 
-	async function loadShelves(): Promise<void> {
-		const result = await ZUI.getLibraryShelves();
-		if (result.ok) {
-			shelves = result.value.shelves;
-		}
-	}
-
 	onMount(() => {
-		const handleShelvesChanged = () => {
-			void loadShelves();
-		};
 		const handleZlibraryAuthCleared = () => {
 			zlibName = "";
 		};
-		if (typeof window !== "undefined") {
-			window.addEventListener("shelves:changed", handleShelvesChanged);
-				window.addEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
+		if (typeof window !== 'undefined') {
+			window.addEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
 		}
 
 		(async () => {
-			if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+			if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
 				void navigator.serviceWorker
-					.register("/service-worker.js", { type: "module" })
+					.register('/service-worker.js', { type: 'module' })
 					.catch((error: unknown) => {
-						console.error("Service worker registration failed", error);
+						console.error('Service worker registration failed', error);
 					});
 			}
 
 			zlibName = ZLibAuthService.getStoredUserName();
 
 			// Restore sidebar state
-			if (typeof localStorage !== "undefined") {
+			if (typeof localStorage !== 'undefined') {
 				sidebarCollapsed =
-					localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+					localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+			}
+
+			if (!isLoginPage) {
+				await shelfStore.load();
 			}
 
 		})();
 
 		return () => {
-			if (typeof window !== "undefined") {
-				window.removeEventListener("shelves:changed", handleShelvesChanged);
-					window.removeEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
+			if (typeof window !== 'undefined') {
+				window.removeEventListener(ZLIBRARY_AUTH_CLEARED_EVENT_NAME, handleZlibraryAuthCleared);
 			}
 		};
 	});

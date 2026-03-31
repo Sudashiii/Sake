@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
+	import { shelfStore } from '$lib/client/stores/shelfStore.svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal/ConfirmModal.svelte';
 	import Loading from '$lib/components/Loading/Loading.svelte';
 	import AlertCircleIcon from '$lib/assets/icons/AlertCircleIcon.svelte';
@@ -48,11 +49,10 @@
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import type { BookProgressHistoryEntry } from '$lib/types/Library/BookProgressHistory';
-	import type { LibraryShelf } from '$lib/types/Library/Shelf';
 	import styles from './page.module.scss';
 
 	let books = $state<LibraryBook[]>([]);
-	let shelves = $state<LibraryShelf[]>([]);
+	let shelves = $derived(shelfStore.shelves);
 	let trashBooks = $state<LibraryBook[]>([]);
 	let isLoading = $state(true);
 	let error = $state<ApiError | null>(null);
@@ -217,18 +217,11 @@
 	});
 
 	onMount(() => {
-		const handleShelvesChanged = () => {
-			void loadShelves();
-		};
-
-		if (typeof window !== 'undefined') {
-			window.addEventListener('shelves:changed', handleShelvesChanged);
-		}
-
 		(async () => {
 			if (typeof localStorage !== 'undefined') {
 				sortPreference =
-					readStoredLibrarySort(localStorage, selectedShelfId) ?? { ...DEFAULT_LIBRARY_SORT_PREFERENCE };
+					readStoredLibrarySort(localStorage, selectedShelfId) ??
+					{ ...DEFAULT_LIBRARY_SORT_PREFERENCE };
 			}
 			hasInitializedSortPreference = true;
 
@@ -238,9 +231,8 @@
 			const openBookId = openBookIdParam ? Number.parseInt(openBookIdParam, 10) : NaN;
 
 			if (requestedView === 'archived') {
-				const archivedTarget = Number.isNaN(openBookId)
-					? '/archived'
-					: `/archived?openBookId=${openBookId}`;
+				const archivedTarget =
+					Number.isNaN(openBookId) ? '/archived' : `/archived?openBookId=${openBookId}`;
 				await goto(archivedTarget, { replaceState: true });
 				return;
 			}
@@ -264,21 +256,13 @@
 
 			if (!Number.isNaN(openBookId)) {
 				const candidate = books.find(
-					(book) =>
-						book.id === openBookId &&
-						(currentView !== 'archived' || Boolean(book.archived_at))
+					(book) => book.id === openBookId && (currentView !== 'archived' || Boolean(book.archived_at))
 				);
 				if (candidate) {
 					await openDetailModal(candidate);
 				}
 			}
 		})();
-
-		return () => {
-			if (typeof window !== 'undefined') {
-				window.removeEventListener('shelves:changed', handleShelvesChanged);
-			}
-		};
 	});
 
 	function updateLibraryUrl(openBookId?: number | null): void {
@@ -312,13 +296,12 @@
 	}
 
 	async function loadShelves(): Promise<void> {
-		const result = await ZUI.getLibraryShelves();
+		const result = await shelfStore.load();
 		if (!result.ok) {
 			toastStore.add(`Failed to load shelves: ${result.error.message}`, 'error');
 			return;
 		}
 
-		shelves = result.value.shelves;
 		if (selectedShelfId !== null && !shelves.some((shelf) => shelf.id === selectedShelfId)) {
 			updateShelfUrl(null);
 		}

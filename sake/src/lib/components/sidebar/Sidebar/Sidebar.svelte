@@ -15,6 +15,7 @@
 	import SidebarSettingsModal from '$lib/components/sidebar/SidebarSettingsModal/SidebarSettingsModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
 	import { AuthService } from '$lib/client/services/authService';
+	import { shelfStore } from '$lib/client/stores/shelfStore.svelte';
 	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
 	import { ZUI } from '$lib/client/zui';
@@ -65,7 +66,7 @@
 		onToggle
 	}: Props = $props();
 
-	let shelves = $state<LibraryShelf[]>([]);
+	let shelves = $derived(shelfStore.shelves);
 	let shelvesExpanded = $state(true);
 	let isMutatingShelves = $state(false);
 	let showCreateShelf = $state(false);
@@ -139,12 +140,6 @@
 			activeSettingsSection = 'app';
 		}
 	});
-
-	function emitShelvesChanged(): void {
-		if (typeof window !== 'undefined') {
-			window.dispatchEvent(new CustomEvent('shelves:changed'));
-		}
-	}
 
 	function isActive(item: MenuItem): boolean {
 		return $page.url.pathname === item.href || $page.url.pathname.startsWith(item.href + '/');
@@ -419,7 +414,7 @@
 			return;
 		}
 		nextShelves.splice(toIndex, 0, draggedShelf);
-		shelves = nextShelves;
+		shelfStore.replace(nextShelves);
 	}
 
 	async function persistShelfReorder(previousShelves: LibraryShelf[]): Promise<void> {
@@ -429,12 +424,11 @@
 		isReorderingShelves = false;
 		resetShelfDragState();
 		if (!result.ok) {
-			shelves = previousShelves;
+			shelfStore.replace(previousShelves);
 			toastStore.add(`Failed to reorder shelves: ${result.error.message}`, 'error');
 			return;
 		}
-		shelves = result.value.shelves;
-		emitShelvesChanged();
+		shelfStore.replace(result.value.shelves);
 	}
 
 	function startShelfDrag(shelfId: number): void {
@@ -519,11 +513,10 @@
 		if (draggingShelfId !== null) {
 			return;
 		}
-		const result = await ZUI.getLibraryShelves();
+		const result = await shelfStore.load();
 		if (!result.ok) {
 			return;
 		}
-		shelves = result.value.shelves;
 		if (selectedShelfId !== null && !shelves.some((shelf) => shelf.id === selectedShelfId)) {
 			void goto('/library');
 		}
@@ -560,8 +553,7 @@
 		}
 		showCreateShelf = false;
 		closeAllShelfMenus();
-		await loadShelves();
-		emitShelvesChanged();
+		await shelfStore.reload();
 		toastStore.add(`Shelf "${result.value.shelf.name}" created`, 'success');
 	}
 
@@ -598,8 +590,7 @@
 		}
 		const updatedName = result.value.shelf.name;
 		cancelRenameShelf();
-		await loadShelves();
-		emitShelvesChanged();
+		await shelfStore.reload();
 		toastStore.add(`Shelf renamed to "${updatedName}"`, 'success');
 	}
 
@@ -635,8 +626,7 @@
 			await goto('/library');
 		}
 		closeAllShelfMenus();
-		await loadShelves();
-		emitShelvesChanged();
+		await shelfStore.reload();
 		toastStore.add(`Shelf "${shelf.name}" deleted`, 'success');
 		cancelDeleteShelf();
 	}
@@ -677,21 +667,17 @@
 			toastStore.add(`Failed to update shelf rules: ${result.error.message}`, 'error');
 			return;
 		}
-		shelves = shelves.map((shelf) =>
+		const nextShelves = shelves.map((shelf) =>
 			shelf.id === result.value.shelf.id ? result.value.shelf : shelf
 		);
-		emitShelvesChanged();
+		shelfStore.replace(nextShelves);
 		rulesModalShelfId = null;
 		toastStore.add(`Rules updated for "${result.value.shelf.name}"`, 'success');
 	}
 
 	onMount(() => {
 		void loadShelves();
-		const handleShelvesChanged = () => {
-			void loadShelves();
-		};
 		if (typeof window !== 'undefined') {
-			window.addEventListener('shelves:changed', handleShelvesChanged);
 			window.addEventListener('pointermove', handleGlobalPointerMove);
 			window.addEventListener('pointerup', handleGlobalPointerUp);
 			window.addEventListener('pointercancel', handleGlobalPointerUp);
@@ -700,7 +686,6 @@
 			resetShelfPressState();
 			resetShelfDragState();
 			if (typeof window !== 'undefined') {
-				window.removeEventListener('shelves:changed', handleShelvesChanged);
 				window.removeEventListener('pointermove', handleGlobalPointerMove);
 				window.removeEventListener('pointerup', handleGlobalPointerUp);
 				window.removeEventListener('pointercancel', handleGlobalPointerUp);
