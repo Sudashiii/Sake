@@ -73,6 +73,26 @@ export function fileExtensionFromName(fileName: string): string | null {
 	return match ? match[1] : null;
 }
 
+function sanitizeParsedFileName(value: string | null | undefined): string | null {
+	if (!hasText(value)) {
+		return null;
+	}
+
+	const sanitized = value
+		.replace(/[\u0000-\u001f\u007f]/g, '')
+		.trim()
+		.replace(/^"+|"+$/g, '')
+		.split(/[/\\]/)
+		.pop()
+		?.trim();
+
+	if (!hasText(sanitized) || sanitized === '.' || sanitized === '..') {
+		return null;
+	}
+
+	return sanitized;
+}
+
 export function parseContentDispositionFileName(headers: Headers): string | null {
 	const raw = headers.get('content-disposition');
 	if (!hasText(raw)) {
@@ -82,17 +102,17 @@ export function parseContentDispositionFileName(headers: Headers): string | null
 	const utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
 	if (utf8Match?.[1]) {
 		try {
-			return decodeURIComponent(utf8Match[1]);
+			return sanitizeParsedFileName(decodeURIComponent(utf8Match[1]));
 		} catch {
-			return utf8Match[1];
+			return sanitizeParsedFileName(utf8Match[1]);
 		}
 	}
 
 	const quotedMatch = raw.match(/filename="([^"]+)"/i);
 	if (quotedMatch?.[1]) {
-		return quotedMatch[1];
+		return sanitizeParsedFileName(quotedMatch[1]);
 	}
 
 	const plainMatch = raw.match(/filename=([^;]+)/i);
-	return plainMatch?.[1]?.trim() ?? null;
+	return sanitizeParsedFileName(plainMatch?.[1] ?? null);
 }

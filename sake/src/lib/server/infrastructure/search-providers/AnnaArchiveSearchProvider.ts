@@ -45,10 +45,25 @@ interface AnnaMetaInformation {
 	sourceFamily: string | null;
 }
 
+function isValidCodePoint(codePoint: number): boolean {
+	return (
+		Number.isFinite(codePoint) &&
+		codePoint >= 0 &&
+		codePoint <= 0x10ffff &&
+		!(codePoint >= 0xd800 && codePoint <= 0xdfff)
+	);
+}
+
 function decodeHtml(value: string): string {
 	return value
-		.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-		.replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+		.replace(/&#(\d+);/g, (match, code) => {
+			const codePoint = Number(code);
+			return isValidCodePoint(codePoint) ? String.fromCodePoint(codePoint) : match;
+		})
+		.replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+			const codePoint = Number.parseInt(code, 16);
+			return isValidCodePoint(codePoint) ? String.fromCodePoint(codePoint) : match;
+		})
 		.replace(/&nbsp;/gi, ' ')
 		.replace(/&amp;/gi, '&')
 		.replace(/&quot;/gi, '"')
@@ -375,7 +390,8 @@ export class AnnaArchiveSearchProvider implements SearchProviderPort, SearchProv
 				return apiError(`Anna download failed with status ${response.status}`, 502);
 			}
 
-			const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+			const contentType =
+				(response.headers.get('content-type') ?? 'application/octet-stream').toLowerCase();
 			if (contentType.includes('text/html')) {
 				return apiError('Anna download resolved to an HTML page instead of a file', 502);
 			}
@@ -383,19 +399,22 @@ export class AnnaArchiveSearchProvider implements SearchProviderPort, SearchProv
 			const fileData = new Uint8Array(await response.arrayBuffer());
 			const fallbackExtension = sanitizeDownloadExtension(input.extension);
 			const headerFileName = parseContentDispositionFileName(response.headers)?.trim();
+			const headerExtension = headerFileName ? fileExtensionFromName(headerFileName) : null;
+			const useHeaderFileName =
+				headerFileName !== null &&
+				headerExtension !== null &&
+				sanitizeDownloadExtension(headerExtension) === headerExtension;
+			const resolvedExtension = useHeaderFileName ? headerExtension : fallbackExtension;
 			const fileName =
-				headerFileName && headerFileName.length > 0
+				useHeaderFileName && headerFileName
 					? headerFileName
-					: buildDownloadFileName(input.title, fallbackExtension);
-			const resolvedExtension = fileExtensionFromName(fileName) ?? fallbackExtension;
+					: buildDownloadFileName(input.title, resolvedExtension);
 
 			return apiOk({
 				success: true,
 				fileName,
 				fileData,
-				contentType:
-					response.headers.get('content-type') ??
-					contentTypeForExtension(resolvedExtension)
+				contentType: contentType || contentTypeForExtension(resolvedExtension)
 			});
 		} catch (cause: unknown) {
 			return apiError('Anna download failed', 502, cause);
