@@ -96,6 +96,13 @@
 		text-align: right;
 	}
 
+	:global(.settings-status-note) {
+		margin: 0.25rem 0 0;
+		font-size: 0.75rem;
+		line-height: 1.6;
+		color: color-mix(in oklab, var(--color-primary), var(--color-text-muted) 45%);
+	}
+
 	:global(.settings-divider) {
 		height: 1px;
 		background: var(--color-border);

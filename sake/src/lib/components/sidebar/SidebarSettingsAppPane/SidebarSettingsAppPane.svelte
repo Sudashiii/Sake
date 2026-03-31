@@ -1,17 +1,100 @@
 <script lang="ts">
+	import type { DatabaseVersionInfo } from '$lib/types/App/AppVersion';
 	import styles from './SidebarSettingsAppPane.module.scss';
 
 	interface Props {
 		appVersion: string;
+		databaseVersion: DatabaseVersionInfo | null;
+		appVersionError: string | null;
+		isLoadingAppVersion?: boolean;
 		appEnvironment: string;
 		appSourceUrl: string;
 		appSourceLabel: string;
 	}
 
-	let { appVersion, appEnvironment, appSourceUrl, appSourceLabel }: Props = $props();
+	let {
+		appVersion,
+		databaseVersion,
+		appVersionError,
+		isLoadingAppVersion = false,
+		appEnvironment,
+		appSourceUrl,
+		appSourceLabel
+	}: Props = $props();
 
 	function getIssueUrl(sourceUrl: string): string {
 		return `${sourceUrl.replace(/\/$/, '')}/issues/new`;
+	}
+
+	function getDatabaseVersionLabel(version: DatabaseVersionInfo | null, loading: boolean): string {
+		if (loading && !version) {
+			return 'Checking...';
+		}
+
+		if (!version) {
+			return 'Unavailable';
+		}
+
+		if (version.currentMigrationTag) {
+			return version.currentMigrationTag;
+		}
+
+		if (version.status === 'untracked') {
+			return 'Untracked';
+		}
+
+		if (version.status === 'unavailable') {
+			return 'Unavailable';
+		}
+
+		return 'Unknown';
+	}
+
+	function getExpectedMigrationLabel(version: DatabaseVersionInfo | null, loading: boolean): string {
+		if (loading && !version) {
+			return 'Checking...';
+		}
+
+		return version?.expectedMigrationTag ?? 'Unavailable';
+	}
+
+	function getMigrationStatusLabel(version: DatabaseVersionInfo | null, loading: boolean): string {
+		if (loading && !version) {
+			return 'Checking...';
+		}
+
+		switch (version?.status) {
+			case 'up_to_date':
+				return 'Up to date';
+			case 'outdated':
+				return 'Migration required';
+			case 'untracked':
+				return 'Untracked';
+			case 'unavailable':
+				return 'Unavailable';
+			default:
+				return 'Unavailable';
+		}
+	}
+
+	function getStatusNote(
+		version: DatabaseVersionInfo | null,
+		errorMessage: string | null,
+		loading: boolean
+	): string | null {
+		if (loading) {
+			return null;
+		}
+
+		if (errorMessage || version?.status === 'unavailable') {
+			return 'Could not inspect the database migration status right now.';
+		}
+
+		if (version?.status === 'outdated' || version?.status === 'untracked') {
+			return 'Run bun run db:migrate or restart the sake-migrator container to bring the database schema up to date.';
+		}
+
+		return null;
 	}
 </script>
 
@@ -32,8 +115,26 @@
 		<dl class="settings-data-list">
 			<div class="settings-data-row"><dt>Version</dt><dd class="settings-mono-value">{appVersion}</dd></div>
 			<div class="settings-divider"></div>
+			<div class="settings-data-row">
+				<dt>Database Version</dt>
+				<dd class="settings-mono-value">{getDatabaseVersionLabel(databaseVersion, isLoadingAppVersion)}</dd>
+			</div>
+			<div class="settings-divider"></div>
+			<div class="settings-data-row">
+				<dt>Expected DB Version</dt>
+				<dd class="settings-mono-value">{getExpectedMigrationLabel(databaseVersion, isLoadingAppVersion)}</dd>
+			</div>
+			<div class="settings-divider"></div>
+			<div class="settings-data-row">
+				<dt>Migration Status</dt>
+				<dd>{getMigrationStatusLabel(databaseVersion, isLoadingAppVersion)}</dd>
+			</div>
+			<div class="settings-divider"></div>
 			<div class="settings-data-row"><dt>Environment</dt><dd>{appEnvironment}</dd></div>
 		</dl>
+		{#if getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)}
+			<p class="settings-status-note">{getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)}</p>
+		{/if}
 	</div>
 	<div class="settings-about-card">
 		<p class="settings-about-title">About</p>

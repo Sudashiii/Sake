@@ -80,6 +80,7 @@ import { ResolveRequestAuthUseCase } from '$lib/server/application/use-cases/Res
 import { ReportDeviceVersionUseCase } from '$lib/server/application/use-cases/ReportDeviceVersionUseCase';
 import { ListDevicesUseCase } from '$lib/server/application/use-cases/ListDevicesUseCase';
 import { DeleteDeviceUseCase } from '$lib/server/application/use-cases/DeleteDeviceUseCase';
+import { GetAppVersionUseCase } from '$lib/server/application/use-cases/GetAppVersionUseCase';
 import { getActivatedSearchProviders } from '$lib/server/config/activatedProviders';
 import type { SearchProviderPort } from '$lib/server/application/ports/SearchProviderPort';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
@@ -93,11 +94,13 @@ import { ObserveWebappLogsUseCase } from '$lib/server/application/use-cases/Obse
 import { deviceLogFeed } from '$lib/server/infrastructure/logging/deviceLogFeed';
 import { AppendDeviceLogUseCase } from '$lib/server/application/use-cases/AppendDeviceLogUseCase';
 import { ObserveDeviceLogsUseCase } from '$lib/server/application/use-cases/ObserveDeviceLogsUseCase';
+import { MigrationStatusRepository } from '$lib/server/infrastructure/repositories/MigrationStatusRepository';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
+export const migrationStatusRepository = new MigrationStatusRepository();
 export const deviceRepository = new DeviceRepository();
 export const userRepository = new UserRepository();
 export const userSessionRepository = new UserSessionRepository();
@@ -250,6 +253,7 @@ export const resolveRequestAuthUseCase = new ResolveRequestAuthUseCase(
 	userApiKeyRepository
 );
 export const reportDeviceVersionUseCase = new ReportDeviceVersionUseCase(deviceRepository);
+export const getAppVersionUseCase = new GetAppVersionUseCase(migrationStatusRepository);
 export const listDevicesUseCase = new ListDevicesUseCase(deviceRepository, userApiKeyRepository);
 export const deleteDeviceUseCase = new DeleteDeviceUseCase(
 	deviceRepository,
