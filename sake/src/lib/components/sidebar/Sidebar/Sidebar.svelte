@@ -18,6 +18,7 @@
 	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
 	import { ZUI } from '$lib/client/zui';
+	import type { AppVersionResponse } from '$lib/types/App/AppVersion';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { RegisteredDevice } from '$lib/types/Auth/Device';
 	import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
@@ -41,7 +42,7 @@
 	const EMOJI_OPTIONS = ['📚', '⭐', '🚀', '📌', '🔥', '💎', '🎯', '📖', '🌙', '🎨', '💡', '🏆', '❤️', '🌊', '⚡', '🦋'];
 	const SHELF_REORDER_LONG_PRESS_MS = 360;
 	const SHELF_DRAG_CANCEL_DISTANCE_PX = 8;
-	const appVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERSION });
+	const fallbackAppVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERSION });
 	const appEnvironment = dev ? 'Development' : 'Production';
 	const APP_SOURCE_URL = 'https://github.com/Sudashiii/Sake';
 	const APP_SOURCE_LABEL = 'https://github.com/Sudashiii/Sake';
@@ -87,6 +88,9 @@
 	let currentUser = $state<CurrentUser | null>(null);
 	let currentUserError = $state<string | null>(null);
 	let isLoadingCurrentUser = $state(false);
+	let appVersionInfo = $state<AppVersionResponse | null>(null);
+	let appVersionError = $state<string | null>(null);
+	let isLoadingAppVersion = $state(false);
 	let apiKeys = $state<AuthApiKey[]>([]);
 	let apiKeysError = $state<string | null>(null);
 	let isLoadingApiKeys = $state(false);
@@ -156,6 +160,7 @@
 			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
 		showSettingsModal = true;
 		activeSettingsSection = 'app';
+		void loadAppVersion();
 		void loadCurrentUser();
 		void loadAuthApiKeys();
 		void loadDevices();
@@ -199,6 +204,26 @@
 			return;
 		}
 		apiKeys = result.value.apiKeys;
+	}
+
+	async function loadAppVersion(): Promise<void> {
+		if (isLoadingAppVersion) {
+			return;
+		}
+
+		isLoadingAppVersion = true;
+		appVersionError = null;
+
+		const result = await ZUI.getAppVersion();
+
+		isLoadingAppVersion = false;
+		if (!result.ok) {
+			appVersionInfo = null;
+			appVersionError = result.error.message;
+			return;
+		}
+
+		appVersionInfo = result.value;
 	}
 
 	async function loadDevices(): Promise<void> {
@@ -817,7 +842,10 @@
 	{devicesError}
 	{isLoadingDevices}
 	{deletingDeviceId}
-	appVersion={appVersion.version}
+	appVersion={appVersionInfo?.version ?? fallbackAppVersion.version}
+	databaseVersion={appVersionInfo?.database ?? null}
+	{appVersionError}
+	{isLoadingAppVersion}
 	{appEnvironment}
 	appSourceUrl={APP_SOURCE_URL}
 	appSourceLabel={APP_SOURCE_LABEL}

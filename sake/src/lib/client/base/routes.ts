@@ -1,4 +1,5 @@
 export const ZUIRoutes = {
+	appVersion: '/app/version',
 	authStatus: '/auth/status',
 	authBootstrap: '/auth/bootstrap',
 	authLogin: '/auth/login',

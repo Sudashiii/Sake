@@ -48,6 +48,7 @@ import {
 	type ImportLibraryBookCoverResponse
 } from './routes/importLibraryBookCover';
 import { getQueueStatus, type QueueStatusResponse } from './routes/getQueueStatus';
+import { getAppVersion } from './routes/getAppVersion';
 import { getLibraryBookProgressHistory } from './routes/getLibraryBookProgressHistory';
 import type { BookProgressHistoryResponse } from '$lib/types/Library/BookProgressHistory';
 import { getReadingActivityStats } from './routes/getReadingActivityStats';
@@ -69,6 +70,7 @@ import type { RuleGroup } from '$lib/types/Library/ShelfRule';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchBooksResponse } from '$lib/types/Search/SearchBooksResponse';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
+import type { AppVersionResponse } from '$lib/types/App/AppVersion';
 import type { AuthApiKeysResponse } from '$lib/types/Auth/ApiKey';
 import type { DeleteDeviceResponse, DevicesResponse } from '$lib/types/Auth/Device';
 
@@ -111,6 +113,8 @@ export const ZUI = {
 	queueSearchBookToLibrary: (
 		book: SearchResultBook
 	): Promise<Result<QueueSearchBookResponse, ApiError>> => queueSearchBookToLibrary(book),
+
+	getAppVersion: (): Promise<Result<AppVersionResponse, ApiError>> => getAppVersion(),
 
 	getQueueStatus: (): Promise<Result<QueueStatusResponse, ApiError>> =>
 		getQueueStatus(),
