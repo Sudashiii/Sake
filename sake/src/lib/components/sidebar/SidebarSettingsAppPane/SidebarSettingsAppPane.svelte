@@ -96,6 +96,10 @@
 
 		return null;
 	}
+
+	const statusNote = $derived(
+		getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)
+	);
 </script>
 
 <section class={styles.root}>
@@ -132,8 +136,8 @@
 			<div class="settings-divider"></div>
 			<div class="settings-data-row"><dt>Environment</dt><dd>{appEnvironment}</dd></div>
 		</dl>
-		{#if getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)}
-			<p class="settings-status-note">{getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)}</p>
+		{#if statusNote}
+			<p class="settings-status-note">{statusNote}</p>
 		{/if}
 	</div>
 	<div class="settings-about-card">

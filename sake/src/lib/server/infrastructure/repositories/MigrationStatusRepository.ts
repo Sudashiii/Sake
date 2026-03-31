@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
+import { readFile, access } from 'node:fs/promises';
 import type { MigrationStatusPort, MigrationStatusSnapshot } from '$lib/server/application/ports/MigrationStatusPort';
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 
@@ -30,6 +30,7 @@ interface JournalMetadata {
 }
 
 let cachedJournalMetadata: JournalMetadata | null = null;
+let cachedJournalMetadataPromise: Promise<JournalMetadata> | null = null;
 
 function hasText(value: unknown): value is string {
 	return typeof value === 'string' && value.trim().length > 0;
@@ -43,24 +44,34 @@ function createMigrationHash(sql: string): string {
 	return crypto.createHash('sha256').update(sql).digest('hex');
 }
 
-function loadJournalMetadata(): JournalMetadata {
+async function fileExists(targetPath: string): Promise<boolean> {
+	try {
+		await access(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function resolveJournalMetadata(): Promise<JournalMetadata> {
 	if (cachedJournalMetadata) {
 		return cachedJournalMetadata;
 	}
 
 	const root = resolveProjectRoot();
 	const journalPath = path.join(root, 'drizzle', 'meta', '_journal.json');
-	if (!fs.existsSync(journalPath)) {
+	if (!(await fileExists(journalPath))) {
 		throw new Error(`Missing Drizzle journal file: ${journalPath}`);
 	}
 
-	const raw = JSON.parse(fs.readFileSync(journalPath, 'utf8')) as JournalFileRecord;
+	const raw = JSON.parse(await readFile(journalPath, 'utf8')) as JournalFileRecord;
 	if (!Array.isArray(raw.entries) || raw.entries.length === 0) {
 		throw new Error('No migration entries found in drizzle/meta/_journal.json');
 	}
 
-	const entries = raw.entries
-		.map((entry, fallbackIndex) => {
+	const entries = (
+		await Promise.all(
+			raw.entries.map(async (entry, fallbackIndex) => {
 			const when = typeof entry.when === 'number' ? entry.when : Number.NaN;
 			const tag = hasText(entry.tag) ? entry.tag.trim() : '';
 			const idx = Number.isInteger(entry.idx) ? Number(entry.idx) : fallbackIndex;
@@ -74,17 +85,21 @@ function loadJournalMetadata(): JournalMetadata {
 			}
 
 			const migrationPath = path.join(root, 'drizzle', `${tag}.sql`);
-			if (!fs.existsSync(migrationPath)) {
+			if (!(await fileExists(migrationPath))) {
 				throw new Error(`Missing migration SQL file: ${migrationPath}`);
 			}
+
+			const sql = await readFile(migrationPath, 'utf8');
 
 			return {
 				idx,
 				when,
 				tag,
-				hash: createMigrationHash(fs.readFileSync(migrationPath, 'utf8'))
+				hash: createMigrationHash(sql)
 			} satisfies ResolvedJournalEntry;
-		})
+			})
+		)
+	)
 		.sort((a, b) => a.when - b.when || a.idx - b.idx);
 
 	const latest = entries[entries.length - 1];
@@ -99,6 +114,20 @@ function loadJournalMetadata(): JournalMetadata {
 	};
 
 	return cachedJournalMetadata;
+}
+
+async function loadJournalMetadata(): Promise<JournalMetadata> {
+	if (cachedJournalMetadata) {
+		return cachedJournalMetadata;
+	}
+
+	if (!cachedJournalMetadataPromise) {
+		cachedJournalMetadataPromise = resolveJournalMetadata().finally(() => {
+			cachedJournalMetadataPromise = null;
+		});
+	}
+
+	return cachedJournalMetadataPromise;
 }
 
 function resolveMigrationRow(row: Record<string, unknown> | null): {
@@ -136,7 +165,7 @@ export class MigrationStatusRepository implements MigrationStatusPort {
 	private async getLatestMigrationRow(): Promise<Record<string, unknown> | null> {
 		const result = await drizzleDb.$client.execute(`
 			SELECT hash, created_at
-			FROM __drizzle_migrations
+			FROM ${DRIZZLE_MIGRATIONS_TABLE}
 			ORDER BY created_at DESC
 			LIMIT 1
 		`);
@@ -145,7 +174,7 @@ export class MigrationStatusRepository implements MigrationStatusPort {
 	}
 
 	async getSnapshot(): Promise<MigrationStatusSnapshot> {
-		const journal = loadJournalMetadata();
+		const journal = await loadJournalMetadata();
 		const expectedMigrationTag = journal.latest.tag;
 		const expectedMigrationIndex = journal.latest.idx;
 

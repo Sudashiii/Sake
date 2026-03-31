@@ -110,7 +110,7 @@ describe('GetAppVersionUseCase', () => {
 	test('marks the database as untracked when the latest DB migration cannot be resolved to a known tag', async () => {
 		const useCase = new GetAppVersionUseCase(
 			new StubMigrationStatusPort({
-				currentMigrationTag: null,
+				currentMigrationTag: 'unknown_migration_tag',
 				expectedMigrationTag: '0019_book_publication_month_day',
 				currentMigrationIndex: null,
 				expectedMigrationIndex: 19
