@@ -1,5 +1,6 @@
 import { getQueueStatusUseCase, queueDownloadUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
+import { parseZDownloadBookRequest } from '$lib/server/http/zlibraryDownloadRequest';
 import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
@@ -14,10 +15,13 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 	const requestLogger = getRequestLogger(locals);
 	let body: ZDownloadBookRequest;
 	try {
-		body = (await request.json()) as ZDownloadBookRequest;
+		body = parseZDownloadBookRequest(await request.json());
 	} catch (err: unknown) {
-		requestLogger.warn({ event: 'zlibrary.queue.invalid_json', error: toLogError(err) }, 'Invalid JSON body');
-		return errorResponse('Invalid JSON body', 400);
+		requestLogger.warn(
+			{ event: 'zlibrary.queue.invalid_payload', error: toLogError(err) },
+			'Queue payload validation failed'
+		);
+		return errorResponse(err instanceof Error ? err.message : 'Invalid JSON body', 400);
 	}
 	const { bookId, hash } = body;
 
