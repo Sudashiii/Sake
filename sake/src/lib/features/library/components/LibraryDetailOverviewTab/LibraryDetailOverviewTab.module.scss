@@ -56,9 +56,11 @@
 	:global(.detail-v2-progress-track) { height: 0.375rem; border-radius: 999px; overflow: hidden; background: #1e2230; }
 	:global(.detail-v2-progress-fill) { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #c9a962, #e0c878); }
 	:global(.detail-v2-description p) { margin: 0; font-size: 0.875rem; line-height: 1.52; color: var(--color-text-secondary); }
-	:global(.detail-v2-quick-meta) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+	:global(.detail-v2-quick-meta) { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; }
 	:global(.detail-v2-quick-meta > div) { padding: 0.75rem; border-radius: 0.5rem; background: rgba(30, 34, 48, 0.5); display: grid; gap: 0.16rem; }
 	:global(.detail-v2-quick-meta strong) { font-size: 1.125rem; font-weight: 500; color: var(--color-text-primary); }
+	:global(.detail-v2-date-added) { display: inline-flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+	:global(.detail-v2-date-added span) { font-size: 0.75rem; color: var(--color-text-muted); }
 	:global(.detail-v2-external-rating) { display: inline-flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 0.5rem; background: rgba(30, 34, 48, 0.3); }
 	:global(.detail-v2-star) { color: #c9a962; }
 	:global(.detail-v2-external-rating span:nth-child(2)) { font-size: 0.875rem; font-weight: 500; }

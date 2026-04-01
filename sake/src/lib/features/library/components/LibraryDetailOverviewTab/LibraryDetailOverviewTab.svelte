@@ -4,6 +4,7 @@
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
 	import {
 		clampProgress,
+		formatDate,
 		formatFileSize,
 		formatLibraryPublicationDate,
 		getCurrentPage,
@@ -60,6 +61,16 @@
 		onOpenReset,
 		onMoveToTrash
 	}: Props = $props();
+
+	function formatTime(dateStr: string | null): string {
+		if (!dateStr) {
+			return '';
+		}
+
+		return new Intl.DateTimeFormat(undefined, {
+			timeStyle: 'short'
+		}).format(new Date(dateStr));
+	}
 </script>
 
 <div class={styles.root}>
@@ -140,6 +151,15 @@
 		</div>
 		<div><p class="detail-v2-caption">Pages</p><strong>{metadataDraft.pages || selectedBookDetail.pages || '—'}</strong></div>
 		<div><p class="detail-v2-caption">Language</p><strong>{metadataDraft.language || selectedBook.language || '—'}</strong></div>
+		<div>
+			<p class="detail-v2-caption">Date Added</p>
+			<div class="detail-v2-date-added">
+				<strong>{formatDate(selectedBook.createdAt)}</strong>
+				{#if selectedBook.createdAt}
+					<span>{formatTime(selectedBook.createdAt)}</span>
+				{/if}
+			</div>
+		</div>
 	</div>
 
 	{#if selectedBookDetail.externalRating !== null}
