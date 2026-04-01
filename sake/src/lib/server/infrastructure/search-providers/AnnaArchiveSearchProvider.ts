@@ -20,6 +20,7 @@ const ANNA_ARCHIVE_BASE_URL = 'https://annas-archive.gl';
 const ANNA_ARCHIVE_BROWSER_USER_AGENT =
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const ANNA_LIBGEN_ADS_BASE_URL = 'https://libgen.li/ads.php';
+const ANNA_MAX_FILTERED_SEARCH_PAGES = 5;
 
 const annaLibgenGetLinkRegex = /href="(get\.php\?md5=[^"]+)"/i;
 
@@ -44,6 +45,31 @@ interface AnnaMetaInformation {
 	year: number | null;
 	sourceFamily: string | null;
 }
+
+const ANNA_LANGUAGE_FILTER_CODES: Record<string, string> = {
+	english: 'en',
+	german: 'de',
+	french: 'fr',
+	spanish: 'es',
+	en: 'en',
+	de: 'de',
+	fr: 'fr',
+	es: 'es'
+};
+
+const ANNA_LANGUAGE_ALIASES: Record<string, string[]> = {
+	english: ['english', 'en', 'eng'],
+	german: ['german', 'de', 'deu', 'ger'],
+	french: ['french', 'fr', 'fra', 'fre'],
+	spanish: ['spanish', 'es', 'spa']
+};
+
+const ANNA_LANGUAGE_QUERY_HINTS: Record<string, string[]> = {
+	english: ['english'],
+	german: ['deutsch'],
+	french: ['francais', 'french'],
+	spanish: ['espanol', 'spanish']
+};
 
 function isValidCodePoint(codePoint: number): boolean {
 	return (
@@ -123,11 +149,99 @@ function normalizeLanguageToken(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+function normalizeExtensionToken(value: string): string {
+	return value.trim().toLowerCase();
+}
+
 function languageFilterTokens(input: SearchBooksRequest): Set<string> {
 	return new Set(
 		(input.filters?.language ?? [])
 			.map((value) => normalizeLanguageToken(value))
 			.filter((value) => value.length > 0)
+	);
+}
+
+function annaLanguageFilterCode(input: SearchBooksRequest): string | null {
+	const requestedLanguages = [...languageFilterTokens(input)];
+	if (requestedLanguages.length !== 1) {
+		return null;
+	}
+
+	return ANNA_LANGUAGE_FILTER_CODES[requestedLanguages[0]] ?? null;
+}
+
+function annaExtensionFilter(input: SearchBooksRequest): string | null {
+	const requestedExtensions = [...new Set((input.filters?.extension ?? []).map(normalizeExtensionToken))]
+		.filter((value) => value.length > 0);
+	if (requestedExtensions.length !== 1) {
+		return null;
+	}
+
+	return requestedExtensions[0];
+}
+
+function annaQueryVariants(input: SearchBooksRequest): string[] {
+	const baseQuery = input.query.trim();
+	if (!baseQuery) {
+		return [];
+	}
+
+	const variants = [baseQuery];
+	const requestedLanguages = [...languageFilterTokens(input)];
+	if (requestedLanguages.length !== 1) {
+		return variants;
+	}
+
+	const matchingHints = new Set<string>();
+	for (const requestedLanguage of requestedLanguages) {
+		for (const [canonicalLanguage, aliases] of Object.entries(ANNA_LANGUAGE_ALIASES)) {
+			if (canonicalLanguage === requestedLanguage || aliases.includes(requestedLanguage)) {
+				for (const hint of ANNA_LANGUAGE_QUERY_HINTS[canonicalLanguage] ?? []) {
+					matchingHints.add(hint);
+				}
+			}
+		}
+	}
+
+	for (const hint of matchingHints) {
+		if (baseQuery.toLowerCase().includes(hint.toLowerCase())) {
+			continue;
+		}
+
+		variants.push(`${baseQuery} ${hint}`);
+	}
+
+	return variants;
+}
+
+function buildAnnaSearchUrl(input: SearchBooksRequest, page = 1): string {
+	const url = new URL('/search', ANNA_ARCHIVE_BASE_URL);
+	url.searchParams.set('q', input.query);
+	url.searchParams.set('content', 'book_any');
+
+	const languageCode = annaLanguageFilterCode(input);
+	if (languageCode) {
+		url.searchParams.set('lang', languageCode);
+	}
+
+	const extension = annaExtensionFilter(input);
+	if (extension) {
+		url.searchParams.set('ext', extension);
+	}
+
+	if (page > 1) {
+		url.searchParams.set('page', String(page));
+	}
+
+	return url.toString();
+}
+
+function shouldPaginateFilteredSearch(input: SearchBooksRequest): boolean {
+	return Boolean(
+		(input.filters?.language?.length ?? 0) > 0 ||
+			(input.filters?.extension?.length ?? 0) > 0 ||
+			typeof input.filters?.yearFrom === 'number' ||
+			typeof input.filters?.yearTo === 'number'
 	);
 }
 
@@ -205,7 +319,18 @@ function matchesLanguageFilter(language: string | null, tokens: Set<string>): bo
 	}
 
 	const normalized = normalizeLanguageToken(language);
-	return tokens.has(normalized);
+	const candidates = new Set([normalized]);
+
+	for (const [canonicalLanguage, aliases] of Object.entries(ANNA_LANGUAGE_ALIASES)) {
+		if (canonicalLanguage === normalized || aliases.includes(normalized)) {
+			candidates.add(canonicalLanguage);
+			for (const alias of aliases) {
+				candidates.add(alias);
+			}
+		}
+	}
+
+	return [...candidates].some((candidate) => tokens.has(candidate));
 }
 
 function matchesExtensionFilter(format: string | null, input: SearchBooksRequest): boolean {
@@ -302,46 +427,93 @@ export class AnnaArchiveSearchProvider implements SearchProviderPort, SearchProv
 	): Promise<ApiResult<SearchResultBook[]>> {
 		const limit = Math.max(1, Math.min(input.filters?.limitPerProvider ?? 20, 50));
 		const languageTokens = languageFilterTokens(input);
-		const searchUrl = `${ANNA_ARCHIVE_BASE_URL}/search?q=${encodeURIComponent(input.query)}&content=book_any`;
+		const maxPages = shouldPaginateFilteredSearch(input) ? ANNA_MAX_FILTERED_SEARCH_PAGES : 1;
+		const queryVariants = annaQueryVariants(input);
+		let firstPageError: ApiResult<SearchResultBook[]> | null = null;
 
 		try {
-			const response = await fetch(searchUrl, {
-				headers: {
-					Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-					'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
-				}
-			});
+			for (const query of queryVariants) {
+				const books: SearchResultBook[] = [];
+				const seenHashes = new Set<string>();
 
-			if (!response.ok) {
-				return apiError(`Anna search failed with status ${response.status}`, response.status);
+				for (let page = 1; page <= maxPages && books.length < limit; page += 1) {
+					const searchUrl = buildAnnaSearchUrl({ ...input, query }, page);
+
+					try {
+						const response = await fetch(searchUrl, {
+							headers: {
+								Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+								'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
+							}
+						});
+
+						if (!response.ok) {
+							const errorResult = apiError(
+								`Anna search failed with status ${response.status}`,
+								response.status
+							);
+							if (page === 1 && query === queryVariants[0]) {
+								return errorResult;
+							}
+							continue;
+						}
+
+						const html = await response.text();
+						if (html.includes('DDoS-Guard')) {
+							const errorResult = apiError('Anna search was blocked by browser verification', 502);
+							if (page === 1 && query === queryVariants[0]) {
+								return errorResult;
+							}
+							continue;
+						}
+
+						const matches = [...html.matchAll(resultAnchorRegex)];
+						if (matches.length === 0) {
+							if (page === 1) {
+								break;
+							}
+							continue;
+						}
+
+						for (let index = 0; index < matches.length; index += 1) {
+							if (books.length >= limit) {
+								break;
+							}
+
+							const match = matches[index];
+							const nextMatch = matches[index + 1];
+							const hash = match[1];
+							if (seenHashes.has(hash)) {
+								continue;
+							}
+
+							const start = match.index ?? 0;
+							const end = nextMatch?.index ?? html.length;
+							const segment = html.slice(start, end);
+							const book = mapBook(segment, hash, input, languageTokens);
+							if (book) {
+								seenHashes.add(hash);
+								books.push(book);
+							}
+						}
+					} catch (cause: unknown) {
+						if (page === 1 && query === queryVariants[0]) {
+							firstPageError = apiError('Anna search failed', 502, cause);
+							break;
+						}
+					}
+				}
+
+				if (books.length > 0) {
+					return apiOk(books);
+				}
 			}
 
-			const html = await response.text();
-			if (html.includes('DDoS-Guard')) {
-				return apiError('Anna search was blocked by browser verification', 502);
+			if (firstPageError) {
+				return firstPageError;
 			}
 
-			const matches = [...html.matchAll(resultAnchorRegex)];
-			const books: SearchResultBook[] = [];
-
-			for (let index = 0; index < matches.length; index += 1) {
-				if (books.length >= limit) {
-					break;
-				}
-
-				const match = matches[index];
-				const nextMatch = matches[index + 1];
-				const hash = match[1];
-				const start = match.index ?? 0;
-				const end = nextMatch?.index ?? html.length;
-				const segment = html.slice(start, end);
-				const book = mapBook(segment, hash, input, languageTokens);
-				if (book) {
-					books.push(book);
-				}
-			}
-
-			return apiOk(books);
+			return apiOk([]);
 		} catch (cause: unknown) {
 			return apiError('Anna search failed', 502, cause);
 		}
