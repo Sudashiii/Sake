@@ -16,11 +16,13 @@
 		getBookCacheKey,
 		getDefaultSelectedProviders,
 		loadStoredCollapsedProviderGroups,
+		loadStoredSearchFilterPreferences,
 		loadStoredProviders,
 		normalizeProviderSelection,
 		normalizeStringSelection,
 		parseYearInput,
 		persistCollapsedProviderGroups,
+		persistSearchFilterPreferences,
 		persistSelectedProviders,
 		providerLabel,
 		SEARCH_FORMAT_OPTIONS,
@@ -48,6 +50,7 @@
 	let yearFromInput = $state('');
 	let yearToInput = $state('');
 	let onlyFilesAvailable = $state(false);
+	let searchFilterPreferencesReady = $state(false);
 	let collapsedProviderGroups = $state<Record<SearchProviderId, boolean>>(
 		emptyCollapsedProviderGroups()
 	);
@@ -88,6 +91,7 @@
 
 	onMount(() => {
 		if (typeof localStorage === 'undefined') {
+			searchFilterPreferencesReady = true;
 			return;
 		}
 
@@ -103,6 +107,29 @@
 		if (storedCollapsed) {
 			collapsedProviderGroups = storedCollapsed;
 		}
+
+		const storedFilters = loadStoredSearchFilterPreferences(localStorage);
+		if (storedFilters) {
+			selectedLanguages = storedFilters.selectedLanguages;
+			selectedFormats = storedFilters.selectedFormats;
+			selectedSort = storedFilters.selectedSort;
+			onlyFilesAvailable = storedFilters.onlyFilesAvailable;
+		}
+
+		searchFilterPreferencesReady = true;
+	});
+
+	$effect(() => {
+		if (!searchFilterPreferencesReady) {
+			return;
+		}
+
+		persistSearchFilterPreferences(typeof localStorage === 'undefined' ? undefined : localStorage, {
+			selectedLanguages,
+			selectedFormats,
+			selectedSort,
+			onlyFilesAvailable
+		});
 	});
 
 	$effect(() => {

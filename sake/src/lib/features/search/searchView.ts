@@ -3,6 +3,7 @@ import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 
 export const SEARCH_PROVIDER_STORAGE_KEY = 'sake.search.providers';
 export const SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY = 'sake.search.provider-groups.collapsed';
+export const SEARCH_FILTERS_STORAGE_KEY = 'sake.search.filters';
 
 export const SEARCH_PROVIDER_OPTIONS = [
 	{ value: 'zlibrary', label: 'Z-Library' },
@@ -31,7 +32,28 @@ export const SEARCH_SORT_OPTIONS = [
 	{ value: 'year_asc', label: 'Year (oldest)' }
 ] as const;
 
-export type SearchSortValue = SearchBooksRequest['sort'];
+export type SearchSortValue = NonNullable<SearchBooksRequest['sort']>;
+export interface SearchFilterPreferences {
+	selectedLanguages: string[];
+	selectedFormats: string[];
+	selectedSort: SearchSortValue;
+	onlyFilesAvailable: boolean;
+}
+
+const SEARCH_LANGUAGE_VALUE_SET = new Set(SEARCH_LANGUAGE_OPTIONS.map((option) => option.value));
+const SEARCH_FORMAT_VALUE_SET = new Set(SEARCH_FORMAT_OPTIONS.map((option) => option.value));
+const SEARCH_SORT_VALUE_SET = new Set<SearchSortValue>(
+	SEARCH_SORT_OPTIONS.map((option) => option.value)
+);
+
+export function getDefaultSearchFilterPreferences(): SearchFilterPreferences {
+	return {
+		selectedLanguages: ['english', 'german'],
+		selectedFormats: ['epub'],
+		selectedSort: 'relevance',
+		onlyFilesAvailable: false
+	};
+}
 
 export function getActiveProviderOptions(
 	activeProviderIds: SearchProviderId[]
@@ -140,6 +162,18 @@ export function normalizeStringSelection(nextValues: string[]): string[] {
 	return [...new Set(nextValues)];
 }
 
+function isSearchSortValue(value: string): value is SearchSortValue {
+	return SEARCH_SORT_VALUE_SET.has(value as SearchSortValue);
+}
+
+function normalizeStoredSelection(values: unknown, allowedValues: Set<string>): string[] {
+	if (!Array.isArray(values)) {
+		return [];
+	}
+
+	return [...new Set(values.map((entry) => String(entry)).filter((entry) => allowedValues.has(entry)))];
+}
+
 export function loadStoredProviders(
 	storage: Storage | undefined,
 	activeProviderIds: SearchProviderId[]
@@ -199,6 +233,45 @@ export function loadStoredCollapsedProviderGroups(
 	}
 }
 
+export function loadStoredSearchFilterPreferences(
+	storage: Storage | undefined
+): SearchFilterPreferences | null {
+	if (!storage) {
+		return null;
+	}
+
+	const raw = storage.getItem(SEARCH_FILTERS_STORAGE_KEY);
+	if (!raw) {
+		return null;
+	}
+
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+			return null;
+		}
+
+		const value = parsed as Record<string, unknown>;
+		const defaults = getDefaultSearchFilterPreferences();
+		const selectedSort = String(value.selectedSort ?? '');
+		const selectedLanguages = Array.isArray(value.selectedLanguages)
+			? normalizeStoredSelection(value.selectedLanguages, SEARCH_LANGUAGE_VALUE_SET)
+			: defaults.selectedLanguages;
+		const selectedFormats = Array.isArray(value.selectedFormats)
+			? normalizeStoredSelection(value.selectedFormats, SEARCH_FORMAT_VALUE_SET)
+			: defaults.selectedFormats;
+
+		return {
+			selectedLanguages,
+			selectedFormats,
+			selectedSort: isSearchSortValue(selectedSort) ? selectedSort : defaults.selectedSort,
+			onlyFilesAvailable: value.onlyFilesAvailable === true
+		};
+	} catch {
+		return null;
+	}
+}
+
 export function persistSelectedProviders(
 	storage: Storage | undefined,
 	selectedProviders: SearchProviderId[]
@@ -214,6 +287,13 @@ export function persistCollapsedProviderGroups(
 		SEARCH_PROVIDER_COLLAPSE_STORAGE_KEY,
 		JSON.stringify(collapsedProviderGroups)
 	);
+}
+
+export function persistSearchFilterPreferences(
+	storage: Storage | undefined,
+	preferences: SearchFilterPreferences
+): void {
+	storage?.setItem(SEARCH_FILTERS_STORAGE_KEY, JSON.stringify(preferences));
 }
 
 export function toggleProviderGroupState(
