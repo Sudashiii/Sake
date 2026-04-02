@@ -45,13 +45,24 @@ end
 
 function Settings.validateRequired(settings)
     local missing = {}
-    if not settings.api_url or settings.api_url == "" then table.insert(missing, "API URL") end
+    if not settings.api_url or settings.api_url == "" then table.insert(missing, "Server URL") end
     if not settings.device_name or settings.device_name == "" then table.insert(missing, "Device Name") end
     local has_api_key = settings.api_key and settings.api_key ~= ""
-    if not has_api_key then
-        if not settings.api_user or settings.api_user == "" then table.insert(missing, "Login Username") end
-        if not settings.api_pass or settings.api_pass == "" then table.insert(missing, "Login Password") end
+    local has_pairing_credentials = settings.api_user and settings.api_user ~= ""
+        and settings.api_pass and settings.api_pass ~= ""
+    if not has_api_key and not has_pairing_credentials then
+        table.insert(missing, "Device Key")
     end
+    if #missing > 0 then
+        return false, table.concat(missing, ", ")
+    end
+    return true
+end
+
+function Settings.validatePairingSetup(settings)
+    local missing = {}
+    if not settings.api_url or settings.api_url == "" then table.insert(missing, "Server URL") end
+    if not settings.device_name or settings.device_name == "" then table.insert(missing, "Device Name") end
     if #missing > 0 then
         return false, table.concat(missing, ", ")
     end
@@ -60,7 +71,7 @@ end
 
 function Settings.validatePairingRequired(settings)
     local missing = {}
-    if not settings.api_url or settings.api_url == "" then table.insert(missing, "API URL") end
+    if not settings.api_url or settings.api_url == "" then table.insert(missing, "Server URL") end
     if not settings.api_user or settings.api_user == "" then table.insert(missing, "Login Username") end
     if not settings.api_pass or settings.api_pass == "" then table.insert(missing, "Login Password") end
     if not settings.device_name or settings.device_name == "" then table.insert(missing, "Device Name") end

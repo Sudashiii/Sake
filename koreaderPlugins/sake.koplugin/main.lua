@@ -23,6 +23,14 @@ local Sake = WidgetContainer:extend{
     is_doc_only = false,
 }
 
+local function copyTable(value)
+    local copy = {}
+    for key, item in pairs(value or {}) do
+        copy[key] = item
+    end
+    return copy
+end
+
 local function getSakePluginDir()
     local src = debug.getinfo(1, "S").source or ""
     local path = src:sub(1, 1) == "@" and src:sub(2) or src
@@ -96,19 +104,101 @@ function Sake:runProgressSync(opts)
     return true, result
 end
 
-function Sake:fetchDeviceKey()
-    local valid, missing = Settings.validatePairingRequired(self.settings)
+function Sake:getPairActionLabel()
+    local has_api_key = tostring(self.settings.api_key or "") ~= ""
+    if has_api_key then
+        return _("Refresh Device Key")
+    end
+    return _("Pair Device")
+end
+
+function Sake:showPairingSetupHint()
+    local missing_steps = {}
+    if not self.settings.api_url or self.settings.api_url == "" then
+        table.insert(missing_steps, _("Set Server URL first in Setup."))
+    end
+    if not self.settings.device_name or self.settings.device_name == "" then
+        table.insert(missing_steps, _("Set Device Name first in Setup."))
+    end
+
+    UIManager:show(InfoMessage:new{
+        text = _("Pairing requires setup first.") .. "\n" .. table.concat(missing_steps, "\n"),
+        timeout = 6,
+    })
+end
+
+function Sake:beginPairDevice(username, password, touchmenu_instance)
+    Settings.saveField(self.settings, "api_user", tostring(username or ""))
+    Settings.saveField(self.settings, "api_pass", "")
+
+    UIManager:show(InfoMessage:new{
+        text = _("Pairing device. Please wait..."),
+        timeout = 1
+    })
+
+    UIManager:scheduleIn(0.05, function()
+        local session_settings = copyTable(self.settings)
+        session_settings.api_user = tostring(username or "")
+        session_settings.api_pass = tostring(password or "")
+
+        local ok, api_key_or_err = self:fetchDeviceKey(session_settings)
+        session_settings.api_pass = ""
+        self.settings.api_user = session_settings.api_user
+        self.settings.api_pass = ""
+        self.settings.api_key = session_settings.api_key
+
+        if ok and touchmenu_instance then
+            touchmenu_instance:updateItems()
+        end
+    end)
+end
+
+function Sake:openPairingDialog(touchmenu_instance)
+    local valid = Settings.validatePairingSetup(self.settings)
     if not valid then
-        logger.info("[Sake] Device key fetch skipped. Missing settings: " .. tostring(missing))
-        UIManager:show(InfoMessage:new{
-            text = _("Missing settings: ") .. tostring(missing),
-            timeout = 6
-        })
+        logger.info("[Sake] Pairing dialog blocked. Missing setup prerequisites.")
+        self:showPairingSetupHint()
         return false
     end
 
-    local session = Session:new(self.settings)
+    Dialogs.showPairingDialog(self.ctx, {
+        title = self:getPairActionLabel(),
+        ok_text = self:getPairActionLabel(),
+        on_submit = function(username, password)
+            self:beginPairDevice(username, password, touchmenu_instance)
+        end,
+    })
+
+    return true
+end
+
+function Sake:fetchDeviceKey(session_settings)
+    local settings = session_settings or self.settings
+
+    if settings == self.settings then
+        local valid, missing = Settings.validatePairingRequired(settings)
+        if not valid then
+            logger.info("[Sake] Device key fetch skipped. Missing settings: " .. tostring(missing))
+            UIManager:show(InfoMessage:new{
+                text = _("Missing settings: ") .. tostring(missing),
+                timeout = 6
+            })
+            return false
+        end
+    end
+
+    local session = Session:new(settings)
     local ok, api_key_or_err = session:fetchDeviceKey()
+    if session_settings then
+        session_settings.api_key = session.settings.api_key
+        session_settings.api_pass = session.settings.api_pass
+        session_settings.api_user = session.settings.api_user
+    end
+    if settings == self.settings then
+        self.settings.api_key = session.settings.api_key
+        self.settings.api_pass = session.settings.api_pass
+        self.settings.api_user = session.settings.api_user
+    end
     if not ok then
         local error_message = tostring(api_key_or_err)
         if type(api_key_or_err) == "table" then
@@ -120,7 +210,7 @@ function Sake:fetchDeviceKey()
 
         logger.warn("[Sake] Device key fetch failed: " .. tostring(error_message))
         UIManager:show(InfoMessage:new{
-            text = _("Login failed: ") .. tostring(error_message),
+            text = _("Pairing failed: ") .. tostring(error_message),
             timeout = 6
         })
         return false
@@ -128,10 +218,45 @@ function Sake:fetchDeviceKey()
 
     logger.info("[Sake] Device key fetched successfully.")
     UIManager:show(InfoMessage:new{
-        text = _("Login successful. Device key stored and login password cleared."),
+        text = _("Pairing successful. Device key stored and login password cleared."),
         timeout = 5
     })
     return true
+end
+
+function Sake:uploadCurrentBookProgress()
+    local ok, result_or_err = self.progressSync:syncCurrentBookProgress({
+        no_remote_fallback = true,
+    })
+    if not ok then
+        return false, result_or_err
+    end
+
+    local result = result_or_err or {}
+    if result.no_document then
+        UIManager:show(InfoMessage:new{
+            text = _("Open a book to upload current progress."),
+            timeout = 5
+        })
+        return true, result
+    end
+
+    if result.deferred then
+        UIManager:show(InfoMessage:new{
+            text = _("Progress upload deferred until the network is available."),
+            timeout = 5
+        })
+        return true, result
+    end
+
+    if result.uploaded then
+        UIManager:show(InfoMessage:new{
+            text = _("Current book progress uploaded."),
+            timeout = 4
+        })
+    end
+
+    return true, result
 end
 
 function Sake:reportDeviceVersionOnStartup()
@@ -281,14 +406,18 @@ function Sake:init()
         logger.warn("[Sake] Updater module not loaded: " .. tostring(updater_mod_or_err))
     end
 
-    self.ctx.actions.onSync = function() self.bookSync:syncNow() end
-    self.ctx.actions.onProgressSync = function() self:runProgressSync() end
-    self.ctx.actions.onExportLibrary = function() self.libraryExport:start() end
-    self.ctx.actions.onFetchDeviceKey = function() self:fetchDeviceKey() end
+    self.ctx.actions.onSyncBooks = function() self.bookSync:syncNow() end
+    self.ctx.actions.onPullProgress = function() self:runProgressSync() end
+    self.ctx.actions.onUploadCurrentProgress = function() self:uploadCurrentBookProgress() end
+    self.ctx.actions.onLibraryImportExport = function() self.libraryExport:start() end
+    self.ctx.actions.onPairDevice = function(touchmenu_instance)
+        self:openPairingDialog(touchmenu_instance)
+    end
     self.ctx.actions.onCheckPluginUpdate = function() self:checkPluginUpdate({ notify = true }) end
     self.ctx.actions.onToggleLogShipping = function(touchmenu_instance)
         self:toggleLogShipping(touchmenu_instance)
     end
+    self.ctx.actions.getPairActionLabel = function() return self:getPairActionLabel() end
     self.ctx.actions.showInput = function(field, title)
         Dialogs.showStringInput(self.ctx, field, title)
     end

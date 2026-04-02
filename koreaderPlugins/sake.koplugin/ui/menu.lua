@@ -3,73 +3,98 @@ local _ = require("gettext")
 local Menu = {}
 
 function Menu.addToMainMenu(menu_items, ctx)
-    local sub_items = {
-        {
-            text = _("Sync Books Now"),
-            callback = function()
-                ctx.actions.onSync()
-            end,
-        },
-        {
-            text = _("Sync Progress Now"),
-            callback = function()
-                ctx.actions.onProgressSync()
-            end,
-        },
-        {
-            text = _("Export Existing Library"),
-            callback = function()
-                ctx.actions.onExportLibrary()
-            end,
-        },
-        {
-            text = _("Check Plugin Updates"),
-            callback = function()
-                ctx.actions.onCheckPluginUpdate()
-            end,
-        },
-        {
-            text = _("Send Logs to Sake"),
-            checked_func = function()
-                return ctx.settings.log_shipping_enabled == true
-            end,
-            callback = function(touchmenu_instance)
-                ctx.actions.onToggleLogShipping(touchmenu_instance)
-            end,
-        },
-    }
-
-    table.insert(sub_items, {
-        text = _("Set API URL"),
-        keep_menu_open = true,
-        callback = function() ctx.actions.showInput("api_url", "Enter API URL") end,
-    })
-    table.insert(sub_items, {
-        text = _("Set Login Username"),
-        keep_menu_open = true,
-        callback = function() ctx.actions.showInput("api_user", "Enter Login Username") end,
-    })
-    table.insert(sub_items, {
-        text = _("Set Login Password"),
-        keep_menu_open = true,
-        callback = function() ctx.actions.showInput("api_pass", "Enter Login Password") end,
-    })
-    table.insert(sub_items, {
-        text = _("Set Device Name"),
-        keep_menu_open = true,
-        callback = function() ctx.actions.showInput("device_name", "Enter Device Name") end,
-    })
-    table.insert(sub_items, {
-        text = _("Login and Fetch Device Key"),
-        callback = function()
-            ctx.actions.onFetchDeviceKey()
-        end,
-    })
-
     menu_items.sake = {
         text = _("Sake"),
         sorting_hint = "more_tools",
-        sub_item_table = sub_items
+        sub_item_table = {
+            {
+                text = _("Sync"),
+                sub_item_table = {
+                    {
+                        text = _("Download New Books"),
+                        callback = function()
+                            ctx.actions.onSyncBooks()
+                        end,
+                    },
+                    {
+                        text = _("Pull Progress From Other Devices"),
+                        callback = function()
+                            ctx.actions.onPullProgress()
+                        end,
+                    },
+                    {
+                        text = _("Upload Current Book Progress"),
+                        callback = function()
+                            ctx.actions.onUploadCurrentProgress()
+                        end,
+                    },
+                },
+            },
+            {
+                text = _("Setup"),
+                sub_item_table = {
+                    {
+                        text = _("Server URL"),
+                        keep_menu_open = true,
+                        callback = function()
+                            ctx.actions.showInput("api_url", "Enter Server URL")
+                        end,
+                    },
+                    {
+                        text = _("Device Name"),
+                        keep_menu_open = true,
+                        callback = function()
+                            ctx.actions.showInput("device_name", "Enter Device Name")
+                        end,
+                    },
+                    {
+                        text_func = function()
+                            return ctx.actions.getPairActionLabel()
+                        end,
+                        keep_menu_open = true,
+                        callback = function(touchmenu_instance)
+                            ctx.actions.onPairDevice(touchmenu_instance)
+                        end,
+                    },
+                },
+            },
+            {
+                text = _("Library Import/Export"),
+                sub_item_table = {
+                    {
+                        text = _("Import or Export Existing Library"),
+                        callback = function()
+                            ctx.actions.onLibraryImportExport()
+                        end,
+                    },
+                },
+            },
+            {
+                text = _("Maintenance"),
+                sub_item_table = {
+                    {
+                        text = _("Check for Plugin Updates"),
+                        callback = function()
+                            ctx.actions.onCheckPluginUpdate()
+                        end,
+                    },
+                    {
+                        text = _("Advanced"),
+                        sub_item_table = {
+                            {
+                                text = _("Remote Log Shipping"),
+                                checked_func = function()
+                                    return ctx.settings.log_shipping_enabled == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleLogShipping(touchmenu_instance)
+                                end,
+                            },
+                        },
+                    },
+                },
+            },
+        },
     }
 end
 

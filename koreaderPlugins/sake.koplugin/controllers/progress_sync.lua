@@ -59,6 +59,10 @@ function ProgressSync:syncCurrentBookProgress(opts)
     local ok_snapshot, snapshot_or_err = self.engine:prepareCurrentDocumentProgressSnapshot()
     if not ok_snapshot then
         if snapshot_or_err == "No document open" then
+            if opts and opts.no_remote_fallback then
+                logger.info(LOG_PREFIX .. "No document open. Skipping upload because remote fallback is disabled.")
+                return true, { no_document = true }
+            end
             logger.info(LOG_PREFIX .. "No document open. Running remote progress download sync.")
             return self:syncNewProgressForDevice(opts)
         end
@@ -85,6 +89,7 @@ function ProgressSync:syncCurrentBookProgress(opts)
         return true, {
             deferred = true,
             percent_finished = snapshot.percent_finished,
+            uploaded = false,
         }
     end
 
@@ -94,7 +99,10 @@ function ProgressSync:syncCurrentBookProgress(opts)
     end
 
     logger.info(LOG_PREFIX .. "Live percent_finished: " .. tostring(percent_finished_or_err))
-    return true
+    return true, {
+        uploaded = true,
+        percent_finished = percent_finished_or_err,
+    }
 end
 
 function ProgressSync:syncNewProgressForDevice(opts)

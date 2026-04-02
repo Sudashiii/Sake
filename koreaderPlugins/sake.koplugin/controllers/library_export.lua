@@ -1,3 +1,4 @@
+local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local logger = require("core/log")
@@ -63,7 +64,7 @@ function LibraryExport:showError(message)
     })
 end
 
-function LibraryExport:start()
+function LibraryExport:startExport()
     logger.info("[Sake] Existing-library export started.")
 
     self.popup = InfoMessage:new{
@@ -102,6 +103,20 @@ function LibraryExport:start()
             errors = {},
         })
     end)
+end
+
+function LibraryExport:start()
+    UIManager:show(ConfirmBox:new{
+        text = _(
+            "Importing or exporting an existing library can take a while.\n"
+            .. "Your device may be unusable until the process finishes.\n\n"
+            .. "Do you want to continue?"
+        ),
+        ok_text = _("Continue"),
+        ok_callback = function()
+            self:startExport()
+        end,
+    })
 end
 
 function LibraryExport:startQueue(books, index, summary)
