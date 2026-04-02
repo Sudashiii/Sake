@@ -4,14 +4,16 @@ import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
 
-export const GET: RequestHandler = async ({ locals }) => {
+export const GET: RequestHandler = async ({ locals, url }) => {
 	const requestLogger = getRequestLogger(locals);
+	const version = url.searchParams.get('version')?.trim() || undefined;
 	try {
-		const result = await getKoreaderPluginDownloadUseCase.execute();
+		const result = await getKoreaderPluginDownloadUseCase.execute(version);
 		if (!result.ok) {
 			requestLogger.warn(
 				{
 					event: 'plugin.download.use_case_failed',
+					version,
 					statusCode: result.error.status,
 					reason: result.error.message
 				},
@@ -31,7 +33,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		});
 	} catch (err: unknown) {
 		requestLogger.error(
-			{ event: 'plugin.download.failed', error: toLogError(err) },
+			{ event: 'plugin.download.failed', version, error: toLogError(err) },
 			'Failed to download KOReader plugin'
 		);
 		return errorResponse('Failed to download plugin', 500);

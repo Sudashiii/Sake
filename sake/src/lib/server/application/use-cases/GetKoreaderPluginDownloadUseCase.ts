@@ -1,5 +1,5 @@
+import type { PluginReleaseRepositoryPort } from '$lib/server/application/ports/PluginReleaseRepositoryPort';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
-import type { GetLatestKoreaderPluginUseCase } from '$lib/server/application/use-cases/GetLatestKoreaderPluginUseCase';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 
@@ -16,27 +16,30 @@ export class GetKoreaderPluginDownloadUseCase {
 
 	constructor(
 		private readonly storage: StoragePort,
-		private readonly getLatestKoreaderPluginUseCase: GetLatestKoreaderPluginUseCase
+		private readonly pluginReleaseRepository: PluginReleaseRepositoryPort
 	) {}
 
-	async execute(): Promise<ApiResult<GetKoreaderPluginDownloadResult>> {
-		const latest = await this.getLatestKoreaderPluginUseCase.execute();
-		if (!latest.ok) {
-			return apiError(latest.error.message, latest.error.status, latest.error.cause);
+	async execute(version?: string): Promise<ApiResult<GetKoreaderPluginDownloadResult>> {
+		const release = version
+			? await this.pluginReleaseRepository.getByVersion(version)
+			: await this.pluginReleaseRepository.getLatest();
+
+		if (!release) {
+			return apiError(version ? 'Plugin version not found' : 'Plugin metadata not found', 404);
 		}
 
 		try {
-			const data = await this.storage.get(latest.value.storageKey);
+			const data = await this.storage.get(release.storageKey);
 			return apiOk({
-				fileName: latest.value.fileName,
-				storageKey: latest.value.storageKey,
+				fileName: release.fileName,
+				storageKey: release.storageKey,
 				contentType: 'application/zip',
-				sha256: latest.value.sha256,
+				sha256: release.sha256,
 				data
 			});
 		} catch (cause) {
 			this.useCaseLogger.error(
-				{ event: 'plugin.download.failed', storageKey: latest.value.storageKey, error: toLogError(cause) },
+				{ event: 'plugin.download.failed', storageKey: release.storageKey, version: release.version, error: toLogError(cause) },
 				'Failed to read KOReader plugin artifact from storage'
 			);
 			return apiError('Plugin artifact not found', 404, cause);

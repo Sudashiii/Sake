@@ -1,3 +1,4 @@
+local ButtonDialog = require("ui/widget/buttondialog")
 local InfoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
@@ -118,6 +119,57 @@ function Dialogs.showPairingDialog(ctx, opts)
 
     UIManager:show(dialog)
     dialog:onShowKeyboard()
+end
+
+local function buildReleaseLabel(release)
+    local label = tostring(release.version or "?")
+
+    if release.is_current then
+        label = "[Installed] " .. label
+    end
+
+    if release.is_latest then
+        label = label .. " (latest)"
+    end
+
+    return label
+end
+
+function Dialogs.showPluginVersionPicker(ctx, opts)
+    local dialog
+    local buttons = {}
+
+    for _, release in ipairs(opts.releases or {}) do
+        table.insert(buttons, {
+            {
+                text = buildReleaseLabel(release),
+                enabled = release.is_current ~= true,
+                callback = function()
+                    UIManager:close(dialog)
+                    if opts.on_select then
+                        opts.on_select(release)
+                    end
+                end,
+            },
+        })
+    end
+
+    table.insert(buttons, {
+        {
+            text = _("Close"),
+            callback = function()
+                UIManager:close(dialog)
+            end,
+        },
+    })
+
+    dialog = ButtonDialog:new{
+        title = (_("Select a Sake plugin version to install.") .. "\n" .. _("Installed: ") .. tostring(opts.current_version or "?")),
+        buttons = buttons,
+        rows_per_page = { 7, 6, 5, 4 },
+    }
+
+    UIManager:show(dialog)
 end
 
 return Dialogs

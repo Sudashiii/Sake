@@ -79,6 +79,12 @@ function Menu.addToMainMenu(menu_items, ctx)
                         end,
                     },
                     {
+                        text = _("Install Specific Plugin Version"),
+                        callback = function()
+                            ctx.actions.onOpenPluginVersionPicker()
+                        end,
+                    },
+                    {
                         text = _("Advanced"),
                         sub_item_table = {
                             {

@@ -43,6 +43,10 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
 		return method === 'GET';
 	}
 
+	if (pathname === '/api/plugin/koreader/releases') {
+		return method === 'GET';
+	}
+
 	if (pathname === '/api/plugin/koreader/download') {
 		return method === 'GET';
 	}
@@ -70,6 +74,9 @@ export function isApiKeyAllowedRoute(pathname: string, method: string): boolean 
 		return method === 'POST';
 	}
 	if (pathname === '/api/plugin/koreader/latest') {
+		return method === 'GET';
+	}
+	if (pathname === '/api/plugin/koreader/releases') {
 		return method === 'GET';
 	}
 	if (pathname === '/api/plugin/koreader/download') {
