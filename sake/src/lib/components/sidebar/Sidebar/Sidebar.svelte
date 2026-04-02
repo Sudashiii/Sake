@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { env } from '$env/dynamic/public';
 	import { onMount } from 'svelte';
 	import ChevronLeftIcon from '$lib/assets/icons/ChevronLeftIcon.svelte';
 	import ChevronRightIcon from '$lib/assets/icons/ChevronRightIcon.svelte';
@@ -14,20 +12,12 @@
 	import SidebarShelvesSection from '$lib/components/sidebar/SidebarShelvesSection/SidebarShelvesSection.svelte';
 	import SidebarSettingsModal from '$lib/components/sidebar/SidebarSettingsModal/SidebarSettingsModal.svelte';
 	import SakeLogo from '$lib/assets/svg/SakeLogo.svelte';
-	import { AuthService } from '$lib/client/services/authService';
-	import { shelfStore } from '$lib/client/stores/shelfStore.svelte';
-	import { ZLibAuthService } from '$lib/client/services/zlibAuthService';
-	import { toastStore } from '$lib/client/stores/toastStore.svelte';
-	import { ZUI } from '$lib/client/zui';
-	import type { AppVersionResponse } from '$lib/types/App/AppVersion';
-	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
-	import type { RegisteredDevice } from '$lib/types/Auth/Device';
-	import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
-	import type { LibraryShelf } from '$lib/types/Library/Shelf';
-	import type { RuleGroup } from '$lib/types/Library/ShelfRule';
-	import { countRuleConditions } from '$lib/types/Library/ShelfRule';
 	import { getMenuItems, type MenuItem } from '$lib/types/Navigation';
-	import { createWebappVersion } from '$lib/webappVersion';
+	import {
+		getSidebarSettingsSections,
+		SidebarSettingsController
+	} from './sidebarSettingsController.svelte';
+	import { SidebarShelfManager } from './sidebarShelfManager.svelte';
 	import styles from './Sidebar.module.scss';
 
 	interface Props {
@@ -40,22 +30,6 @@
 		onToggle?: () => void;
 	}
 
-	const EMOJI_OPTIONS = ['📚', '⭐', '🚀', '📌', '🔥', '💎', '🎯', '📖', '🌙', '🎨', '💡', '🏆', '❤️', '🌊', '⚡', '🦋'];
-	const SHELF_REORDER_LONG_PRESS_MS = 360;
-	const SHELF_DRAG_CANCEL_DISTANCE_PX = 8;
-	const fallbackAppVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERSION });
-	const appEnvironment = dev ? 'Development' : 'Production';
-	const APP_SOURCE_URL = 'https://github.com/Sudashiii/Sake';
-	const APP_SOURCE_LABEL = 'https://github.com/Sudashiii/Sake';
-	const SETTINGS_BASE_SECTIONS = [
-		{ id: 'app', label: 'App' },
-		{ id: 'account', label: 'Account' },
-		{ id: 'devices', label: 'Devices' }
-	] as const;
-	const LOGINS_SETTINGS_SECTION = { id: 'logins', label: 'Logins' } as const;
-
-	type SettingsSectionId = (typeof SETTINGS_BASE_SECTIONS)[number]['id'] | typeof LOGINS_SETTINGS_SECTION.id;
-
 	let {
 		collapsed = $bindable(false),
 		mobileOpen = $bindable(false),
@@ -65,56 +39,6 @@
 		onLogoutZLibrary,
 		onToggle
 	}: Props = $props();
-
-	let shelves = $derived(shelfStore.shelves);
-	let shelvesExpanded = $state(true);
-	let isMutatingShelves = $state(false);
-	let showCreateShelf = $state(false);
-	let newShelfName = $state('');
-	let newShelfIcon = $state('📚');
-	let showCreateEmojiPicker = $state(false);
-	let editingShelfId = $state<number | null>(null);
-	let editShelfName = $state('');
-	let editShelfIcon = $state('📚');
-	let showEditEmojiPicker = $state(false);
-	let shelfMenuId = $state<number | null>(null);
-	let shelfMenuPos = $state<{ top: number; left: number } | null>(null);
-	let showDeleteShelfModal = $state(false);
-	let pendingDeleteShelfId = $state<number | null>(null);
-	let rulesModalShelfId = $state<number | null>(null);
-	let isSavingShelfRules = $state(false);
-	let showSettingsModal = $state(false);
-	let previouslyFocusedSettingsElement = $state<HTMLElement | null>(null);
-	let activeSettingsSection = $state<SettingsSectionId>('app');
-	let currentUser = $state<CurrentUser | null>(null);
-	let currentUserError = $state<string | null>(null);
-	let isLoadingCurrentUser = $state(false);
-	let appVersionInfo = $state<AppVersionResponse | null>(null);
-	let appVersionError = $state<string | null>(null);
-	let isLoadingAppVersion = $state(false);
-	let apiKeys = $state<AuthApiKey[]>([]);
-	let apiKeysError = $state<string | null>(null);
-	let isLoadingApiKeys = $state(false);
-	let revokingApiKeyId = $state<number | null>(null);
-	let devices = $state<RegisteredDevice[]>([]);
-	let devicesError = $state<string | null>(null);
-	let isLoadingDevices = $state(false);
-	let deletingDeviceId = $state<string | null>(null);
-	let pendingDeleteDeviceId = $state<string | null>(null);
-	let showDeleteDeviceModal = $state(false);
-	let isLoggingOut = $state(false);
-	let isLoggingOutEverywhere = $state(false);
-	let isReorderingShelves = $state(false);
-	let draggingShelfId = $state<number | null>(null);
-	let shelfDragOverId = $state<number | null>(null);
-
-	let pressedShelfId: number | null = null;
-	let pressedPointerId: number | null = null;
-	let pressedStartX = 0;
-	let pressedStartY = 0;
-	let shelfPressTimer: ReturnType<typeof setTimeout> | null = null;
-	let shelfOrderBeforeDrag: LibraryShelf[] | null = null;
-	let blockShelfClickUntil = 0;
 
 	let selectedShelfId = $derived.by(() => {
 		if ($page.url.pathname !== '/library') {
@@ -128,17 +52,20 @@
 		return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 	});
 
+	const shelfManager = new SidebarShelfManager({
+		getSelectedShelfId: () => selectedShelfId,
+		onSelectedShelfRemoved: () => goto('/library')
+	});
+	const settingsController = new SidebarSettingsController();
+
+	let shelves = $derived.by(() => shelfManager.shelves);
 	let isLibraryActive = $derived($page.url.pathname === '/library');
 	let visibleMenuItems = $derived(getMenuItems($page.data.searchEnabled));
 	let showZLibraryLogin = $derived($page.data.activeSearchProviders.includes('zlibrary'));
-	let settingsSections = $derived(
-		showZLibraryLogin ? [...SETTINGS_BASE_SECTIONS, LOGINS_SETTINGS_SECTION] : SETTINGS_BASE_SECTIONS
-	);
+	let settingsSections = $derived(getSidebarSettingsSections(showZLibraryLogin));
 
 	$effect(() => {
-		if (!showZLibraryLogin && activeSettingsSection === 'logins') {
-			activeSettingsSection = 'app';
-		}
+		settingsController.syncActiveSection(showZLibraryLogin);
 	});
 
 	function isActive(item: MenuItem): boolean {
@@ -150,547 +77,31 @@
 		onToggle?.();
 	}
 
-	function openSettingsModal(): void {
-		previouslyFocusedSettingsElement =
-			typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
-		showSettingsModal = true;
-		activeSettingsSection = 'app';
-		void loadAppVersion();
-		void loadCurrentUser();
-		void loadAuthApiKeys();
-		void loadDevices();
-	}
-
-	function closeSettingsModal(): void {
-		showSettingsModal = false;
-		activeSettingsSection = 'app';
-		cancelDeleteDevice();
-		previouslyFocusedSettingsElement?.focus();
-		previouslyFocusedSettingsElement = null;
-	}
-
-	function formatDateTime(value: string | null): string {
-		if (!value) {
-			return 'Never';
-		}
-
-		const date = new Date(value);
-		if (Number.isNaN(date.getTime())) {
-			return value;
-		}
-
-		return new Intl.DateTimeFormat(undefined, {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		}).format(date);
-	}
-
-	async function loadAuthApiKeys(): Promise<void> {
-		if (isLoadingApiKeys) {
-			return;
-		}
-		isLoadingApiKeys = true;
-		apiKeysError = null;
-		const result = await ZUI.getAuthApiKeys();
-		isLoadingApiKeys = false;
-		if (!result.ok) {
-			apiKeys = [];
-			apiKeysError = result.error.message;
-			return;
-		}
-		apiKeys = result.value.apiKeys;
-	}
-
-	async function loadAppVersion(): Promise<void> {
-		if (isLoadingAppVersion) {
-			return;
-		}
-
-		isLoadingAppVersion = true;
-		appVersionError = null;
-
-		const result = await ZUI.getAppVersion();
-
-		isLoadingAppVersion = false;
-		if (!result.ok) {
-			appVersionInfo = null;
-			appVersionError = result.error.message;
-			return;
-		}
-
-		appVersionInfo = result.value;
-	}
-
-	async function loadDevices(): Promise<void> {
-		if (isLoadingDevices) {
-			return;
-		}
-		isLoadingDevices = true;
-		devicesError = null;
-		const result = await ZUI.getDevices();
-		isLoadingDevices = false;
-		if (!result.ok) {
-			devices = [];
-			devicesError = result.error.message;
-			return;
-		}
-		devices = result.value.devices;
-	}
-
-	async function loadCurrentUser(): Promise<void> {
-		if (isLoadingCurrentUser) {
-			return;
-		}
-		isLoadingCurrentUser = true;
-		currentUserError = null;
-		const result = await AuthService.restoreSession();
-		isLoadingCurrentUser = false;
-		if (!result.ok) {
-			currentUser = null;
-			currentUserError = result.error.message;
-			return;
-		}
-		currentUser = result.value;
-	}
-
-	async function handleRevokeApiKey(apiKeyId: number, deviceId: string): Promise<void> {
-		if (revokingApiKeyId !== null) {
-			return;
-		}
-		revokingApiKeyId = apiKeyId;
-		const result = await ZUI.revokeAuthApiKey(apiKeyId);
-		revokingApiKeyId = null;
-		if (!result.ok) {
-			toastStore.add(`Failed to revoke API key: ${result.error.message}`, 'error');
-			return;
-		}
-		apiKeys = apiKeys.filter((apiKey) => apiKey.id !== apiKeyId);
-		toastStore.add(`Revoked API key for ${deviceId}`, 'success');
-		void loadDevices();
-	}
-
-	function requestDeleteDevice(deviceId: string): void {
-		if (deletingDeviceId !== null) {
-			return;
-		}
-		pendingDeleteDeviceId = deviceId;
-		showDeleteDeviceModal = true;
-	}
-
-	function cancelDeleteDevice(): void {
-		showDeleteDeviceModal = false;
-		pendingDeleteDeviceId = null;
-	}
-
-	async function confirmDeleteDevice(): Promise<void> {
-		if (!pendingDeleteDeviceId || deletingDeviceId !== null) {
-			return;
-		}
-
-		deletingDeviceId = pendingDeleteDeviceId;
-		const result = await ZUI.deleteDevice(pendingDeleteDeviceId);
-		deletingDeviceId = null;
-
-		if (!result.ok) {
-			toastStore.add(`Failed to delete device: ${result.error.message}`, 'error');
-			return;
-		}
-
-		const deletedDeviceId = result.value.deviceId;
-		cancelDeleteDevice();
-		await Promise.all([loadDevices(), loadAuthApiKeys()]);
-		toastStore.add(`Deleted device "${deletedDeviceId}"`, 'success');
-	}
-
-	async function handleAppLogout(): Promise<void> {
-		if (isLoggingOut) {
-			return;
-		}
-		isLoggingOut = true;
-		const result = await AuthService.logout();
-		isLoggingOut = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to log out: ${result.error.message}`, 'error');
-			return;
-		}
-		ZLibAuthService.clearUserName();
-		closeSettingsModal();
-		mobileOpen = false;
-		await goto('/');
-	}
-
-	async function handleLogoutAllSessions(): Promise<void> {
-		if (isLoggingOutEverywhere) {
-			return;
-		}
-		isLoggingOutEverywhere = true;
-		const result = await AuthService.logoutAllSessions();
-		isLoggingOutEverywhere = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to log out all sessions: ${result.error.message}`, 'error');
-			return;
-		}
-		ZLibAuthService.clearUserName();
-		closeSettingsModal();
-		mobileOpen = false;
-		await goto('/');
-	}
-
 	async function navigateToShelf(shelfId: number): Promise<void> {
 		mobileOpen = false;
 		await goto(`/library?shelf=${shelfId}`);
 	}
 
-	function closeAllShelfMenus(): void {
-		showCreateEmojiPicker = false;
-		showEditEmojiPicker = false;
-		shelfMenuId = null;
-		shelfMenuPos = null;
+	async function handleAppLogout(): Promise<void> {
+		const didLogout = await settingsController.handleAppLogout();
+		if (!didLogout) {
+			return;
+		}
+		mobileOpen = false;
+		await goto('/');
 	}
 
-	function getShelfRuleCount(shelf: LibraryShelf): number {
-		return countRuleConditions(shelf.ruleGroup);
-	}
-
-	function clearShelfPressTimer(): void {
-		if (shelfPressTimer !== null) {
-			clearTimeout(shelfPressTimer);
-			shelfPressTimer = null;
-		}
-	}
-
-	function setShelfDragDocumentState(active: boolean): void {
-		if (typeof document === 'undefined') {
+	async function handleLogoutAllSessions(): Promise<void> {
+		const didLogout = await settingsController.handleLogoutAllSessions();
+		if (!didLogout) {
 			return;
 		}
-		document.body.classList.toggle('shelf-reorder-active', active);
-	}
-
-	function resetShelfDragState(): void {
-		draggingShelfId = null;
-		shelfDragOverId = null;
-		shelfOrderBeforeDrag = null;
-		setShelfDragDocumentState(false);
-	}
-
-	function resetShelfPressState(): void {
-		clearShelfPressTimer();
-		pressedShelfId = null;
-		pressedPointerId = null;
-		pressedStartX = 0;
-		pressedStartY = 0;
-	}
-
-	function shouldIgnoreShelfClick(): boolean {
-		return Date.now() < blockShelfClickUntil || draggingShelfId !== null;
-	}
-
-	function getShelfIdFromPoint(clientX: number, clientY: number): number | null {
-		if (typeof document === 'undefined') {
-			return null;
-		}
-		const target = document.elementFromPoint(clientX, clientY);
-		if (!target) {
-			return null;
-		}
-		const shelfNode = target.closest('[data-shelf-id]') as HTMLElement | null;
-		const rawShelfId = shelfNode?.dataset.shelfId;
-		if (!rawShelfId) {
-			return null;
-		}
-		const parsedShelfId = Number.parseInt(rawShelfId, 10);
-		return Number.isInteger(parsedShelfId) && parsedShelfId > 0 ? parsedShelfId : null;
-	}
-
-	function reorderShelvesLocally(draggedShelfId: number, targetShelfId: number): void {
-		const fromIndex = shelves.findIndex((shelf) => shelf.id === draggedShelfId);
-		const toIndex = shelves.findIndex((shelf) => shelf.id === targetShelfId);
-		if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-			return;
-		}
-		const nextShelves = [...shelves];
-		const [draggedShelf] = nextShelves.splice(fromIndex, 1);
-		if (!draggedShelf) {
-			return;
-		}
-		nextShelves.splice(toIndex, 0, draggedShelf);
-		shelfStore.replace(nextShelves);
-	}
-
-	async function persistShelfReorder(previousShelves: LibraryShelf[]): Promise<void> {
-		const shelfIds = shelves.map((shelf) => shelf.id);
-		isReorderingShelves = true;
-		const result = await ZUI.reorderLibraryShelves(shelfIds);
-		isReorderingShelves = false;
-		resetShelfDragState();
-		if (!result.ok) {
-			shelfStore.replace(previousShelves);
-			toastStore.add(`Failed to reorder shelves: ${result.error.message}`, 'error');
-			return;
-		}
-		shelfStore.replace(result.value.shelves);
-	}
-
-	function startShelfDrag(shelfId: number): void {
-		if (draggingShelfId !== null || isMutatingShelves || isReorderingShelves) {
-			return;
-		}
-		draggingShelfId = shelfId;
-		shelfDragOverId = shelfId;
-		shelfOrderBeforeDrag = [...shelves];
-		blockShelfClickUntil = Date.now() + 500;
-		closeAllShelfMenus();
-		setShelfDragDocumentState(true);
-	}
-
-	function handleShelfPointerDown(event: PointerEvent, shelfId: number): void {
-		if (event.pointerType === 'mouse' && event.button !== 0) {
-			return;
-		}
-		if (isMutatingShelves || isReorderingShelves || editingShelfId !== null || showCreateShelf) {
-			return;
-		}
-		resetShelfPressState();
-		pressedShelfId = shelfId;
-		pressedPointerId = event.pointerId;
-		pressedStartX = event.clientX;
-		pressedStartY = event.clientY;
-		shelfPressTimer = setTimeout(() => {
-			if (pressedShelfId === shelfId && pressedPointerId === event.pointerId) {
-				startShelfDrag(shelfId);
-			}
-		}, SHELF_REORDER_LONG_PRESS_MS);
-	}
-
-	function handleGlobalPointerMove(event: PointerEvent): void {
-		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
-			return;
-		}
-		if (draggingShelfId === null) {
-			const movedX = Math.abs(event.clientX - pressedStartX);
-			const movedY = Math.abs(event.clientY - pressedStartY);
-			if (movedX > SHELF_DRAG_CANCEL_DISTANCE_PX || movedY > SHELF_DRAG_CANCEL_DISTANCE_PX) {
-				resetShelfPressState();
-			}
-			return;
-		}
-		event.preventDefault();
-		const targetShelfId = getShelfIdFromPoint(event.clientX, event.clientY);
-		if (targetShelfId === null) {
-			shelfDragOverId = null;
-			return;
-		}
-		shelfDragOverId = targetShelfId;
-		if (targetShelfId !== draggingShelfId) {
-			reorderShelvesLocally(draggingShelfId, targetShelfId);
-		}
-	}
-
-	function handleGlobalPointerUp(event: PointerEvent): void {
-		if (pressedPointerId === null || event.pointerId !== pressedPointerId) {
-			return;
-		}
-		clearShelfPressTimer();
-		const wasDragging = draggingShelfId !== null;
-		const previousShelves = shelfOrderBeforeDrag ? [...shelfOrderBeforeDrag] : null;
-		resetShelfPressState();
-		if (!wasDragging) {
-			return;
-		}
-		blockShelfClickUntil = Date.now() + 500;
-		const orderChanged =
-			previousShelves !== null &&
-			(previousShelves.length !== shelves.length ||
-				previousShelves.some((shelf, index) => shelf.id !== shelves[index]?.id));
-		if (!orderChanged || previousShelves === null) {
-			resetShelfDragState();
-			return;
-		}
-		void persistShelfReorder(previousShelves);
-	}
-
-	async function loadShelves(): Promise<void> {
-		if (draggingShelfId !== null) {
-			return;
-		}
-		const result = await shelfStore.load();
-		if (!result.ok) {
-			return;
-		}
-		if (selectedShelfId !== null && !shelves.some((shelf) => shelf.id === selectedShelfId)) {
-			void goto('/library');
-		}
-	}
-
-	function startCreateShelf(): void {
-		if (isReorderingShelves || draggingShelfId !== null) {
-			return;
-		}
-		showCreateShelf = true;
-		newShelfName = '';
-		newShelfIcon = '📚';
-		showCreateEmojiPicker = false;
-		editingShelfId = null;
-	}
-
-	function cancelCreateShelf(): void {
-		showCreateShelf = false;
-		newShelfName = '';
-		showCreateEmojiPicker = false;
-	}
-
-	async function handleCreateShelf(): Promise<void> {
-		const name = newShelfName.trim();
-		if (!name || isMutatingShelves || isReorderingShelves) {
-			return;
-		}
-		isMutatingShelves = true;
-		const result = await ZUI.createLibraryShelf({ name, icon: newShelfIcon });
-		isMutatingShelves = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to create shelf: ${result.error.message}`, 'error');
-			return;
-		}
-		showCreateShelf = false;
-		closeAllShelfMenus();
-		await shelfStore.reload();
-		toastStore.add(`Shelf "${result.value.shelf.name}" created`, 'success');
-	}
-
-	function startRenameShelf(shelf: LibraryShelf): void {
-		if (draggingShelfId !== null || isReorderingShelves) {
-			return;
-		}
-		editingShelfId = shelf.id;
-		editShelfName = shelf.name;
-		editShelfIcon = shelf.icon;
-		showEditEmojiPicker = false;
-		shelfMenuId = null;
-		shelfMenuPos = null;
-	}
-
-	function cancelRenameShelf(): void {
-		editingShelfId = null;
-		editShelfName = '';
-		editShelfIcon = '📚';
-		showEditEmojiPicker = false;
-	}
-
-	async function handleRenameShelf(shelfId: number): Promise<void> {
-		const name = editShelfName.trim();
-		if (!name || isMutatingShelves || isReorderingShelves) {
-			return;
-		}
-		isMutatingShelves = true;
-		const result = await ZUI.updateLibraryShelf(shelfId, { name, icon: editShelfIcon });
-		isMutatingShelves = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to rename shelf: ${result.error.message}`, 'error');
-			return;
-		}
-		const updatedName = result.value.shelf.name;
-		cancelRenameShelf();
-		await shelfStore.reload();
-		toastStore.add(`Shelf renamed to "${updatedName}"`, 'success');
-	}
-
-	function requestDeleteShelf(shelf: LibraryShelf): void {
-		pendingDeleteShelfId = shelf.id;
-		showDeleteShelfModal = true;
-		shelfMenuId = null;
-		shelfMenuPos = null;
-	}
-
-	function cancelDeleteShelf(): void {
-		showDeleteShelfModal = false;
-		pendingDeleteShelfId = null;
-	}
-
-	async function confirmDeleteShelf(): Promise<void> {
-		if (pendingDeleteShelfId === null || isMutatingShelves || isReorderingShelves) {
-			return;
-		}
-		const shelf = shelves.find((item) => item.id === pendingDeleteShelfId);
-		if (!shelf) {
-			cancelDeleteShelf();
-			return;
-		}
-		isMutatingShelves = true;
-		const result = await ZUI.deleteLibraryShelf(shelf.id);
-		isMutatingShelves = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to delete shelf: ${result.error.message}`, 'error');
-			return;
-		}
-		if (selectedShelfId === shelf.id) {
-			await goto('/library');
-		}
-		closeAllShelfMenus();
-		await shelfStore.reload();
-		toastStore.add(`Shelf "${shelf.name}" deleted`, 'success');
-		cancelDeleteShelf();
-	}
-
-	function openShelfMenu(event: MouseEvent, shelfId: number): void {
-		if (draggingShelfId !== null || isReorderingShelves) {
-			return;
-		}
-		event.stopPropagation();
-		const target = event.currentTarget as HTMLElement;
-		const rect = target.getBoundingClientRect();
-		shelfMenuPos = { top: rect.top - 2, left: rect.right - 10 };
-		shelfMenuId = shelfMenuId === shelfId ? null : shelfId;
-	}
-
-	function openRulesModal(shelfId: number): void {
-		if (draggingShelfId !== null || isReorderingShelves) {
-			return;
-		}
-		rulesModalShelfId = shelfId;
-		closeAllShelfMenus();
-	}
-
-	function closeRulesModal(): void {
-		if (!isSavingShelfRules) {
-			rulesModalShelfId = null;
-		}
-	}
-
-	async function handleSaveShelfRules(ruleGroup: RuleGroup): Promise<void> {
-		if (rulesModalShelfId === null || isSavingShelfRules) {
-			return;
-		}
-		isSavingShelfRules = true;
-		const result = await ZUI.updateLibraryShelfRules(rulesModalShelfId, ruleGroup);
-		isSavingShelfRules = false;
-		if (!result.ok) {
-			toastStore.add(`Failed to update shelf rules: ${result.error.message}`, 'error');
-			return;
-		}
-		const nextShelves = shelves.map((shelf) =>
-			shelf.id === result.value.shelf.id ? result.value.shelf : shelf
-		);
-		shelfStore.replace(nextShelves);
-		rulesModalShelfId = null;
-		toastStore.add(`Rules updated for "${result.value.shelf.name}"`, 'success');
+		mobileOpen = false;
+		await goto('/');
 	}
 
 	onMount(() => {
-		void loadShelves();
-		if (typeof window !== 'undefined') {
-			window.addEventListener('pointermove', handleGlobalPointerMove);
-			window.addEventListener('pointerup', handleGlobalPointerUp);
-			window.addEventListener('pointercancel', handleGlobalPointerUp);
-		}
-		return () => {
-			resetShelfPressState();
-			resetShelfDragState();
-			if (typeof window !== 'undefined') {
-				window.removeEventListener('pointermove', handleGlobalPointerMove);
-				window.removeEventListener('pointerup', handleGlobalPointerUp);
-				window.removeEventListener('pointercancel', handleGlobalPointerUp);
-			}
-		};
+		return shelfManager.mount();
 	});
 </script>
 
@@ -718,52 +129,52 @@
 					{#if item.id === 'library' && !collapsed}
 						<div class={styles.libraryRow}>
 							<SidebarNavItem item={item} active={isActive(item)} onClick={() => (mobileOpen = false)} />
-							<button type="button" class={styles.libraryExpandBtn} aria-label={shelvesExpanded ? 'Collapse shelves' : 'Expand shelves'} onclick={() => (shelvesExpanded = !shelvesExpanded)}>
-								<ChevronRightIcon size={13} class={`${styles.expandIcon} ${shelvesExpanded ? styles.expanded : ''}`} decorative={true} />
+							<button type="button" class={styles.libraryExpandBtn} aria-label={shelfManager.shelvesExpanded ? 'Collapse shelves' : 'Expand shelves'} onclick={() => (shelfManager.shelvesExpanded = !shelfManager.shelvesExpanded)}>
+								<ChevronRightIcon size={13} class={`${styles.expandIcon} ${shelfManager.shelvesExpanded ? styles.expanded : ''}`} decorative={true} />
 							</button>
 						</div>
 					{:else}
 						<SidebarNavItem item={item} active={isActive(item)} collapsed={collapsed} onClick={() => (mobileOpen = false)} />
 					{/if}
 
-					{#if item.id === 'library' && !collapsed && shelvesExpanded}
+					{#if item.id === 'library' && !collapsed && shelfManager.shelvesExpanded}
 						<SidebarShelvesSection
 							{shelves}
 							selectedShelfId={selectedShelfId}
 							isLibraryActive={isLibraryActive}
-							showCreateShelf={showCreateShelf}
-							bind:newShelfName={newShelfName}
-							bind:newShelfIcon={newShelfIcon}
-							bind:showCreateEmojiPicker={showCreateEmojiPicker}
-							editingShelfId={editingShelfId}
-							bind:editShelfName={editShelfName}
-							bind:editShelfIcon={editShelfIcon}
-							bind:showEditEmojiPicker={showEditEmojiPicker}
-							emojiOptions={EMOJI_OPTIONS}
-							isMutatingShelves={isMutatingShelves}
-							isReorderingShelves={isReorderingShelves}
-							draggingShelfId={draggingShelfId}
-							shelfDragOverId={shelfDragOverId}
-							getShelfRuleCount={getShelfRuleCount}
-							onStartCreateShelf={startCreateShelf}
-							onCreateShelf={() => void handleCreateShelf()}
-							onCancelCreateShelf={cancelCreateShelf}
-							onToggleCreateEmojiPicker={() => (showCreateEmojiPicker = !showCreateEmojiPicker)}
+							showCreateShelf={shelfManager.showCreateShelf}
+							bind:newShelfName={shelfManager.newShelfName}
+							bind:newShelfIcon={shelfManager.newShelfIcon}
+							bind:showCreateEmojiPicker={shelfManager.showCreateEmojiPicker}
+							editingShelfId={shelfManager.editingShelfId}
+							bind:editShelfName={shelfManager.editShelfName}
+							bind:editShelfIcon={shelfManager.editShelfIcon}
+							bind:showEditEmojiPicker={shelfManager.showEditEmojiPicker}
+							emojiOptions={shelfManager.emojiOptions}
+							isMutatingShelves={shelfManager.isMutatingShelves}
+							isReorderingShelves={shelfManager.isReorderingShelves}
+							draggingShelfId={shelfManager.draggingShelfId}
+							shelfDragOverId={shelfManager.shelfDragOverId}
+							getShelfRuleCount={shelfManager.getShelfRuleCount}
+							onStartCreateShelf={shelfManager.startCreateShelf}
+							onCreateShelf={() => void shelfManager.handleCreateShelf()}
+							onCancelCreateShelf={shelfManager.cancelCreateShelf}
+							onToggleCreateEmojiPicker={() => (shelfManager.showCreateEmojiPicker = !shelfManager.showCreateEmojiPicker)}
 							onSelectCreateEmoji={(emoji) => {
-								newShelfIcon = emoji;
-								showCreateEmojiPicker = false;
+								shelfManager.newShelfIcon = emoji;
+								shelfManager.showCreateEmojiPicker = false;
 							}}
-							onRenameShelf={(shelfId) => void handleRenameShelf(shelfId)}
-							onCancelRenameShelf={cancelRenameShelf}
-							onToggleEditEmojiPicker={() => (showEditEmojiPicker = !showEditEmojiPicker)}
+							onRenameShelf={(shelfId) => void shelfManager.handleRenameShelf(shelfId)}
+							onCancelRenameShelf={shelfManager.cancelRenameShelf}
+							onToggleEditEmojiPicker={() => (shelfManager.showEditEmojiPicker = !shelfManager.showEditEmojiPicker)}
 							onSelectEditEmoji={(emoji) => {
-								editShelfIcon = emoji;
-								showEditEmojiPicker = false;
+								shelfManager.editShelfIcon = emoji;
+								shelfManager.showEditEmojiPicker = false;
 							}}
-							onShelfPointerDown={handleShelfPointerDown}
+							onShelfPointerDown={shelfManager.handleShelfPointerDown}
 							onSelectShelf={(shelfId) => void navigateToShelf(shelfId)}
-							onOpenShelfMenu={openShelfMenu}
-							shouldIgnoreShelfClick={shouldIgnoreShelfClick}
+							onOpenShelfMenu={shelfManager.openShelfMenu}
+							shouldIgnoreShelfClick={shelfManager.shouldIgnoreShelfClick}
 						/>
 					{/if}
 				</li>
@@ -772,7 +183,7 @@
 	</nav>
 
 	<div class={styles.sidebarFooter}>
-		<button type="button" class={styles.sidebarFooterBtn} title={collapsed ? 'Settings' : undefined} aria-label="Open settings" onclick={openSettingsModal}>
+		<button type="button" class={styles.sidebarFooterBtn} title={collapsed ? 'Settings' : undefined} aria-label="Open settings" onclick={settingsController.openModal}>
 			<span class={styles.icon}><SettingsIcon size={20} decorative={true} /></span>
 			{#if !collapsed}
 				<span class={styles.label}>Settings</span>
@@ -781,69 +192,69 @@
 	</div>
 </aside>
 
-{#if shelfMenuId !== null && shelfMenuPos !== null}
-	{@const menuShelf = shelves.find((shelf) => shelf.id === shelfMenuId)}
+{#if shelfManager.shelfMenuId !== null && shelfManager.shelfMenuPos !== null}
+	{@const menuShelf = shelves.find((shelf) => shelf.id === shelfManager.shelfMenuId)}
 	{#if menuShelf}
-		<SidebarShelfContextMenu shelf={menuShelf} position={shelfMenuPos} ruleCount={getShelfRuleCount(menuShelf)} onClose={closeAllShelfMenus} onRename={() => startRenameShelf(menuShelf)} onRules={() => openRulesModal(menuShelf.id)} onDelete={() => requestDeleteShelf(menuShelf)} />
+		<SidebarShelfContextMenu shelf={menuShelf} position={shelfManager.shelfMenuPos} ruleCount={shelfManager.getShelfRuleCount(menuShelf)} onClose={shelfManager.closeAllShelfMenus} onRename={() => shelfManager.startRenameShelf(menuShelf)} onRules={() => shelfManager.openRulesModal(menuShelf.id)} onDelete={() => shelfManager.requestDeleteShelf(menuShelf)} />
 	{/if}
 {/if}
 
-<ConfirmModal open={showDeleteShelfModal} title="Delete shelf?" message="Books stay in your library. Only shelf assignments will be removed." confirmLabel="Delete" cancelLabel="Cancel" danger={true} pending={isMutatingShelves} onConfirm={confirmDeleteShelf} onCancel={cancelDeleteShelf} />
+<ConfirmModal open={shelfManager.showDeleteShelfModal} title="Delete shelf?" message="Books stay in your library. Only shelf assignments will be removed." confirmLabel="Delete" cancelLabel="Cancel" danger={true} pending={shelfManager.isMutatingShelves} onConfirm={shelfManager.confirmDeleteShelf} onCancel={shelfManager.cancelDeleteShelf} />
 
 <ConfirmModal
-	open={showDeleteDeviceModal}
+	open={settingsController.showDeleteDeviceModal}
 	title="Delete device?"
-	message={pendingDeleteDeviceId ? `Delete device "${pendingDeleteDeviceId}"? This revokes its API key, removes its download acknowledgements, and clears its progress-download tracking.` : 'Delete this device?'}
+	message={settingsController.pendingDeleteDeviceId ? `Delete device "${settingsController.pendingDeleteDeviceId}"? This revokes its API key, removes its download acknowledgements, and clears its progress-download tracking.` : 'Delete this device?'}
 	confirmLabel="Delete device"
 	cancelLabel="Cancel"
 	danger={true}
-	pending={deletingDeviceId !== null}
-	onConfirm={confirmDeleteDevice}
-	onCancel={cancelDeleteDevice}
+	pending={settingsController.deletingDeviceId !== null}
+	onConfirm={settingsController.confirmDeleteDevice}
+	onCancel={settingsController.cancelDeleteDevice}
 />
 
-{#if rulesModalShelfId !== null}
-	{@const rulesShelf = shelves.find((shelf) => shelf.id === rulesModalShelfId)}
+{#if shelfManager.rulesModalShelfId !== null}
+	{@const rulesShelf = shelves.find((shelf) => shelf.id === shelfManager.rulesModalShelfId)}
 	{#if rulesShelf}
-		<ShelfRulesModal open={true} shelfName={rulesShelf.name} shelfIcon={rulesShelf.icon} initialRuleGroup={rulesShelf.ruleGroup} pending={isSavingShelfRules} onClose={closeRulesModal} onSave={handleSaveShelfRules} />
+		<ShelfRulesModal open={true} shelfName={rulesShelf.name} shelfIcon={rulesShelf.icon} initialRuleGroup={rulesShelf.ruleGroup} pending={shelfManager.isSavingShelfRules} onClose={shelfManager.closeRulesModal} onSave={shelfManager.handleSaveShelfRules} />
 	{/if}
 {/if}
 
 <SidebarSettingsModal
-	open={showSettingsModal}
+	open={settingsController.showSettingsModal}
 	sections={settingsSections}
-	bind:activeSection={activeSettingsSection}
+	bind:activeSection={settingsController.activeSection}
 	{zlibName}
 	{showZLibraryLogin}
 	{isLoggingOutZLibrary}
-	{currentUser}
-	{currentUserError}
-	{isLoadingCurrentUser}
-	{apiKeys}
-	{apiKeysError}
-	{isLoadingApiKeys}
-	{revokingApiKeyId}
-	{devices}
-	{devicesError}
-	{isLoadingDevices}
-	{deletingDeviceId}
-	appVersion={appVersionInfo?.version ?? fallbackAppVersion.version}
-	databaseVersion={appVersionInfo?.database ?? null}
-	{appVersionError}
-	{isLoadingAppVersion}
-	{appEnvironment}
-	appSourceUrl={APP_SOURCE_URL}
-	appSourceLabel={APP_SOURCE_LABEL}
-	{formatDateTime}
-	onClose={closeSettingsModal}
+	currentUser={settingsController.currentUser}
+	currentUserError={settingsController.currentUserError}
+	isLoadingCurrentUser={settingsController.isLoadingCurrentUser}
+	apiKeys={settingsController.apiKeys}
+	apiKeysError={settingsController.apiKeysError}
+	isLoadingApiKeys={settingsController.isLoadingApiKeys}
+	revokingApiKeyId={settingsController.revokingApiKeyId}
+	devices={settingsController.devices}
+	devicesError={settingsController.devicesError}
+	isLoadingDevices={settingsController.isLoadingDevices}
+	deletingDeviceId={settingsController.deletingDeviceId}
+	appVersion={settingsController.appVersion}
+	databaseVersion={settingsController.databaseVersion}
+	appVersionError={settingsController.appVersionError}
+	isLoadingAppVersion={settingsController.isLoadingAppVersion}
+	appEnvironment={settingsController.appEnvironment}
+	appSourceUrl={settingsController.appSourceUrl}
+	appSourceLabel={settingsController.appSourceLabel}
+	formatDateTime={settingsController.formatDateTime}
+	onClose={settingsController.closeModal}
 	onOpenZLibraryLogin={onOpenZLibraryLogin}
 	onLogoutZLibrary={onLogoutZLibrary}
-	onRefreshApiKeys={() => void loadAuthApiKeys()}
-	onRevokeApiKey={(apiKeyId, deviceId) => void handleRevokeApiKey(apiKeyId, deviceId)}
-	onRefreshDevices={() => void loadDevices()}
-	onDeleteDevice={(deviceId) => requestDeleteDevice(deviceId)}
+	onRefreshApiKeys={() => void settingsController.loadAuthApiKeys()}
+	onRevokeApiKey={(apiKeyId, deviceId) => void settingsController.handleRevokeApiKey(apiKeyId, deviceId)}
+	onRefreshDevices={() => void settingsController.loadDevices()}
+	onDeleteDevice={settingsController.requestDeleteDevice}
 	onLogout={() => void handleAppLogout()}
 	onLogoutAll={() => void handleLogoutAllSessions()}
-	{isLoggingOut}
-	{isLoggingOutEverywhere}
+	isLoggingOut={settingsController.isLoggingOut}
+	isLoggingOutEverywhere={settingsController.isLoggingOutEverywhere}
 />
