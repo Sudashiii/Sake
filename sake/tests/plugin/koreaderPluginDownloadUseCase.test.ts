@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { PluginReleaseRepositoryPort } from '$lib/server/application/ports/PluginReleaseRepositoryPort';
-import type { StoragePort } from '$lib/server/application/ports/StoragePort';
+import type { StorageObjectInfo, StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { PluginRelease, UpsertPluginReleaseInput } from '$lib/server/domain/entities/PluginRelease';
 import { GetKoreaderPluginDownloadUseCase } from '$lib/server/application/use-cases/GetKoreaderPluginDownloadUseCase';
 
@@ -51,7 +51,11 @@ class StubStorage implements StoragePort {
 
 	constructor(private readonly objects: Map<string, Buffer>) {}
 
-	async put(): Promise<void> {
+	async put(
+		_key: string,
+		_body: Buffer | Uint8Array | NodeJS.ReadableStream,
+		_contentType?: string
+	): Promise<void> {
 		throw new Error('not implemented in test');
 	}
 
@@ -64,11 +68,11 @@ class StubStorage implements StoragePort {
 		return value;
 	}
 
-	async delete(): Promise<void> {
+	async delete(_key: string): Promise<void> {
 		throw new Error('not implemented in test');
 	}
 
-	async list(): Promise<[]> {
+	async list(_prefix: string): Promise<StorageObjectInfo[]> {
 		return [];
 	}
 }

@@ -125,11 +125,11 @@ local function buildReleaseLabel(release)
     local label = tostring(release.version or "?")
 
     if release.is_current then
-        label = "[Installed] " .. label
+        label = "[" .. _("Installed") .. "] " .. label
     end
 
     if release.is_latest then
-        label = label .. " (latest)"
+        label = label .. " (" .. _("latest") .. ")"
     end
 
     return label
