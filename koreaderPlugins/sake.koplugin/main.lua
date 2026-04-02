@@ -374,40 +374,47 @@ function Sake:openPluginVersionPicker()
         return
     end
 
-    local ok, result_or_err = self.updater:listReleases()
-    if not ok then
-        logger.warn("[Sake] Plugin release list failed: " .. tostring(result_or_err))
-        UIManager:show(InfoMessage:new{
-            text = _("Could not load plugin versions: ") .. tostring(result_or_err),
-            timeout = 6
-        })
-        return
-    end
-
-    local result = result_or_err
-    if not result.releases or #result.releases == 0 then
-        UIManager:show(InfoMessage:new{
-            text = _("No plugin versions available."),
-            timeout = 4
-        })
-        return
-    end
-
-    Dialogs.showPluginVersionPicker(self.ctx, {
-        current_version = result.current_version,
-        releases = result.releases,
-        on_select = function(release)
-            if release and tostring(release.version or "") == tostring(result.current_version or "") then
-                UIManager:show(InfoMessage:new{
-                    text = _("That plugin version is already installed."),
-                    timeout = 4
-                })
-                return
-            end
-
-            self:performPluginUpdateWithRelease(release)
-        end,
+    UIManager:show(InfoMessage:new{
+        text = _("Loading plugin versions..."),
+        timeout = 1
     })
+
+    UIManager:scheduleIn(0.1, function()
+        local ok, result_or_err = self.updater:listReleases()
+        if not ok then
+            logger.warn("[Sake] Plugin release list failed: " .. tostring(result_or_err))
+            UIManager:show(InfoMessage:new{
+                text = _("Could not load plugin versions: ") .. tostring(result_or_err),
+                timeout = 6
+            })
+            return
+        end
+
+        local result = result_or_err
+        if not result.releases or #result.releases == 0 then
+            UIManager:show(InfoMessage:new{
+                text = _("No plugin versions available."),
+                timeout = 4
+            })
+            return
+        end
+
+        Dialogs.showPluginVersionPicker(self.ctx, {
+            current_version = result.current_version,
+            releases = result.releases,
+            on_select = function(release)
+                if release and tostring(release.version or "") == tostring(result.current_version or "") then
+                    UIManager:show(InfoMessage:new{
+                        text = _("That plugin version is already installed."),
+                        timeout = 4
+                    })
+                    return
+                end
+
+                self:performPluginUpdateWithRelease(release)
+            end,
+        })
+    end)
 end
 
 function Sake:onDispatcherRegisterActions()

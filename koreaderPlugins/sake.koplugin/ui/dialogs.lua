@@ -9,6 +9,7 @@ local _ = require("gettext")
 local Settings = require("core/settings")
 
 local Dialogs = {}
+local RELEASES_PER_PAGE = 6
 
 local function trim(value)
     return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -136,40 +137,85 @@ local function buildReleaseLabel(release)
 end
 
 function Dialogs.showPluginVersionPicker(ctx, opts)
-    local dialog
-    local buttons = {}
+    local releases = opts.releases or {}
+    local total_pages = math.max(1, math.ceil(#releases / RELEASES_PER_PAGE))
 
-    for _, release in ipairs(opts.releases or {}) do
+    local function showPage(page_number)
+        local dialog
+        local buttons = {}
+        local start_index = ((page_number - 1) * RELEASES_PER_PAGE) + 1
+        local end_index = math.min(#releases, page_number * RELEASES_PER_PAGE)
+
+        for index = start_index, end_index do
+            local release = releases[index]
+            table.insert(buttons, {
+                {
+                    text = buildReleaseLabel(release),
+                    enabled = release.is_current ~= true,
+                    callback = function()
+                        UIManager:close(dialog)
+                        if opts.on_select then
+                            opts.on_select(release)
+                        end
+                    end,
+                },
+            })
+        end
+
+        if total_pages > 1 then
+            table.insert(buttons, {
+                {
+                    text = _("Previous"),
+                    enabled = page_number > 1,
+                    callback = function()
+                        UIManager:close(dialog)
+                        showPage(page_number - 1)
+                    end,
+                },
+                {
+                    text = _("Next"),
+                    enabled = page_number < total_pages,
+                    callback = function()
+                        UIManager:close(dialog)
+                        showPage(page_number + 1)
+                    end,
+                },
+            })
+        end
+
         table.insert(buttons, {
             {
-                text = buildReleaseLabel(release),
-                enabled = release.is_current ~= true,
+                text = _("Close"),
                 callback = function()
                     UIManager:close(dialog)
-                    if opts.on_select then
-                        opts.on_select(release)
-                    end
                 end,
             },
         })
+
+        local title = _("Select a Sake plugin version to install.")
+            .. "\n"
+            .. _("Installed: ")
+            .. tostring(opts.current_version or "?")
+
+        if total_pages > 1 then
+            title = title
+                .. "\n"
+                .. _("Page ")
+                .. tostring(page_number)
+                .. "/"
+                .. tostring(total_pages)
+        end
+
+        dialog = ButtonDialog:new{
+            title = title,
+            buttons = buttons,
+            shrink_unneeded_width = true,
+        }
+
+        UIManager:show(dialog)
     end
 
-    table.insert(buttons, {
-        {
-            text = _("Close"),
-            callback = function()
-                UIManager:close(dialog)
-            end,
-        },
-    })
-
-    dialog = ButtonDialog:new{
-        title = (_("Select a Sake plugin version to install.") .. "\n" .. _("Installed: ") .. tostring(opts.current_version or "?")),
-        buttons = buttons,
-        rows_per_page = { 7, 6, 5, 4 },
-    }
-
-    UIManager:show(dialog)
+    showPage(1)
 end
 
 return Dialogs
