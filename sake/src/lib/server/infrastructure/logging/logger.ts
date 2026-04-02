@@ -5,12 +5,50 @@ function resolveLogLevel(): string {
 	return process.env.LOG_LEVEL?.trim() || 'info';
 }
 
-export function toLogError(error: unknown): { name: string; message: string; stack?: string } {
+interface SerializedLogError {
+	name: string;
+	message: string;
+	stack?: string;
+	cause?: SerializedLogError | { message: string };
+}
+
+function serializeErrorCause(error: Error, depth = 0): SerializedLogError | { message: string } | undefined {
+	if (depth >= 5) {
+		return { message: 'Error cause chain truncated' };
+	}
+
+	const cause = error.cause;
+	if (cause === undefined) {
+		return undefined;
+	}
+
+	if (cause instanceof Error) {
+		return {
+			name: cause.name,
+			message: cause.message,
+			stack: process.env.NODE_ENV === 'production' ? undefined : cause.stack,
+			cause: serializeErrorCause(cause, depth + 1)
+		};
+	}
+
+	if (typeof cause === 'string') {
+		return { message: cause };
+	}
+
+	if (typeof cause === 'object' && cause !== null && 'message' in cause && typeof cause.message === 'string') {
+		return { message: cause.message };
+	}
+
+	return { message: String(cause) };
+}
+
+export function toLogError(error: unknown): SerializedLogError {
 	if (error instanceof Error) {
 		return {
 			name: error.name,
 			message: error.message,
-			stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+			stack: process.env.NODE_ENV === 'production' ? undefined : error.stack,
+			cause: serializeErrorCause(error)
 		};
 	}
 
