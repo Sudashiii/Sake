@@ -94,4 +94,23 @@ export class PluginReleaseRepository implements PluginReleaseRepositoryPort {
 
 		return fallbackLatest ? mapRow(fallbackLatest) : undefined;
 	}
+
+	async getByVersion(version: string): Promise<PluginRelease | undefined> {
+		const [row] = await drizzleDb
+			.select()
+			.from(pluginReleases)
+			.where(eq(pluginReleases.version, version))
+			.limit(1);
+
+		return row ? mapRow(row) : undefined;
+	}
+
+	async listAll(): Promise<PluginRelease[]> {
+		const rows = await drizzleDb
+			.select()
+			.from(pluginReleases)
+			.orderBy(desc(pluginReleases.isLatest), desc(pluginReleases.updatedAt), desc(pluginReleases.createdAt));
+
+		return rows.map(mapRow);
+	}
 }

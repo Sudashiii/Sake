@@ -32,4 +32,18 @@ describe('requestAccess', () => {
 		assert.equal(isPublicApiRoute('/api/devices/device-a/logs/stream', 'GET'), false);
 		assert.equal(isApiKeyAllowedRoute('/api/devices/device-a/logs/stream', 'GET'), false);
 	});
+
+	test('keeps KOReader plugin latest and default download endpoints compatible for older devices', () => {
+		assert.equal(isPublicApiRoute('/api/plugin/koreader/latest', 'GET'), true);
+		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/latest', 'GET'), true);
+		assert.equal(isPublicApiRoute('/api/plugin/koreader/download', 'GET'), true);
+		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/download', 'GET'), true);
+	});
+
+	test('exposes the additive plugin releases endpoint without changing old auth behavior', () => {
+		assert.equal(isPublicApiRoute('/api/plugin/koreader/releases', 'GET'), true);
+		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/releases', 'GET'), true);
+		assert.equal(isPublicApiRoute('/api/plugin/koreader/releases', 'POST'), false);
+		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/releases', 'POST'), false);
+	});
 });

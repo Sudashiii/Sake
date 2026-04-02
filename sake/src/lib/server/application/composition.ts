@@ -44,6 +44,7 @@ import { KoreaderPluginArtifactService } from '$lib/server/application/services/
 import { SyncKoreaderPluginReleaseUseCase } from '$lib/server/application/use-cases/SyncKoreaderPluginReleaseUseCase';
 import { GetLatestKoreaderPluginUseCase } from '$lib/server/application/use-cases/GetLatestKoreaderPluginUseCase';
 import { GetKoreaderPluginDownloadUseCase } from '$lib/server/application/use-cases/GetKoreaderPluginDownloadUseCase';
+import { ListKoreaderPluginReleasesUseCase } from '$lib/server/application/use-cases/ListKoreaderPluginReleasesUseCase';
 import { PluginReleaseRepository } from '$lib/server/infrastructure/repositories/PluginReleaseRepository';
 import { UserRepository } from '$lib/server/infrastructure/repositories/UserRepository';
 import { UserSessionRepository } from '$lib/server/infrastructure/repositories/UserSessionRepository';
@@ -211,9 +212,12 @@ export const syncKoreaderPluginReleaseUseCase = new SyncKoreaderPluginReleaseUse
 	koreaderPluginArtifactService
 );
 export const getLatestKoreaderPluginUseCase = new GetLatestKoreaderPluginUseCase(pluginReleaseRepository);
+export const listKoreaderPluginReleasesUseCase = new ListKoreaderPluginReleasesUseCase(
+	pluginReleaseRepository
+);
 export const getKoreaderPluginDownloadUseCase = new GetKoreaderPluginDownloadUseCase(
 	storage,
-	getLatestKoreaderPluginUseCase
+	pluginReleaseRepository
 );
 export const getAuthStatusUseCase = new GetAuthStatusUseCase(userRepository);
 export const bootstrapLocalAccountUseCase = new BootstrapLocalAccountUseCase(

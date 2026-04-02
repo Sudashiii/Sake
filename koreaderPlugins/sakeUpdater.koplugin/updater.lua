@@ -8,6 +8,7 @@ Updater.__index = Updater
 
 local LOG_PREFIX = "[Sake] "
 local ROUTE_LATEST = "/api/plugin/koreader/latest"
+local ROUTE_RELEASES = "/api/plugin/koreader/releases"
 local ROUTE_DEVICE_KEY = "/api/auth/device-key"
 local API_KEY_HEADER = "x-api-key"
 local API_KEY_SETTING = "sake_api_key"
@@ -257,15 +258,24 @@ function Updater:getCurrentVersion()
     return self.current_version
 end
 
-function Updater:checkForUpdate()
-    local settings = self.ctx.settings
-    local current_version, version_err = readSakeVersion(self.sake_plugin_dir)
+local function loadCurrentVersion(updater)
+    local current_version, version_err = readSakeVersion(updater.sake_plugin_dir)
     if not current_version then
         logger.warn(LOG_PREFIX .. "Updater failed to read current version: " .. tostring(version_err))
-        self.update_available = false
+        updater.update_available = false
+        return nil, version_err
+    end
+
+    updater.current_version = current_version
+    return current_version
+end
+
+function Updater:checkForUpdate()
+    local settings = self.ctx.settings
+    local current_version, version_err = loadCurrentVersion(self)
+    if not current_version then
         return false, version_err
     end
-    self.current_version = current_version
 
     local url = normalizedBaseUrl(settings.api_url) .. ROUTE_LATEST
     local ok, response = requestWithAuth(settings, {
@@ -306,20 +316,95 @@ function Updater:checkForUpdate()
     }
 end
 
-function Updater:performUpdate()
+function Updater:listReleases()
+    local settings = self.ctx.settings
+    local current_version, version_err = loadCurrentVersion(self)
+    if not current_version then
+        return false, version_err
+    end
+
+    local url = normalizedBaseUrl(settings.api_url) .. ROUTE_RELEASES
+    local ok, response = requestWithAuth(settings, {
+        url = url,
+        method = "GET",
+    })
+    if not ok then
+        return false, "Request failed: " .. tostring(response.request_error)
+    end
+    if response.status_code ~= 200 then
+        local api_error = errorFromResponse(response)
+        return false, api_error or "HTTP Error " .. tostring(response.status_code)
+    end
+
+    local ok_json, payload = pcall(function() return json.decode(response.body) end)
+    if not ok_json or type(payload) ~= "table" or type(payload.releases) ~= "table" then
+        return false, "Invalid releases response"
+    end
+
+    local releases = {}
+    for _, entry in ipairs(payload.releases) do
+        if type(entry) == "table" and entry.version then
+            local release = {
+                version = tostring(entry.version),
+                file_name = entry.fileName and tostring(entry.fileName) or nil,
+                sha256 = entry.sha256 and tostring(entry.sha256) or nil,
+                updated_at = entry.updatedAt and tostring(entry.updatedAt) or nil,
+                is_latest = entry.isLatest == true,
+                is_current = tostring(entry.version) == current_version,
+                download_url = entry.downloadUrl and tostring(entry.downloadUrl) or nil,
+            }
+            table.insert(releases, release)
+
+            if release.is_latest then
+                self.latest_version = release.version
+                self.latest_file_name = release.file_name
+                self.latest_sha256 = release.sha256
+                self.latest_download_url = release.download_url
+            end
+        end
+    end
+
+    logger.info(
+        LOG_PREFIX .. "Fetched " .. tostring(#releases) .. " plugin releases. Current=" .. tostring(current_version)
+    )
+
+    return true, {
+        current_version = current_version,
+        latest_version = payload.latestVersion and tostring(payload.latestVersion) or nil,
+        releases = releases,
+    }
+end
+
+function Updater:performUpdate(target_release)
     local settings = self.ctx.settings
     local plugins_root = self.plugins_root
-    local zip_name = self.latest_file_name or "sake-koplugin.zip"
+    local current_version, version_err = self.current_version, nil
+    if not current_version then
+        current_version, version_err = loadCurrentVersion(self)
+    end
+    if not current_version then
+        return false, version_err
+    end
+
+    local target_version = target_release and tostring(target_release.version or "") or tostring(self.latest_version or "")
+    if target_version == "" then
+        return false, "Missing plugin version for update"
+    end
+    if target_version == current_version then
+        return false, "Selected version is already installed"
+    end
+
+    local zip_name = (target_release and target_release.file_name) or self.latest_file_name or "sake-koplugin.zip"
     local zip_path = plugins_root .. "/" .. zip_name
     local updated_path = plugins_root .. "/sake.koplugin.updated"
     local current_path = plugins_root .. "/sake.koplugin"
     local old_path = plugins_root .. "/sake.koplugin.old"
 
-    local url = self.latest_download_url
+    local url = target_release and target_release.download_url or self.latest_download_url
     if not url or url == "" then
-        return false, "Missing downloadUrl from latest metadata response"
+        return false, "Missing downloadUrl from plugin metadata response"
     end
-    logger.info(LOG_PREFIX .. "Updater downloading package from " .. url)
+    logger.info(LOG_PREFIX .. "Updater downloading package version " .. target_version .. " from " .. url)
     local file, open_err = io.open(zip_path, "wb")
     if not file then
         return false, "Failed to create zip file: " .. tostring(open_err)
@@ -394,8 +479,11 @@ function Updater:performUpdate()
         logger.warn(LOG_PREFIX .. "Updater could not remove old plugin directory: " .. old_path)
     end
 
-    self.update_available = false
-    logger.info(LOG_PREFIX .. "Updater finished successfully.")
+    self.current_version = target_version
+    self.update_available = self.latest_version ~= nil
+        and self.latest_version ~= ""
+        and isVersionGreater(self.latest_version, self.current_version)
+    logger.info(LOG_PREFIX .. "Updater finished successfully. Installed version " .. tostring(target_version))
     return true
 end
 

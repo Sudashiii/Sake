@@ -318,6 +318,10 @@ function Sake:checkPluginUpdate(opts)
 end
 
 function Sake:performPluginUpdate()
+    self:performPluginUpdateWithRelease(nil)
+end
+
+function Sake:performPluginUpdateWithRelease(target_release)
     if not self.updater then
         UIManager:show(InfoMessage:new{
             text = _("Updater module not available."),
@@ -325,7 +329,7 @@ function Sake:performPluginUpdate()
         })
         return
     end
-    if not self.updater:isUpdateAvailable() then
+    if not target_release and not self.updater:isUpdateAvailable() then
         UIManager:show(InfoMessage:new{
             text = _("No update available."),
             timeout = 3
@@ -339,8 +343,15 @@ function Sake:performPluginUpdate()
     })
 
     UIManager:scheduleIn(0.1, function()
-        local ok, err = self.updater:performUpdate()
+        local ok, err = self.updater:performUpdate(target_release)
         if not ok then
+            if tostring(err) == "Selected version is already installed" then
+                UIManager:show(InfoMessage:new{
+                    text = _("That plugin version is already installed."),
+                    timeout = 4
+                })
+                return
+            end
             UIManager:show(InfoMessage:new{
                 text = _("Update failed: ") .. tostring(err),
                 timeout = 6
@@ -352,6 +363,51 @@ function Sake:performPluginUpdate()
             timeout = 8
         })
     end)
+end
+
+function Sake:openPluginVersionPicker()
+    if not self.updater then
+        UIManager:show(InfoMessage:new{
+            text = _("Updater module not available."),
+            timeout = 4
+        })
+        return
+    end
+
+    local ok, result_or_err = self.updater:listReleases()
+    if not ok then
+        logger.warn("[Sake] Plugin release list failed: " .. tostring(result_or_err))
+        UIManager:show(InfoMessage:new{
+            text = _("Could not load plugin versions: ") .. tostring(result_or_err),
+            timeout = 6
+        })
+        return
+    end
+
+    local result = result_or_err
+    if not result.releases or #result.releases == 0 then
+        UIManager:show(InfoMessage:new{
+            text = _("No plugin versions available."),
+            timeout = 4
+        })
+        return
+    end
+
+    Dialogs.showPluginVersionPicker(self.ctx, {
+        current_version = result.current_version,
+        releases = result.releases,
+        on_select = function(release)
+            if release and tostring(release.version or "") == tostring(result.current_version or "") then
+                UIManager:show(InfoMessage:new{
+                    text = _("That plugin version is already installed."),
+                    timeout = 4
+                })
+                return
+            end
+
+            self:performPluginUpdateWithRelease(release)
+        end,
+    })
 end
 
 function Sake:onDispatcherRegisterActions()
@@ -414,6 +470,7 @@ function Sake:init()
         self:openPairingDialog(touchmenu_instance)
     end
     self.ctx.actions.onCheckPluginUpdate = function() self:checkPluginUpdate({ notify = true }) end
+    self.ctx.actions.onOpenPluginVersionPicker = function() self:openPluginVersionPicker() end
     self.ctx.actions.onToggleLogShipping = function(touchmenu_instance)
         self:toggleLogShipping(touchmenu_instance)
     end
