@@ -5,5 +5,5 @@ return {
     fullname = _("Sake Updater"),
     description = _([[Provides update checks and installer support for Sake plugin.]]),
     author = "Sascha Lorenz",
-    version = "1.0",
+    version = "1.1.0",
 }
