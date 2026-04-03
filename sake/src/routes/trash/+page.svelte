@@ -6,8 +6,12 @@
 	import TrashDeleteAllWarning from '$lib/features/trash/components/TrashDeleteAllWarning/TrashDeleteAllWarning.svelte';
 	import TrashEmptyState from '$lib/features/trash/components/TrashEmptyState/TrashEmptyState.svelte';
 	import TrashHeader from '$lib/features/trash/components/TrashHeader/TrashHeader.svelte';
-	import { ZUI } from '$lib/client/zui';
 	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import { ZUI } from '$lib/client/zui';
+	import {
+		deleteTrashedLibraryBookAction,
+		restoreLibraryBookAction
+	} from '$lib/features/library/libraryRouteActions';
 	import type { ApiError } from '$lib/types/ApiError';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import styles from './page.module.scss';
@@ -45,16 +49,14 @@
 		}
 
 		restoringBookId = book.id;
-		const result = await ZUI.restoreLibraryBook(book.id);
+		const result = await restoreLibraryBookAction(book);
 		restoringBookId = null;
 
 		if (!result.ok) {
-			toastStore.add(`Failed to restore "${book.title}": ${result.error.message}`, 'error');
 			return;
 		}
 
 		trashBooks = trashBooks.filter((candidate) => candidate.id !== book.id);
-		toastStore.add(`"${book.title}" restored to library`, 'success');
 	}
 
 	async function handlePermanentDelete(book: LibraryBook): Promise<void> {
@@ -63,17 +65,15 @@
 		}
 
 		deletingBookId = book.id;
-		const result = await ZUI.deleteTrashedLibraryBook(book.id);
+		const result = await deleteTrashedLibraryBookAction(book);
 		deletingBookId = null;
 		confirmingDeleteBookId = null;
 
 		if (!result.ok) {
-			toastStore.add(`Failed to delete "${book.title}": ${result.error.message}`, 'error');
 			return;
 		}
 
 		trashBooks = trashBooks.filter((candidate) => candidate.id !== book.id);
-		toastStore.add(`"${book.title}" permanently deleted`, 'success');
 	}
 
 	async function handleEmptyTrash(): Promise<void> {
@@ -85,10 +85,9 @@
 		const targetBooks = [...trashBooks];
 
 		for (const book of targetBooks) {
-			const result = await ZUI.deleteTrashedLibraryBook(book.id);
+			const result = await deleteTrashedLibraryBookAction(book, '');
 			if (!result.ok) {
 				emptyingAll = false;
-				toastStore.add(`Stopped while deleting "${book.title}": ${result.error.message}`, 'error');
 				await loadTrash();
 				return;
 			}

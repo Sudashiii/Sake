@@ -3,6 +3,11 @@ import { shelfStore } from '$lib/client/stores/shelfStore.svelte';
 import { toastStore } from '$lib/client/stores/toastStore.svelte';
 import { ZUI } from '$lib/client/zui';
 import {
+	deleteTrashedLibraryBookAction,
+	restoreLibraryBookAction
+} from '$lib/features/library/libraryRouteActions';
+import { replaceCurrentOpenBookId, replaceCurrentQueryParam } from '$lib/features/library/libraryRouteUrlState';
+import {
 	DEFAULT_LIBRARY_SORT_PREFERENCE,
 	applyBulkShelfSelection,
 	getBookStatus,
@@ -196,36 +201,12 @@ export class LibraryListController {
 	}
 
 	updateLibraryUrl(openBookId?: number | null): void {
-		if (typeof window === 'undefined') {
-			return;
-		}
-
-		const params = new URLSearchParams(window.location.search);
-		params.delete('view');
-		if (typeof openBookId === 'number') {
-			params.set('openBookId', String(openBookId));
-		} else {
-			params.delete('openBookId');
-		}
-
-		const query = params.toString();
-		const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-		window.history.replaceState(window.history.state, '', next);
+		replaceCurrentQueryParam('view', null);
+		replaceCurrentOpenBookId(openBookId);
 	}
 
 	updateShelfUrl(shelfId: number | null): void {
-		if (typeof window === 'undefined') {
-			return;
-		}
-		const params = new URLSearchParams(window.location.search);
-		if (shelfId === null) {
-			params.delete('shelf');
-		} else {
-			params.set('shelf', String(shelfId));
-		}
-		const query = params.toString();
-		const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-		window.history.replaceState(window.history.state, '', next);
+		replaceCurrentQueryParam('shelf', shelfId);
 	}
 
 	async loadLibrary(): Promise<void> {
@@ -358,13 +339,14 @@ export class LibraryListController {
 			return;
 		}
 		this.deletingTrashBookId = book.id;
-		const result = await ZUI.deleteTrashedLibraryBook(book.id);
+		const result = await deleteTrashedLibraryBookAction(
+			book,
+			`Deleted "${book.title}" permanently`
+		);
 		this.deletingTrashBookId = null;
 		if (!result.ok) {
-			toastStore.add(`Failed to delete permanently: ${result.error.message}`, 'error');
 			return;
 		}
-		toastStore.add(`Deleted "${book.title}" permanently`, 'success');
 		await this.loadLibrary();
 		await this.loadTrash();
 		this.showDeleteTrashModal = false;
@@ -376,13 +358,11 @@ export class LibraryListController {
 			return;
 		}
 		this.restoringBookId = book.id;
-		const result = await ZUI.restoreLibraryBook(book.id);
+		const result = await restoreLibraryBookAction(book);
 		this.restoringBookId = null;
 		if (!result.ok) {
-			toastStore.add(`Failed to restore book: ${result.error.message}`, 'error');
 			return;
 		}
-		toastStore.add(`Restored "${book.title}"`, 'success');
 		await this.loadLibrary();
 		await this.loadTrash();
 	}

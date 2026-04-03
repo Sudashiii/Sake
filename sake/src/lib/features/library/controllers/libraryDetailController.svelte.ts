@@ -1,5 +1,6 @@
 import { toastStore } from '$lib/client/stores/toastStore.svelte';
 import { ZUI } from '$lib/client/zui';
+import { loadLibraryBookDetail } from '$lib/features/library/libraryDetailLoader';
 import {
 	parseDateTimeLocalInputValue,
 	parseNullableNumber,
@@ -100,7 +101,7 @@ export class LibraryDetailController {
 		this.showDetailModal = true;
 		this.isDetailLoading = true;
 
-		const result = await ZUI.getLibraryBookDetail(book.id);
+		const result = await loadLibraryBookDetail(book.id);
 		if (result.ok) {
 			this.selectedBookDetail = result.value;
 			this.initializeMetadataDraft(result.value);
@@ -271,7 +272,7 @@ export class LibraryDetailController {
 			return;
 		}
 
-		const detailResult = await ZUI.getLibraryBookDetail(selectedBookId);
+		const detailResult = await loadLibraryBookDetail(selectedBookId);
 		if (detailResult.ok) {
 			this.selectedBookDetail = detailResult.value;
 			this.initializeMetadataDraft(detailResult.value);
