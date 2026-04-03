@@ -266,14 +266,14 @@ export class LibraryListController {
 		this.isLoading = false;
 	}
 
-	disableSelectionMode(): void {
+	disableSelectionMode = (): void => {
 		this.selectionMode = false;
 		this.selectedBookIds = [];
 		this.showShelfAssign = null;
 		this.showBulkTrashModal = false;
-	}
+	};
 
-	startSelectionModeFromBook(book: LibraryBook): void {
+	startSelectionModeFromBook = (book: LibraryBook): void => {
 		if (this.isBulkActionPending) {
 			return;
 		}
@@ -282,41 +282,41 @@ export class LibraryListController {
 		this.selectedBookIds = [book.id];
 		this.showShelfAssign = null;
 		this.showBulkTrashModal = false;
-	}
+	};
 
-	clearSelectedBooks(): void {
+	clearSelectedBooks = (): void => {
 		if (this.isBulkActionPending) {
 			return;
 		}
 
 		this.selectedBookIds = [];
-	}
+	};
 
-	selectAllVisibleBooks(): void {
+	selectAllVisibleBooks = (): void => {
 		if (this.isBulkActionPending || this.filteredLibraryBooks.length === 0) {
 			return;
 		}
 
 		this.selectedBookIds = this.allVisibleLibraryBooksSelected ? [] : this.visibleLibraryBookIds;
-	}
+	};
 
-	handleToggleSelectedBook(book: LibraryBook): void {
+	handleToggleSelectedBook = (book: LibraryBook): void => {
 		if (this.isBulkActionPending) {
 			return;
 		}
 
 		this.selectedBookIds = toggleBookSelection(this.selectedBookIds, book.id);
-	}
+	};
 
-	openResetModal(book: LibraryBook): void {
+	openResetModal = (book: LibraryBook): void => {
 		this.bookToReset = book;
 		this.showConfirmModal = true;
-	}
+	};
 
-	closeResetModal(): void {
+	closeResetModal = (): void => {
 		this.showConfirmModal = false;
 		this.bookToReset = null;
-	}
+	};
 
 	async confirmResetStatus(): Promise<void> {
 		if (!this.bookToReset) {
@@ -335,18 +335,18 @@ export class LibraryListController {
 		toastStore.add(`Reset download status for "${book.title}"`, 'success');
 	}
 
-	requestDeleteTrashedBook(book: LibraryBook): void {
+	requestDeleteTrashedBook = (book: LibraryBook): void => {
 		this.pendingDeleteTrashBook = book;
 		this.showDeleteTrashModal = true;
-	}
+	};
 
-	cancelDeleteTrashedBook(): void {
+	cancelDeleteTrashedBook = (): void => {
 		if (this.deletingTrashBookId !== null) {
 			return;
 		}
 		this.showDeleteTrashModal = false;
 		this.pendingDeleteTrashBook = null;
-	}
+	};
 
 	async confirmDeleteTrashedBook(): Promise<void> {
 		const book = this.pendingDeleteTrashBook;
@@ -386,21 +386,21 @@ export class LibraryListController {
 		await this.loadTrash();
 	}
 
-	requestBulkMoveToTrash(): void {
+	requestBulkMoveToTrash = (): void => {
 		if (this.selectedBooks.length === 0 || this.isBulkActionPending) {
 			return;
 		}
 
 		this.showBulkTrashModal = true;
-	}
+	};
 
-	cancelBulkMoveToTrash(): void {
+	cancelBulkMoveToTrash = (): void => {
 		if (this.isBulkActionPending) {
 			return;
 		}
 
 		this.showBulkTrashModal = false;
-	}
+	};
 
 	async handleBulkArchiveSelected(): Promise<void> {
 		const targetBooks = this.getSelectedBooksOrToast();
@@ -558,22 +558,22 @@ export class LibraryListController {
 		this.setBookShelfIdsState(bookId, result.value.shelfIds);
 	}
 
-	setSortField(value: LibrarySortField): void {
+	setSortField = (value: LibrarySortField): void => {
 		const nextSortPreference = { ...this.sortPreference, field: value };
 		this.sortPreference = nextSortPreference;
 		if (typeof localStorage !== 'undefined') {
 			writeStoredLibrarySort(localStorage, this.selectedShelfId, nextSortPreference);
 		}
-	}
+	};
 
-	setSortDirection(value: LibrarySortDirection): void {
+	setSortDirection = (value: LibrarySortDirection): void => {
 		this.showFilters = false;
 		const nextSortPreference = { ...this.sortPreference, direction: value };
 		this.sortPreference = nextSortPreference;
 		if (typeof localStorage !== 'undefined') {
 			writeStoredLibrarySort(localStorage, this.selectedShelfId, nextSortPreference);
 		}
-	}
+	};
 
 	async selectFilterOption(
 		option: LibraryStatusFilter | 'archivedView' | 'trashView'

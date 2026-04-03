@@ -140,14 +140,15 @@ function Dialogs.showPluginVersionPicker(ctx, opts)
     local buttons = {}
 
     for _, release in ipairs(opts.releases or {}) do
+        local selected_release = release
         table.insert(buttons, {
             {
-                text = buildReleaseLabel(release),
-                enabled = release.is_current ~= true,
+                text = buildReleaseLabel(selected_release),
+                enabled = selected_release.is_current ~= true,
                 callback = function()
                     UIManager:close(dialog)
                     if opts.on_select then
-                        opts.on_select(release)
+                        opts.on_select(selected_release)
                     end
                 end,
             },

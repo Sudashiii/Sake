@@ -15,14 +15,14 @@ export class LibraryUploadController {
 
 	constructor(private readonly options: LibraryUploadControllerOptions) {}
 
-	async handleLibraryUploadChange(event: Event): Promise<void> {
+	handleLibraryUploadChange = async (event: Event): Promise<void> => {
 		const input = event.target as HTMLInputElement;
 		const files = Array.from(input.files ?? []);
 		input.value = '';
 		await this.uploadLibraryFiles(files);
-	}
+	};
 
-	handleLibraryDragEnter(event: DragEvent): void {
+	handleLibraryDragEnter = (event: DragEvent): void => {
 		if (
 			this.options.getCurrentView() !== 'library' ||
 			this.isUploadingLibraryFile ||
@@ -33,9 +33,9 @@ export class LibraryUploadController {
 		event.preventDefault();
 		this.libraryDropDepth += 1;
 		this.isLibraryDropActive = true;
-	}
+	};
 
-	handleLibraryDragOver(event: DragEvent): void {
+	handleLibraryDragOver = (event: DragEvent): void => {
 		if (this.options.getCurrentView() !== 'library' || !this.isFileDragEvent(event)) {
 			return;
 		}
@@ -43,9 +43,9 @@ export class LibraryUploadController {
 		if (event.dataTransfer) {
 			event.dataTransfer.dropEffect = this.isUploadingLibraryFile ? 'none' : 'copy';
 		}
-	}
+	};
 
-	handleLibraryDragLeave(event: DragEvent): void {
+	handleLibraryDragLeave = (event: DragEvent): void => {
 		if (this.options.getCurrentView() !== 'library' || !this.isFileDragEvent(event)) {
 			return;
 		}
@@ -54,9 +54,9 @@ export class LibraryUploadController {
 		if (this.libraryDropDepth === 0) {
 			this.isLibraryDropActive = false;
 		}
-	}
+	};
 
-	async handleLibraryDrop(event: DragEvent): Promise<void> {
+	handleLibraryDrop = async (event: DragEvent): Promise<void> => {
 		if (this.options.getCurrentView() !== 'library' || !this.isFileDragEvent(event)) {
 			return;
 		}
@@ -64,7 +64,7 @@ export class LibraryUploadController {
 		const files = Array.from(event.dataTransfer?.files ?? []);
 		this.resetLibraryDropState();
 		await this.uploadLibraryFiles(files);
-	}
+	};
 
 	resetLibraryDropState(): void {
 		this.libraryDropDepth = 0;
