@@ -54,6 +54,52 @@ local function loadUpdaterModule()
     return true, mod_or_err, sake_dir, plugins_root
 end
 
+local function readUpdaterVersion(plugins_root)
+    if not plugins_root then
+        return nil, "Cannot determine plugins root"
+    end
+
+    local meta_path = plugins_root .. "/sakeUpdater.koplugin/_meta.lua"
+    local ok, meta_or_err = pcall(dofile, meta_path)
+    if not ok or type(meta_or_err) ~= "table" then
+        return nil, "Failed to read Sake Updater _meta.lua"
+    end
+    if not meta_or_err.version then
+        return nil, "Sake Updater _meta.lua has no version"
+    end
+
+    return tostring(meta_or_err.version)
+end
+
+local function parseVersion(version)
+    local parts = {}
+    for n in tostring(version or ""):gmatch("(%d+)") do
+        table.insert(parts, tonumber(n))
+    end
+    if #parts == 0 then
+        return nil
+    end
+    return parts
+end
+
+local function isVersionAtLeast(version, minimum)
+    local a = parseVersion(version)
+    local b = parseVersion(minimum)
+    if not a or not b then
+        return false
+    end
+
+    local max_len = math.max(#a, #b)
+    for i = 1, max_len do
+        local av = a[i] or 0
+        local bv = b[i] or 0
+        if av > bv then return true end
+        if av < bv then return false end
+    end
+
+    return true
+end
+
 function Sake:startDeferredProgressWatcher()
     if self.progress_watcher_active then
         return
@@ -374,47 +420,50 @@ function Sake:openPluginVersionPicker()
         return
     end
 
-    UIManager:show(InfoMessage:new{
-        text = _("Loading plugin versions..."),
-        timeout = 1
-    })
-
-    UIManager:scheduleIn(0.1, function()
-        local ok, result_or_err = self.updater:listReleases()
-        if not ok then
-            logger.warn("[Sake] Plugin release list failed: " .. tostring(result_or_err))
-            UIManager:show(InfoMessage:new{
-                text = _("Could not load plugin versions: ") .. tostring(result_or_err),
-                timeout = 6
-            })
-            return
-        end
-
-        local result = result_or_err
-        if not result.releases or #result.releases == 0 then
-            UIManager:show(InfoMessage:new{
-                text = _("No plugin versions available."),
-                timeout = 4
-            })
-            return
-        end
-
-        Dialogs.showPluginVersionPicker(self.ctx, {
-            current_version = result.current_version,
-            releases = result.releases,
-            on_select = function(release)
-                if release and tostring(release.version or "") == tostring(result.current_version or "") then
-                    UIManager:show(InfoMessage:new{
-                        text = _("That plugin version is already installed."),
-                        timeout = 4
-                    })
-                    return
-                end
-
-                self:performPluginUpdateWithRelease(release)
-            end,
+    local updater_version, updater_version_err = readUpdaterVersion(self.plugins_root)
+    if not updater_version or not isVersionAtLeast(updater_version, "1.1.0") then
+        logger.warn("[Sake] Specific version install blocked. Updater version: " .. tostring(updater_version or updater_version_err))
+        UIManager:show(InfoMessage:new{
+            text = _("Install Specific Plugin Version requires Sake Updater 1.1.0 or newer."),
+            timeout = 6
         })
-    end)
+        return
+    end
+
+    local ok, result_or_err = self.updater:listReleases()
+    if not ok then
+        logger.warn("[Sake] Plugin release list failed: " .. tostring(result_or_err))
+        UIManager:show(InfoMessage:new{
+            text = _("Could not load plugin versions: ") .. tostring(result_or_err),
+            timeout = 6
+        })
+        return
+    end
+
+    local result = result_or_err
+    if not result.releases or #result.releases == 0 then
+        UIManager:show(InfoMessage:new{
+            text = _("No plugin versions available."),
+            timeout = 4
+        })
+        return
+    end
+
+    Dialogs.showPluginVersionPicker(self.ctx, {
+        current_version = result.current_version,
+        releases = result.releases,
+        on_select = function(release)
+            if release and tostring(release.version or "") == tostring(result.current_version or "") then
+                UIManager:show(InfoMessage:new{
+                    text = _("That plugin version is already installed."),
+                    timeout = 4
+                })
+                return
+            end
+
+            self:performPluginUpdateWithRelease(release)
+        end,
+    })
 end
 
 function Sake:onDispatcherRegisterActions()
@@ -443,6 +492,7 @@ function Sake:init()
     self.bg_error_messages = {}
     self.progress_watcher_active = false
     self.updater = nil
+    self.plugins_root = nil
     local device_name = tostring(self.settings.device_name or "Not Set")
     local api_url = (self.settings.api_url ~= "" and self.settings.api_url or "Not Set")
     logger.info("[Sake] Initialized. Device: " .. device_name .. " | URL: " .. api_url)
@@ -464,6 +514,7 @@ function Sake:init()
             sake_plugin_dir = sake_plugin_dir,
             plugins_root = plugins_root,
         })
+        self.plugins_root = plugins_root
         logger.info("[Sake] Updater module loaded.")
     else
         logger.warn("[Sake] Updater module not loaded: " .. tostring(updater_mod_or_err))
