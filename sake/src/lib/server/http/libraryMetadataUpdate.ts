@@ -21,6 +21,7 @@ export type LibraryMetadataUpdateInput = {
 	googleBooksId?: string | null;
 	openLibraryKey?: string | null;
 	amazonAsin?: string | null;
+	createdAt?: string | null;
 };
 
 const allowedKeys = new Set<keyof LibraryMetadataUpdateInput>([
@@ -43,7 +44,8 @@ const allowedKeys = new Set<keyof LibraryMetadataUpdateInput>([
 	'externalRatingCount',
 	'googleBooksId',
 	'openLibraryKey',
-	'amazonAsin'
+	'amazonAsin',
+	'createdAt'
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,8 +159,16 @@ export function parseLibraryMetadataUpdateInput(body: unknown): LibraryMetadataU
 		externalRatingCount: parseNullableNumber(body, 'externalRatingCount'),
 		googleBooksId: parseNullableString(body, 'googleBooksId'),
 		openLibraryKey: parseNullableString(body, 'openLibraryKey'),
-		amazonAsin: parseNullableString(body, 'amazonAsin')
+		amazonAsin: parseNullableString(body, 'amazonAsin'),
+		createdAt: parseNullableString(body, 'createdAt')
 	};
+
+	if (parsed.createdAt !== undefined && parsed.createdAt !== null) {
+		const parsedTimestamp = Date.parse(parsed.createdAt);
+		if (!Number.isFinite(parsedTimestamp)) {
+			throw new Error('createdAt must be a valid datetime or null');
+		}
+	}
 
 	if (
 		parsed.year !== undefined &&

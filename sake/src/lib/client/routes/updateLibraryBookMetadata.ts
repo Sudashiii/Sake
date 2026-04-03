@@ -22,6 +22,7 @@ export interface UpdateLibraryBookMetadataRequest {
 	googleBooksId?: string | null;
 	openLibraryKey?: string | null;
 	amazonAsin?: string | null;
+	createdAt?: string | null;
 }
 
 interface UpdateLibraryBookMetadataResponse {

@@ -84,6 +84,30 @@ export function formatDateTime(dateStr: string): string {
 	}).format(new Date(dateStr));
 }
 
+export function toDateTimeLocalInputValue(dateStr: string | null | undefined): string {
+	if (!dateStr) {
+		return '';
+	}
+
+	const date = new Date(dateStr);
+	if (Number.isNaN(date.getTime())) {
+		return '';
+	}
+
+	const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+	return localDate.toISOString().slice(0, 16);
+}
+
+export function parseDateTimeLocalInputValue(value: string): string | null {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	const date = new Date(trimmed);
+	return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 export function formatLibraryPublicationDate(parts: {
 	year: number | null | undefined;
 	month: number | null | undefined;

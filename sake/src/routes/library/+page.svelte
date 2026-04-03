@@ -27,12 +27,14 @@
 		matchesBookShelf,
 		matchesBookStatus,
 		parseNullableNumber,
+		parseDateTimeLocalInputValue,
 		parseViewFromUrl,
 		pruneBookSelection,
 		readStoredLibrarySort,
 		sortBooks,
 		toggleBookSelection,
 		toDraftText,
+		toDateTimeLocalInputValue,
 		type DetailTab,
 		type LibraryBookGroup,
 		type LibraryBulkShelfAction,
@@ -119,7 +121,8 @@
 		openLibraryKey: '',
 		amazonAsin: '',
 		externalRating: '',
-		externalRatingCount: ''
+		externalRatingCount: '',
+		createdAt: ''
 	});
 	let libraryDropDepth = 0;
 	let hasInitializedSortPreference = $state(false);
@@ -559,7 +562,8 @@
 			openLibraryKey: toDraftText(detail.openLibraryKey),
 			amazonAsin: toDraftText(detail.amazonAsin),
 			externalRating: toDraftText(detail.externalRating),
-			externalRatingCount: toDraftText(detail.externalRatingCount)
+			externalRatingCount: toDraftText(detail.externalRatingCount),
+			createdAt: toDateTimeLocalInputValue(selectedBook?.createdAt ?? null)
 		};
 	}
 
@@ -697,6 +701,7 @@
 		if (!selectedBook || !selectedBookDetail || isSavingMetadata) {
 			return;
 		}
+		const selectedBookId = selectedBook.id;
 
 		const title = metadataDraft.title.trim();
 		if (!title) {
@@ -717,7 +722,13 @@
 		}
 
 		isSavingMetadata = true;
-		const updateResult = await ZUI.updateLibraryBookMetadata(selectedBook.id, {
+		const createdAt = parseDateTimeLocalInputValue(metadataDraft.createdAt);
+		if (metadataDraft.createdAt.trim() && createdAt === null) {
+			isSavingMetadata = false;
+			toastStore.add('Date added must be a valid date and time', 'error');
+			return;
+		}
+		const updateResult = await ZUI.updateLibraryBookMetadata(selectedBookId, {
 			title,
 			author: metadataDraft.author.trim() || null,
 			publisher: metadataDraft.publisher.trim() || null,
@@ -737,7 +748,8 @@
 			openLibraryKey: metadataDraft.openLibraryKey.trim() || null,
 			amazonAsin: metadataDraft.amazonAsin.trim() || null,
 			externalRating: parseNullableNumber(metadataDraft.externalRating),
-			externalRatingCount: parseNullableNumber(metadataDraft.externalRatingCount)
+			externalRatingCount: parseNullableNumber(metadataDraft.externalRatingCount),
+			createdAt
 		});
 		isSavingMetadata = false;
 
@@ -746,13 +758,14 @@
 			return;
 		}
 
-		const detailResult = await ZUI.getLibraryBookDetail(selectedBook.id);
+		const detailResult = await ZUI.getLibraryBookDetail(selectedBookId);
 		if (detailResult.ok) {
 			selectedBookDetail = detailResult.value;
 			initializeMetadataDraft(detailResult.value);
 		}
 
 		await loadLibrary();
+		selectedBook = books.find((book) => book.id === selectedBookId) ?? selectedBook;
 		isEditingMetadata = false;
 		toastStore.add('Metadata updated', 'success');
 	}

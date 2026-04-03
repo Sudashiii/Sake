@@ -279,6 +279,7 @@ export class BookRepository implements BookRepositoryPort {
 	}
 
 	async create(book: CreateBookInput): Promise<Book> {
+		const createdAt = new Date().toISOString();
 		const [created] = await drizzleDb
 			.insert(books)
 			.values({
@@ -305,7 +306,8 @@ export class BookRepository implements BookRepositoryPort {
 				language: book.language,
 				year: book.year,
 				month: book.month,
-				day: book.day
+				day: book.day,
+				createdAt
 			})
 			.returning(bookSelection);
 
@@ -347,7 +349,8 @@ export class BookRepository implements BookRepositoryPort {
 				language: metadata.language,
 				year: metadata.year,
 				month: metadata.month,
-				day: metadata.day
+				day: metadata.day,
+				createdAt: metadata.createdAt
 			})
 			.where(eq(books.id, id))
 			.returning(bookSelection);

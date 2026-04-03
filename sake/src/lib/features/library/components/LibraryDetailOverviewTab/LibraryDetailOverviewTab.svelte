@@ -154,9 +154,17 @@
 		<div>
 			<p class="detail-v2-caption">Date Added</p>
 			<div class="detail-v2-date-added">
-				<strong>{formatDate(selectedBook.createdAt)}</strong>
-				{#if selectedBook.createdAt}
-					<span>{formatTime(selectedBook.createdAt)}</span>
+				{#if isEditingMetadata}
+					<input
+						class="detail-v2-input"
+						type="datetime-local"
+						bind:value={metadataDraft.createdAt}
+					/>
+				{:else}
+					<strong>{formatDate(selectedBook.createdAt)}</strong>
+					{#if selectedBook.createdAt}
+						<span>{formatTime(selectedBook.createdAt)}</span>
+					{/if}
 				{/if}
 			</div>
 		</div>
