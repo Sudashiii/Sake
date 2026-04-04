@@ -8,26 +8,12 @@
   Self-host your reading stack with a clean web library, KOReader sync, and provider-powered book imports.
 </p>
 
-<p align="center">
-  <a href="https://github.com/Sudashiii/Sake/stargazers">
-    <img src="https://img.shields.io/github/stars/Sudashiii/Sake?style=for-the-badge" alt="GitHub stars" />
-  </a>
-  <a href="https://github.com/Sudashiii/Sake/tags">
-    <img src="https://img.shields.io/github/v/tag/Sudashiii/Sake?sort=semver&style=for-the-badge&label=webapp%20version" alt="Current version" />
-  </a>
-  <a href="https://github.com/Sudashiii/Sake/actions/workflows/execute-tests-and-startup-checks.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Sudashiii/Sake/execute-tests-and-startup-checks.yml?style=for-the-badge&label=build" alt="Build status" />
-  </a>
-  <a href="https://github.com/Sudashiii/Sake/pkgs/container/sake">
-    <img src="https://img.shields.io/badge/docker-ghcr.io%2Fsudashiii%2Fsake-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker image" />
-  </a>
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/github/license/Sudashiii/Sake?style=for-the-badge" alt="License" />
-  </a>
-  <a href="https://bun.sh">
-    <img src="https://img.shields.io/badge/runtime-Bun-F9F1E1?style=for-the-badge&logo=bun&logoColor=111111" alt="Bun runtime" />
-  </a>
-</p>
+[![GitHub stars](https://img.shields.io/github/stars/Sudashiii/Sake?style=flat-square)](https://github.com/Sudashiii/Sake/stargazers)
+[![Current version](https://img.shields.io/github/v/tag/Sudashiii/Sake?sort=semver&style=flat-square&label=webapp%20version)](https://github.com/Sudashiii/Sake/tags)
+[![Build status](https://img.shields.io/github/actions/workflow/status/Sudashiii/Sake/execute-tests-and-startup-checks.yml?style=flat-square&label=build)](https://github.com/Sudashiii/Sake/actions/workflows/execute-tests-and-startup-checks.yml)
+[![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fsudashiii%2Fsake-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/Sudashiii/Sake/pkgs/container/sake)
+[![License](https://img.shields.io/github/license/Sudashiii/Sake?style=flat-square)](./LICENSE)
+[![Bun runtime](https://img.shields.io/badge/runtime-Bun-F9F1E1?style=flat-square&logo=bun&logoColor=111111)](https://bun.sh)
 
 ![Sake library page](./docs/img/webapp/library.png)
 

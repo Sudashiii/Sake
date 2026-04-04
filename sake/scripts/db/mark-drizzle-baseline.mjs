@@ -5,9 +5,54 @@ import { createClient } from '@libsql/client';
 import { resolveLibsqlConfig } from '../../src/lib/server/config/infrastructure.shared.js';
 
 const DRIZZLE_MIGRATIONS_TABLE = '__drizzle_migrations';
-const REQUIRED_APP_TABLES = ['Books', 'DeviceDownloads'];
+const REQUIRED_SCHEMA_GUARDS = [
+	{
+		table: 'Books',
+		columns: ['id', 'series_index', 'month', 'day']
+	},
+	{
+		table: 'DeviceDownloads',
+		columns: ['id', 'deviceId', 'bookId']
+	},
+	{
+		table: 'QueueJobs',
+		columns: ['id', 'user_id', 'series_index']
+	},
+	{
+		table: 'Users',
+		columns: ['id', 'username', 'password_hash']
+	},
+	{
+		table: 'UserSessions',
+		columns: ['id', 'user_id', 'token_hash']
+	},
+	{
+		table: 'UserApiKeys',
+		columns: ['id', 'user_id', 'scope', 'key_hash']
+	},
+	{
+		table: 'Devices',
+		columns: ['id', 'user_id', 'device_id']
+	},
+	{
+		table: 'Shelves',
+		columns: ['id', 'name', 'sort_order']
+	},
+	{
+		table: 'BookShelves',
+		columns: ['id', 'book_id', 'shelf_id']
+	},
+	{
+		table: 'PluginReleases',
+		columns: ['id', 'version', 'storage_key']
+	},
+	{
+		table: 'BookProgressHistory',
+		columns: ['id', 'book_id', 'recorded_at']
+	}
+];
 
-function readBaselineMigration(repoRoot) {
+function readLatestMigration(repoRoot) {
 	const journalPath = path.join(repoRoot, 'drizzle', 'meta', '_journal.json');
 	if (!fs.existsSync(journalPath)) {
 		throw new Error(`Missing Drizzle journal file: ${journalPath}`);
@@ -18,8 +63,8 @@ function readBaselineMigration(repoRoot) {
 		throw new Error('No migration entries found in drizzle/meta/_journal.json');
 	}
 
-	const baselineEntry = [...journal.entries].sort((a, b) => a.when - b.when)[0];
-	const migrationFile = path.join(repoRoot, 'drizzle', `${baselineEntry.tag}.sql`);
+	const latestEntry = [...journal.entries].sort((a, b) => a.when - b.when)[journal.entries.length - 1];
+	const migrationFile = path.join(repoRoot, 'drizzle', `${latestEntry.tag}.sql`);
 	if (!fs.existsSync(migrationFile)) {
 		throw new Error(`Missing migration SQL file: ${migrationFile}`);
 	}
@@ -28,8 +73,8 @@ function readBaselineMigration(repoRoot) {
 	const hash = crypto.createHash('sha256').update(sql).digest('hex');
 
 	return {
-		tag: baselineEntry.tag,
-		createdAt: Number(baselineEntry.when),
+		tag: latestEntry.tag,
+		createdAt: Number(latestEntry.when),
 		hash
 	};
 }
@@ -39,19 +84,34 @@ function assertEnv() {
 }
 
 async function ensureAppTablesExist(db) {
-	const placeholders = REQUIRED_APP_TABLES.map(() => '?').join(', ');
+	const requiredTables = REQUIRED_SCHEMA_GUARDS.map((guard) => guard.table);
+	const placeholders = requiredTables.map(() => '?').join(', ');
 	const result = await db.execute({
 		sql: `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`,
-		args: REQUIRED_APP_TABLES
+		args: requiredTables
 	});
 
 	const found = new Set(result.rows.map((row) => String(row.name)));
-	const missing = REQUIRED_APP_TABLES.filter((table) => !found.has(table));
+	const missing = requiredTables.filter((table) => !found.has(table));
 	if (missing.length > 0) {
 		throw new Error(
-			`Refusing baseline mark: expected existing tables missing (${missing.join(', ')}). ` +
-			'This script is only for already-migrated databases.'
+			`Refusing migration-state mark: expected existing tables missing (${missing.join(', ')}). ` +
+			'This script is only for databases that already match the latest schema.'
 		);
+	}
+}
+
+async function assertSchemaColumnsExist(db) {
+	for (const guard of REQUIRED_SCHEMA_GUARDS) {
+		const result = await db.execute(`PRAGMA table_info("${guard.table}")`);
+		const foundColumns = new Set(result.rows.map((row) => String(row.name)));
+		const missingColumns = guard.columns.filter((column) => !foundColumns.has(column));
+		if (missingColumns.length > 0) {
+			throw new Error(
+				`Refusing migration-state mark: table ${guard.table} is missing expected columns (${missingColumns.join(', ')}). ` +
+				'Apply the real migrations before marking the database as current.'
+			);
+		}
 	}
 }
 
@@ -83,51 +143,54 @@ async function getMigrationByCreatedAt(db, createdAt) {
 	return result.rows[0] ?? null;
 }
 
-async function markBaseline(db, baseline) {
+async function markMigrationState(db, migration) {
 	await db.execute({
 		sql: `INSERT INTO ${DRIZZLE_MIGRATIONS_TABLE} (hash, created_at) VALUES (?, ?)`,
-		args: [baseline.hash, baseline.createdAt]
+		args: [migration.hash, migration.createdAt]
 	});
 }
 
 async function main() {
 	const repoRoot = process.cwd();
-	const baseline = readBaselineMigration(repoRoot);
+	const latestMigration = readLatestMigration(repoRoot);
 	const libsql = assertEnv();
 	const db = createClient({
 		url: libsql.url,
 		...(libsql.authToken ? { authToken: libsql.authToken } : {})
 	});
 
-	console.log(`[baseline] Target migration: ${baseline.tag} (${baseline.createdAt})`);
+	console.log(
+		`[migration-state] Target latest migration: ${latestMigration.tag} (${latestMigration.createdAt})`
+	);
 
 	await ensureAppTablesExist(db);
+	await assertSchemaColumnsExist(db);
 	await ensureDrizzleMigrationsTable(db);
 
-	const existingBaseline = await getMigrationByCreatedAt(db, baseline.createdAt);
-	if (existingBaseline) {
-		if (String(existingBaseline.hash) !== baseline.hash) {
+	const existingMigration = await getMigrationByCreatedAt(db, latestMigration.createdAt);
+	if (existingMigration) {
+		if (String(existingMigration.hash) !== latestMigration.hash) {
 			throw new Error(
-				`Baseline created_at exists with different hash. DB hash=${existingBaseline.hash} expected=${baseline.hash}`
+				`Latest migration created_at exists with different hash. DB hash=${existingMigration.hash} expected=${latestMigration.hash}`
 			);
 		}
-		console.log('[baseline] Already marked. No changes made.');
+		console.log('[migration-state] Latest migration already recorded. No changes made.');
 		return;
 	}
 
 	const latest = await getLatestDrizzleMigration(db);
-	if (latest && Number(latest.created_at) > baseline.createdAt) {
+	if (latest && Number(latest.created_at) > latestMigration.createdAt) {
 		console.log(
-			'[baseline] Newer Drizzle migration already exists in DB. Skipping baseline insert.'
+			'[migration-state] Newer Drizzle migration already exists in DB. Skipping insert.'
 		);
 		return;
 	}
 
-	await markBaseline(db, baseline);
-	console.log('[baseline] Baseline marked successfully.');
+	await markMigrationState(db, latestMigration);
+	console.log('[migration-state] Latest migration marked successfully.');
 }
 
 main().catch((error) => {
-	console.error(`[baseline] ${error instanceof Error ? error.message : String(error)}`);
+	console.error(`[migration-state] ${error instanceof Error ? error.message : String(error)}`);
 	process.exit(1);
 });
