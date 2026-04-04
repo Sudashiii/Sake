@@ -1,4 +1,5 @@
 local logger = require("core/log")
+local ConfirmBox = require("ui/widget/confirmbox")
 local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local Network = require("adapters/network")
@@ -9,10 +10,20 @@ local ProgressSync = {}
 ProgressSync.__index = ProgressSync
 local LOG_PREFIX = "[Sake] "
 
+local function copyTable(value)
+    local copy = {}
+    for key, item in pairs(value or {}) do
+        copy[key] = item
+    end
+    return copy
+end
+
 function ProgressSync:new(ctx)
     return setmetatable({
         engine = ProgressEngine:new(ctx),
         network = Network:new(),
+        reload_in_progress = false,
+        reload_guard_storage_key = nil,
     }, self)
 end
 
@@ -29,6 +40,134 @@ end
 
 function ProgressSync:hasOpenDocument()
     return self.engine:hasOpenDocument()
+end
+
+function ProgressSync:isReloadInProgress()
+    return self.reload_in_progress == true
+end
+
+function ProgressSync:showDeferredApplyNotice(opts)
+    if opts and opts.silent then
+        return
+    end
+
+    UIManager:show(InfoMessage:new{
+        text = _("Remote progress is available.\nClose the current book to apply safely."),
+        timeout = 5
+    })
+end
+
+function ProgressSync:handleApplyResultFeedback(result, opts)
+    for _, err_apply in ipairs(result.errors or {}) do
+        self:showError(err_apply, opts)
+    end
+
+    logger.info(
+        LOG_PREFIX
+            .. "Device-level progress sync done. Applied: "
+            .. tostring(result.applied)
+            .. " Failed: "
+            .. tostring(result.failed)
+    )
+
+    if result.total > 0 and not (opts and opts.silent_summary) then
+        local summary = string.format(
+            "Remote progress sync:\nApplied %d of %d (%d failed).",
+            result.applied,
+            result.total,
+            result.failed
+        )
+        UIManager:show(InfoMessage:new{
+            text = _(summary),
+            timeout = 5
+        })
+    end
+end
+
+function ProgressSync:shouldSuppressReloadPrompt(result)
+    local storage_key = tostring(result.current_book and result.current_book.s3_storage_key or "")
+    if storage_key == "" then
+        self.reload_guard_storage_key = nil
+        return false
+    end
+
+    if self.reload_guard_storage_key == storage_key then
+        logger.info(LOG_PREFIX .. "Skipping reload prompt due to reload guard for: " .. storage_key)
+        return true
+    end
+
+    return false
+end
+
+function ProgressSync:reloadCurrentBookWithQueuedProgress(result, opts)
+    local books = result.books or {}
+    local storage_key = tostring(result.current_book and result.current_book.s3_storage_key or "")
+    if storage_key == "" then
+        return false, "Missing current book storage key for reload"
+    end
+
+    local feedback_opts = copyTable(opts)
+    feedback_opts.silent = false
+    feedback_opts.silent_summary = false
+
+    local apply_result = nil
+    local apply_error = nil
+
+    self.reload_guard_storage_key = storage_key
+    self.reload_in_progress = true
+    logger.info(LOG_PREFIX .. "Reloading current book to apply remote progress: " .. storage_key)
+
+    local ok_reload, reload_err = self.engine:reloadCurrentDocument(
+        function()
+            local ok_apply, result_or_err = self.engine:applyRemoteBooks(books)
+            if not ok_apply then
+                apply_error = tostring(result_or_err)
+                return
+            end
+
+            apply_result = result_or_err
+        end,
+        function()
+            self.reload_in_progress = false
+
+            if apply_error then
+                self:showError("Progress apply during reload failed: " .. tostring(apply_error), feedback_opts)
+                return
+            end
+
+            if apply_result then
+                self:handleApplyResultFeedback(apply_result, feedback_opts)
+            end
+        end
+    )
+
+    if not ok_reload then
+        self.reload_in_progress = false
+        self.reload_guard_storage_key = nil
+        self:showError("Could not reload current book: " .. tostring(reload_err), feedback_opts)
+        return false, reload_err
+    end
+
+    return true
+end
+
+function ProgressSync:promptReloadForCurrentBook(result, opts)
+    UIManager:show(ConfirmBox:new{
+        text = _("Remote progress is available for the current book.\nReload it now to apply the latest position?"),
+        ok_text = _("Reload"),
+        ok_callback = function()
+            self:reloadCurrentBookWithQueuedProgress(result, opts)
+        end,
+        cancel_callback = function()
+            logger.info(LOG_PREFIX .. "User declined automatic reload for current book.")
+            if not (opts and opts.silent) then
+                UIManager:show(InfoMessage:new{
+                    text = _("Remote progress will apply after you close the current book."),
+                    timeout = 5
+                })
+            end
+        end,
+    })
 end
 
 function ProgressSync:uploadPreparedSnapshot(snapshot, opts, is_deferred_resume)
@@ -115,30 +254,30 @@ function ProgressSync:syncNewProgressForDevice(opts)
 
     local result = result_or_err
     if result.total == 0 then
+        self.reload_guard_storage_key = nil
         logger.info(LOG_PREFIX .. "No new remote progress updates.")
-        return true, { total = 0, applied = 0, failed = 0, errors = {} }
+        return true, { total = 0, applied = 0, failed = 0, errors = {}, books = {} }
     end
     logger.info(LOG_PREFIX .. "Remote progress queue size: " .. tostring(result.total))
 
     -- Safety workaround: applying progress while reader is actively open can crash KOReader.
     -- Only auto-apply when no document is open.
     if result.deferred then
-        logger.warn(LOG_PREFIX .. "Deferring remote progress apply because a document is open.")
-        if not (opts and opts.silent) then
-            UIManager:show(InfoMessage:new{
-                text = _("Remote progress is available.\nClose the current book to apply safely."),
-                timeout = 5
-            })
+        if not result.current_book_queued then
+            self.reload_guard_storage_key = nil
+        elseif result.can_reload_current and not self:shouldSuppressReloadPrompt(result) then
+            logger.info(LOG_PREFIX .. "Prompting to reload current book for remote progress apply.")
+            self:promptReloadForCurrentBook(result, opts)
+            return true, result
         end
+
+        logger.warn(LOG_PREFIX .. "Deferring remote progress apply because a document is open.")
+        self:showDeferredApplyNotice(opts)
         return true, result
     end
 
-    for _, err_apply in ipairs(result.errors or {}) do
-        self:showError(err_apply, opts)
-    end
-
-    logger.info(LOG_PREFIX .. "Device-level progress sync done. Applied: " .. tostring(result.applied) .. " Failed: " .. tostring(result.failed))
-
+    self.reload_guard_storage_key = nil
+    self:handleApplyResultFeedback(result, opts)
     return true, result
 end
 

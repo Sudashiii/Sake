@@ -109,6 +109,11 @@ function Sake:startDeferredProgressWatcher()
     logger.info("[Sake] Started deferred progress watcher.")
 
     local function checkAndApply()
+        if self.progressSync and self.progressSync.isReloadInProgress and self.progressSync:isReloadInProgress() then
+            UIManager:scheduleIn(1.0, checkAndApply)
+            return
+        end
+
         if self.progressSync and self.progressSync.hasOpenDocument and self.progressSync:hasOpenDocument() then
             UIManager:scheduleIn(1.0, checkAndApply)
             return
@@ -132,19 +137,6 @@ function Sake:runProgressSync(opts)
     if result.deferred then
         self:startDeferredProgressWatcher()
         return true
-    end
-
-    if result.total > 0 and not (opts and opts.silent_summary) then
-        local summary = string.format(
-            "Remote progress sync:\nApplied %d of %d (%d failed).",
-            result.applied,
-            result.total,
-            result.failed
-        )
-        UIManager:show(InfoMessage:new{
-            text = _(summary),
-            timeout = 5
-        })
     end
 
     return true, result
@@ -638,16 +630,12 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
-    -- local delay = 6.0
-    -- logger.info("[Sake] Scheduling resume progress sync in " .. tostring(delay) .. "s.")
-    -- UIManager:scheduleIn(delay, function()
-    --     local ok, err = self:runProgressSync()
-    --     if ok then
-    --         return
-    --     end
+    local ok, err = self:runProgressSync()
+    if ok then
+        return
+    end
 
-    --     logger.warn("[Sake] Resume progress sync failed. Error: " .. tostring(err))
-    -- end)
+    logger.warn("[Sake] Resume progress sync failed. Error: " .. tostring(err))
 end
 
 function Sake:onReaderReady()
