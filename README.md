@@ -29,7 +29,43 @@
   </a>
 </p>
 
-![Sake library page](./docs/img/library.png)
+![Sake library page](./docs/img/webapp/library.png)
+
+## Table of contents
+
+- [Why Sake?](#why-sake)
+- [Quick start](#quick-start)
+- [Features](#features)
+- [What lives in this repo?](#what-lives-in-this-repo)
+- [Choose a setup](#choose-a-setup)
+- [Configuration](#configuration)
+- [First boot](#first-boot)
+- [KOReader plugin](#koreader-plugin)
+- [Search providers and downloads](#search-providers-and-downloads)
+- [Useful commands](#useful-commands)
+- [Screenshots](#screenshots)
+- [License](#license)
+
+## Why Sake?
+
+If you already use KOReader, Sake gives you a much nicer home base around it. You get a self-hosted web library, seamless progress sync, note-aware reading updates, easy book delivery to devices, and a built-in plugin update flow without losing the KOReader setup you already like.
+
+## Quick start
+
+For the fastest fully self-hosted setup, use the prebuilt Docker image and the bundled self-host compose file from the repository root:
+
+```bash
+docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up
+```
+
+Then open `http://localhost:5173`.
+
+This setup gives you:
+
+- the published `ghcr.io/sudashiii/sake` image
+- a file-backed libSQL database
+- SeaweedFS as S3-compatible storage
+- automatic database migrations before the app starts
 
 ## Features
 
@@ -290,13 +326,18 @@ From the repository root, these compose entry points are available:
 
 ### Web app
 
-<img src="./docs/img/library.png" alt="Library view" width="700">
-<img src="./docs/img/search.png" alt="Search view" width="700">
+<p><img src="./docs/img/webapp/library.png" alt="Library view" width="700"></p>
+<p><img src="./docs/img/webapp/search.png" alt="Search view" width="700"></p>
+<p><img src="./docs/img/webapp/detail.png" alt="Book detail view" width="700"></p>
+<p><img src="./docs/img/webapp/progress.png" alt="Reading progress view" width="700"></p>
 
 ### KOReader plugin
 
-<img src="./docs/img/SakeMenu.png" alt="KOReader plugin menu" width="350">
-<img src="./docs/img/SakeDownload.png" alt="KOReader plugin download view" width="350">
+<p><img src="./docs/koreader/MainMenu.png" alt="KOReader plugin main menu" width="350"></p>
+<p><img src="./docs/koreader/Download.png" alt="KOReader plugin download view" width="350"></p>
+<p><img src="./docs/koreader/Export.png" alt="KOReader plugin export flow" width="350"></p>
+<p><img src="./docs/koreader/Login.png" alt="KOReader plugin login flow" width="350"></p>
+<p><img src="./docs/koreader/VersionList.png" alt="KOReader plugin updater version list" width="350"></p>
 
 ## License
 
