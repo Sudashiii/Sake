@@ -342,6 +342,35 @@ export class LibraryDetailController {
 		toastStore.add('Cover stored internally', 'success');
 	}
 
+	handleCoverUploadChange = async (event: Event): Promise<void> => {
+		if (!this.selectedBook || this.isImportingCover) {
+			return;
+		}
+
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) {
+			return;
+		}
+
+		this.isImportingCover = true;
+		const result = await ZUI.uploadLibraryBookCover(this.selectedBook.id, file);
+		this.isImportingCover = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to upload cover: ${result.error.message}`, 'error');
+			return;
+		}
+
+		const updatedBook = this.options.setBookCoverState(this.selectedBook.id, result.value.cover);
+		if (updatedBook) {
+			this.selectedBook = updatedBook;
+		}
+		this.metadataDraft.cover = result.value.cover;
+		toastStore.add('Cover uploaded and stored internally', 'success');
+	};
+
 	async handleSetRating(rating: number | null): Promise<void> {
 		if (!this.selectedBook || this.isUpdatingRating) {
 			return;
@@ -608,4 +637,5 @@ export class LibraryDetailController {
 		}
 		return title.toLowerCase().endsWith(`.${extension}`) ? title : `${title}.${extension}`;
 	}
+
 }

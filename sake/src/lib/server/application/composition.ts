@@ -85,6 +85,7 @@ import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
+import { UploadLibraryBookCoverUseCase } from '$lib/server/application/use-cases/UploadLibraryBookCoverUseCase';
 import { ExportDeviceLibraryBookUseCase } from '$lib/server/application/use-cases/ExportDeviceLibraryBookUseCase';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 import { webappLogFeed } from '$lib/server/infrastructure/logging/webappLogFeed';
@@ -176,6 +177,10 @@ export const confirmProgressDownloadUseCase = new ConfirmProgressDownloadUseCase
 export const getLibraryFileUseCase = new GetLibraryFileUseCase(storage);
 export const getLibraryCoverUseCase = new GetLibraryCoverUseCase(storage);
 export const importLibraryBookCoverUseCase = new ImportLibraryBookCoverUseCase(
+	bookRepository,
+	managedBookCoverService
+);
+export const uploadLibraryBookCoverUseCase = new UploadLibraryBookCoverUseCase(
 	bookRepository,
 	managedBookCoverService
 );

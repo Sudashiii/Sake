@@ -316,6 +316,7 @@
 		onSaveMetadataEdit={() => void detailController.saveMetadataEdit()}
 		onCancelMetadataEdit={detailController.cancelMetadataEdit.bind(detailController)}
 		onImportCover={() => void detailController.handleImportCover()}
+		onUploadCoverFile={detailController.handleCoverUploadChange}
 		onSetRating={(rating) => void detailController.handleSetRating(rating)}
 		onToggleShelfAssignment={(shelfId) => void detailController.handleToggleShelfAssignment(shelfId)}
 		onDownloadFromLibrary={() => void detailController.handleDownloadFromLibrary()}

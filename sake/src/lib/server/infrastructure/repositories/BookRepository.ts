@@ -7,149 +7,22 @@ import type {
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { books, deviceDownloads, deviceProgressDownloads } from '$lib/server/infrastructure/db/schema';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
+import {
+	bookSelection,
+	bookSelectionWithDownloadState,
+	mapBookRow,
+	mapBookWithDownloadRow,
+	toCreateBookRow,
+	toUpdateBookMetadataRow
+} from './BookRepository.helpers';
 import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 
-type DbBookRow = {
-	id: number;
-	s3StorageKey: string;
-	title: string;
-	zLibId: string | null;
-	author: string | null;
-	publisher: string | null;
-	series: string | null;
-	volume: string | null;
-	seriesIndex: number | null;
-	edition: string | null;
-	identifier: string | null;
-	pages: number | null;
-	description: string | null;
-	googleBooksId: string | null;
-	openLibraryKey: string | null;
-	amazonAsin: string | null;
-	externalRating: number | null;
-	externalRatingCount: number | null;
-	cover: string | null;
-	extension: string | null;
-	filesize: number | null;
-	language: string | null;
-	year: number | null;
-	month: number | null;
-	day: number | null;
-	progressStorageKey: string | null;
-	progressUpdatedAt: string | null;
-	progressPercent: number | null;
-	progressBeforeRead: number | null;
-	rating: number | null;
-	readAt: string | null;
-	archivedAt: string | null;
-	excludeFromNewBooks: boolean;
-	createdAt: string | null;
-	deletedAt: string | null;
-	trashExpiresAt: string | null;
-};
-
-type DbBookWithDownloadRow = DbBookRow & {
-	isDownloaded: number | boolean;
-};
-
-const bookSelection = {
-	id: books.id,
-	s3StorageKey: books.s3StorageKey,
-	title: books.title,
-	zLibId: books.zLibId,
-	author: books.author,
-	publisher: books.publisher,
-	series: books.series,
-	volume: books.volume,
-	seriesIndex: books.seriesIndex,
-	edition: books.edition,
-	identifier: books.identifier,
-	pages: books.pages,
-	description: books.description,
-	googleBooksId: books.googleBooksId,
-	openLibraryKey: books.openLibraryKey,
-	amazonAsin: books.amazonAsin,
-	externalRating: books.externalRating,
-	externalRatingCount: books.externalRatingCount,
-	cover: books.cover,
-	extension: books.extension,
-	filesize: books.filesize,
-	language: books.language,
-	year: books.year,
-	month: books.month,
-	day: books.day,
-	progressStorageKey: books.progressStorageKey,
-	progressUpdatedAt: books.progressUpdatedAt,
-	progressPercent: books.progressPercent,
-	progressBeforeRead: books.progressBeforeRead,
-	rating: books.rating,
-	readAt: books.readAt,
-	archivedAt: books.archivedAt,
-	excludeFromNewBooks: books.excludeFromNewBooks,
-	createdAt: books.createdAt,
-	deletedAt: books.deletedAt,
-	trashExpiresAt: books.trashExpiresAt
-};
-
-function mapBookRow(row: DbBookRow): Book {
-	return {
-		id: row.id,
-		zLibId: row.zLibId,
-		s3_storage_key: row.s3StorageKey,
-		title: row.title,
-		author: row.author,
-		publisher: row.publisher,
-		series: row.series,
-		volume: row.volume,
-		series_index: row.seriesIndex,
-		edition: row.edition,
-		identifier: row.identifier,
-		pages: row.pages,
-		description: row.description,
-		google_books_id: row.googleBooksId,
-		open_library_key: row.openLibraryKey,
-		amazon_asin: row.amazonAsin,
-		external_rating: row.externalRating,
-		external_rating_count: row.externalRatingCount,
-		cover: row.cover,
-		extension: row.extension,
-		filesize: row.filesize,
-		language: row.language,
-		year: row.year,
-		month: row.month,
-		day: row.day,
-		progress_storage_key: row.progressStorageKey,
-		progress_updated_at: row.progressUpdatedAt,
-		progress_percent: row.progressPercent,
-		progress_before_read: row.progressBeforeRead,
-		rating: typeof row.rating === 'number' && row.rating >= 1 && row.rating <= 5 ? row.rating : null,
-		read_at: row.readAt,
-		archived_at: row.archivedAt,
-		exclude_from_new_books: row.excludeFromNewBooks,
-		createdAt: row.createdAt,
-		deleted_at: row.deletedAt,
-		trash_expires_at: row.trashExpiresAt
-	};
-}
-
-function mapBookWithDownloadRow(row: DbBookWithDownloadRow): Book {
-	return {
-		...mapBookRow(row),
-		isDownloaded: Boolean(row.isDownloaded)
-	};
-}
-
 export class BookRepository implements BookRepositoryPort {
-	private static readonly instance = new BookRepository();
 	private readonly repoLogger = createChildLogger({ repository: 'BookRepository' });
 
 	async getAll(): Promise<Book[]> {
 		const rows = await drizzleDb
-			.select({
-				...bookSelection,
-				isDownloaded:
-					sql<number>`exists (select 1 from ${deviceDownloads} where ${deviceDownloads.bookId} = ${books.id})`
-			})
+			.select(bookSelectionWithDownloadState)
 			.from(books)
 			.where(isNull(books.deletedAt))
 			.orderBy(desc(books.createdAt));
@@ -282,33 +155,7 @@ export class BookRepository implements BookRepositoryPort {
 		const createdAt = new Date().toISOString();
 		const [created] = await drizzleDb
 			.insert(books)
-			.values({
-				zLibId: book.zLibId,
-				s3StorageKey: book.s3_storage_key,
-				title: book.title,
-				author: book.author,
-				publisher: book.publisher,
-				series: book.series,
-				volume: book.volume,
-				seriesIndex: book.series_index,
-				edition: book.edition,
-				identifier: book.identifier,
-				pages: book.pages,
-				description: book.description,
-				googleBooksId: book.google_books_id,
-				openLibraryKey: book.open_library_key,
-				amazonAsin: book.amazon_asin,
-				externalRating: book.external_rating,
-				externalRatingCount: book.external_rating_count,
-				cover: book.cover,
-				extension: book.extension,
-				filesize: book.filesize,
-				language: book.language,
-				year: book.year,
-				month: book.month,
-				day: book.day,
-				createdAt
-			})
+			.values(toCreateBookRow(book, createdAt))
 			.returning(bookSelection);
 
 		if (!created) {
@@ -326,32 +173,7 @@ export class BookRepository implements BookRepositoryPort {
 	async updateMetadata(id: number, metadata: UpdateBookMetadataInput): Promise<Book> {
 		const [updated] = await drizzleDb
 			.update(books)
-			.set({
-				zLibId: metadata.zLibId,
-				title: metadata.title,
-				author: metadata.author,
-				publisher: metadata.publisher,
-				series: metadata.series,
-				volume: metadata.volume,
-				seriesIndex: metadata.series_index,
-				edition: metadata.edition,
-				identifier: metadata.identifier,
-				pages: metadata.pages,
-				description: metadata.description,
-				googleBooksId: metadata.google_books_id,
-				openLibraryKey: metadata.open_library_key,
-				amazonAsin: metadata.amazon_asin,
-				externalRating: metadata.external_rating,
-				externalRatingCount: metadata.external_rating_count,
-				cover: metadata.cover,
-				extension: metadata.extension,
-				filesize: metadata.filesize,
-				language: metadata.language,
-				year: metadata.year,
-				month: metadata.month,
-				day: metadata.day,
-				createdAt: metadata.createdAt
-			})
+			.set(toUpdateBookMetadataRow(metadata))
 			.where(eq(books.id, id))
 			.returning(bookSelection);
 
@@ -563,130 +385,5 @@ export class BookRepository implements BookRepositoryPort {
 			.from(books)
 			.where(isNull(books.deletedAt));
 		return Number(result?.count ?? 0);
-	}
-
-	static async getAll(): Promise<Book[]> {
-		return BookRepository.instance.getAll();
-	}
-
-	static async getAllForStats(): Promise<Book[]> {
-		return BookRepository.instance.getAllForStats();
-	}
-
-	static async getById(id: number): Promise<Book | undefined> {
-		return BookRepository.instance.getById(id);
-	}
-
-	static async getByIdIncludingTrashed(id: number): Promise<Book | undefined> {
-		return BookRepository.instance.getByIdIncludingTrashed(id);
-	}
-
-	static async getByZLibId(zLibId: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByZLibId(zLibId);
-	}
-
-	static async getByZLibIdIncludingTrashed(zLibId: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByZLibIdIncludingTrashed(zLibId);
-	}
-
-	static async getByStorageKey(storageKey: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByStorageKey(storageKey);
-	}
-
-	static async getByStorageKeyIncludingTrashed(storageKey: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByStorageKeyIncludingTrashed(storageKey);
-	}
-
-	static async getByTitleAndExtension(title: string, extension: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByTitleAndExtension(title, extension);
-	}
-
-	static async getByTitle(title: string): Promise<Book | undefined> {
-		return BookRepository.instance.getByTitle(title);
-	}
-
-	static async hasOtherBookWithStorageKey(storageKey: string, excludeBookId: number): Promise<boolean> {
-		return BookRepository.instance.hasOtherBookWithStorageKey(storageKey, excludeBookId);
-	}
-
-	static async listStorageKeysWithExternalReferences(
-		storageKeys: string[],
-		excludeBookIds: number[]
-	): Promise<string[]> {
-		return BookRepository.instance.listStorageKeysWithExternalReferences(storageKeys, excludeBookIds);
-	}
-
-	static async create(book: CreateBookInput): Promise<Book> {
-		return BookRepository.instance.create(book);
-	}
-
-	static async updateMetadata(id: number, metadata: UpdateBookMetadataInput): Promise<Book> {
-		return BookRepository.instance.updateMetadata(id, metadata);
-	}
-
-	static async delete(id: number): Promise<void> {
-		return BookRepository.instance.delete(id);
-	}
-
-	static async resetDownloadStatus(bookId: number): Promise<void> {
-		return BookRepository.instance.resetDownloadStatus(bookId);
-	}
-
-	static async updateProgress(
-		bookId: number,
-		progressKey: string,
-		progressPercent: number | null,
-		progressUpdatedAt?: string | null
-	): Promise<void> {
-		return BookRepository.instance.updateProgress(
-			bookId,
-			progressKey,
-			progressPercent,
-			progressUpdatedAt
-		);
-	}
-
-	static async updateRating(bookId: number, rating: number | null): Promise<void> {
-		return BookRepository.instance.updateRating(bookId, rating);
-	}
-
-	static async updateState(
-		bookId: number,
-		state: {
-			readAt?: string | null;
-			progressPercent?: number | null;
-			progressBeforeRead?: number | null;
-			excludeFromNewBooks?: boolean;
-		}
-	): Promise<void> {
-		return BookRepository.instance.updateState(bookId, state);
-	}
-
-	static async getNotDownloadedByDevice(deviceId: string): Promise<Book[]> {
-		return BookRepository.instance.getNotDownloadedByDevice(deviceId);
-	}
-
-	static async getBooksWithNewProgressForDevice(deviceId: string): Promise<Book[]> {
-		return BookRepository.instance.getBooksWithNewProgressForDevice(deviceId);
-	}
-
-	static async getTrashed(): Promise<Book[]> {
-		return BookRepository.instance.getTrashed();
-	}
-
-	static async moveToTrash(id: number, deletedAt: string, trashExpiresAt: string): Promise<void> {
-		return BookRepository.instance.moveToTrash(id, deletedAt, trashExpiresAt);
-	}
-
-	static async restoreFromTrash(id: number): Promise<void> {
-		return BookRepository.instance.restoreFromTrash(id);
-	}
-
-	static async getExpiredTrash(nowIso: string): Promise<Book[]> {
-		return BookRepository.instance.getExpiredTrash(nowIso);
-	}
-
-	static async count(): Promise<number> {
-		return BookRepository.instance.count();
 	}
 }

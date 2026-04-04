@@ -47,6 +47,7 @@ import {
 	importLibraryBookCover,
 	type ImportLibraryBookCoverResponse
 } from './routes/importLibraryBookCover';
+import { uploadLibraryBookCover } from './routes/uploadLibraryBookCover';
 import { getQueueStatus, type QueueStatusResponse } from './routes/getQueueStatus';
 import { getAppVersion } from './routes/getAppVersion';
 import { getLibraryBookProgressHistory } from './routes/getLibraryBookProgressHistory';
@@ -179,6 +180,12 @@ export const ZUI = {
 		coverUrl?: string | null
 	): Promise<Result<ImportLibraryBookCoverResponse, ApiError>> =>
 		importLibraryBookCover(bookId, coverUrl),
+
+	uploadLibraryBookCover: (
+		bookId: number,
+		file: File
+	): Promise<Result<ImportLibraryBookCoverResponse, ApiError>> =>
+		uploadLibraryBookCover(bookId, file),
 
 	getLibraryShelves: (): Promise<Result<GetLibraryShelvesResponse, ApiError>> => getLibraryShelves(),
 

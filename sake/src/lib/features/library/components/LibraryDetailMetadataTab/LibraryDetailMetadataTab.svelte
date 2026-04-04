@@ -1,4 +1,5 @@
 <script lang="ts">
+	import UploadIcon from '$lib/assets/icons/UploadIcon.svelte';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import {
@@ -17,6 +18,7 @@
 		isEditingMetadata?: boolean;
 		isImportingCover?: boolean;
 		onImportCover: () => void;
+		onUploadCoverFile: (event: Event) => void;
 	}
 
 	let {
@@ -25,11 +27,18 @@
 		metadataDraft = $bindable(),
 		isEditingMetadata = false,
 		isImportingCover = false,
-		onImportCover
+		onImportCover,
+		onUploadCoverFile
 	}: Props = $props();
 
 	const activeCoverUrl = $derived(metadataDraft.cover.trim() || selectedBook.cover || '');
-	const canImportCover = $derived(!isEditingMetadata && isImportableExternalCoverUrl(activeCoverUrl));
+	const canImportCover = $derived(isImportableExternalCoverUrl(activeCoverUrl));
+
+	let uploadInput = $state<HTMLInputElement | null>(null);
+
+	function openUploadPicker(): void {
+		uploadInput?.click();
+	}
 </script>
 
 <div class={styles.root}>
@@ -43,11 +52,30 @@
 			{/if}
 			<div class="detail-v2-cover-meta">
 				{#if isEditingMetadata}
-					<input
-						class="detail-v2-input"
-						bind:value={metadataDraft.cover}
-						placeholder="https://books.google.com/..."
-					/>
+					<div class="detail-v2-cover-edit-row">
+						<input
+							class="detail-v2-input"
+							bind:value={metadataDraft.cover}
+							placeholder="https://books.google.com/..."
+						/>
+						<input
+							bind:this={uploadInput}
+							class="detail-v2-cover-upload-input"
+							type="file"
+							accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+							onchange={onUploadCoverFile}
+							disabled={isImportingCover}
+						/>
+						<button
+							type="button"
+							class="detail-v2-cover-upload-btn"
+							onclick={openUploadPicker}
+							disabled={isImportingCover}
+						>
+							<UploadIcon size={14} decorative={true} />
+							<span>{isImportingCover ? 'Uploading...' : 'Upload your own'}</span>
+						</button>
+					</div>
 				{:else}
 					<span>{activeCoverUrl || 'No cover URL'}</span>
 				{/if}

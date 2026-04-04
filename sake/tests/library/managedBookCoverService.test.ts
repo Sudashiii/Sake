@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+	buildManagedBookCoverVersionToken,
+	buildVersionedManagedBookCoverUrl,
 	ManagedBookCoverService,
 	MAX_MANAGED_BOOK_COVER_BYTES
 } from '$lib/server/application/services/ManagedBookCoverService';
@@ -78,7 +80,10 @@ describe('ManagedBookCoverService', () => {
 		});
 
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.jpg',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.jpg',
+				buildManagedBookCoverVersionToken(Buffer.from([1, 2, 3]))
+			),
 			sourceUrl: 'https://covers.openlibrary.org/b/id/123-L.jpg'
 		});
 		assert.equal(stored.length, 1);
@@ -232,7 +237,10 @@ describe('ManagedBookCoverService', () => {
 		});
 
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.webp',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.webp',
+				buildManagedBookCoverVersionToken(Buffer.from([4, 5, 6]))
+			),
 			sourceUrl: 'https://1lib.sk/covers/books/123.webp'
 		});
 		if (requestHeaders === null) {
@@ -280,7 +288,10 @@ describe('ManagedBookCoverService', () => {
 		});
 
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.jpg',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.jpg',
+				buildManagedBookCoverVersionToken(Buffer.from([7, 8, 9]))
+			),
 			sourceUrl: 'https://cdn.example.com/covers/books/123.jpg'
 		});
 		if (requestHeaders === null) {
@@ -322,7 +333,10 @@ describe('ManagedBookCoverService', () => {
 
 		assert.equal(requestedUrl, 'https://books.google.com/books/content?id=test-cover');
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.jpg',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.jpg',
+				buildManagedBookCoverVersionToken(Buffer.from([9, 8, 7]))
+			),
 			sourceUrl: 'https://books.google.com/books/content?id=test-cover'
 		});
 	});
@@ -359,7 +373,10 @@ describe('ManagedBookCoverService', () => {
 
 		assert.equal(requestedUrl, 'http://books.google.com/books/content?id=test-cover');
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.jpg',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.jpg',
+				buildManagedBookCoverVersionToken(Buffer.from([9, 8, 7]))
+			),
 			sourceUrl: 'http://books.google.com/books/content?id=test-cover'
 		});
 	});
@@ -392,7 +409,10 @@ describe('ManagedBookCoverService', () => {
 		});
 
 		assert.deepEqual(result, {
-			managedUrl: '/api/library/covers/example.epub.png',
+			managedUrl: buildVersionedManagedBookCoverUrl(
+				'example.epub.png',
+				buildManagedBookCoverVersionToken(Buffer.from([1, 2, 3, 4]))
+			),
 			sourceUrl: null
 		});
 		assert.equal(stored.length, 1);
@@ -426,6 +446,40 @@ describe('ManagedBookCoverService', () => {
 			managedUrl: null,
 			sourceUrl: null
 		});
+	});
+
+	test('returns a fresh managed URL when replacing a cover with the same file extension', async () => {
+		const storedKeys: string[] = [];
+
+		const storage = {
+			async put(key: string): Promise<void> {
+				storedKeys.push(key);
+			},
+			async get(): Promise<Buffer> {
+				throw new Error('not implemented');
+			},
+			async delete(): Promise<void> {},
+			async list(): Promise<[]> {
+				return [];
+			}
+		} as StoragePort;
+
+		const service = new ManagedBookCoverService(storage);
+		const first = await service.storeFromBuffer({
+			bookStorageKey: 'example.epub',
+			coverBuffer: Buffer.from([1, 2, 3]),
+			contentType: 'image/jpeg'
+		});
+		const second = await service.storeFromBuffer({
+			bookStorageKey: 'example.epub',
+			coverBuffer: Buffer.from([4, 5, 6]),
+			contentType: 'image/jpeg'
+		});
+
+		assert.equal(first.managedUrl?.startsWith('/api/library/covers/example.epub.jpg?v='), true);
+		assert.equal(second.managedUrl?.startsWith('/api/library/covers/example.epub.jpg?v='), true);
+		assert.notEqual(first.managedUrl, second.managedUrl);
+		assert.deepEqual(storedKeys, ['covers/example.epub.jpg', 'covers/example.epub.jpg']);
 	});
 
 	test('rejects localhost-style manual cover imports', async () => {

@@ -6,7 +6,10 @@ import {
 	deleteTrashedLibraryBookAction,
 	restoreLibraryBookAction
 } from '$lib/features/library/libraryRouteActions';
-import { replaceCurrentOpenBookId, replaceCurrentQueryParam } from '$lib/features/library/libraryRouteUrlState';
+import {
+	replaceCurrentQueryParam,
+	replaceCurrentQueryParams
+} from '$lib/features/library/libraryRouteUrlState';
 import {
 	DEFAULT_LIBRARY_SORT_PREFERENCE,
 	applyBulkShelfSelection,
@@ -201,8 +204,10 @@ export class LibraryListController {
 	}
 
 	updateLibraryUrl(openBookId?: number | null): void {
-		replaceCurrentQueryParam('view', null);
-		replaceCurrentOpenBookId(openBookId);
+		replaceCurrentQueryParams({
+			view: null,
+			openBookId
+		});
 	}
 
 	updateShelfUrl(shelfId: number | null): void {

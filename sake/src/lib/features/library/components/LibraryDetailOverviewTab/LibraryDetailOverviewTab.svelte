@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EditIcon from '$lib/assets/icons/EditIcon.svelte';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
@@ -29,6 +30,7 @@
 		isUpdatingReadState?: boolean;
 		isDownloadingLibraryFile?: boolean;
 		isMovingToTrash?: boolean;
+		onUploadCoverFile: (event: Event) => void;
 		onSetRating: (rating: number | null) => void;
 		onToggleShelfAssignment: (shelfId: number) => void;
 		onDownloadFromLibrary: () => void;
@@ -52,6 +54,7 @@
 		isUpdatingReadState = false,
 		isDownloadingLibraryFile = false,
 		isMovingToTrash = false,
+		onUploadCoverFile,
 		onSetRating,
 		onToggleShelfAssignment,
 		onDownloadFromLibrary,
@@ -71,16 +74,45 @@
 			timeStyle: 'short'
 		}).format(new Date(dateStr));
 	}
+
+	let coverUploadInput = $state<HTMLInputElement | null>(null);
+
+	function openCoverUploadPicker(): void {
+		if (!isEditingMetadata) {
+			return;
+		}
+		coverUploadInput?.click();
+	}
 </script>
 
 <div class={styles.root}>
 	<div class="detail-v2-overview-main">
-		<div class="detail-v2-cover">
-			{#if metadataDraft.cover || selectedBook.cover}
-				<img src={metadataDraft.cover || selectedBook.cover || ''} alt={selectedBookDetail.title} loading="lazy" />
-			{:else}
-				<div class="no-cover"><span class="extension">{selectedBook.extension?.toUpperCase() || '?'}</span></div>
-			{/if}
+		<div class="detail-v2-cover-shell">
+			<input
+				bind:this={coverUploadInput}
+				class="detail-v2-cover-upload-input"
+				type="file"
+				accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+				onchange={onUploadCoverFile}
+			/>
+			<button
+				type="button"
+				class={`detail-v2-cover ${isEditingMetadata ? 'editable' : ''}`}
+				onclick={openCoverUploadPicker}
+				disabled={!isEditingMetadata}
+				aria-label={isEditingMetadata ? 'Upload a new cover image' : undefined}
+			>
+				{#if metadataDraft.cover || selectedBook.cover}
+					<img src={metadataDraft.cover || selectedBook.cover || ''} alt={selectedBookDetail.title} loading="lazy" />
+				{:else}
+					<div class="no-cover"><span class="extension">{selectedBook.extension?.toUpperCase() || '?'}</span></div>
+				{/if}
+				{#if isEditingMetadata}
+					<span class="detail-v2-cover-overlay" aria-hidden="true">
+						<EditIcon size={18} decorative={true} />
+					</span>
+				{/if}
+			</button>
 		</div>
 		<div class="detail-v2-info">
 			{#if isEditingMetadata}
