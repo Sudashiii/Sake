@@ -62,7 +62,7 @@ function Menu.addToMainMenu(menu_items, ctx)
                 text = _("Library Import/Export"),
                 sub_item_table = {
                     {
-                        text = _("Import or Export Existing Library"),
+                        text = _("Export Device Library to App"),
                         callback = function()
                             ctx.actions.onLibraryImportExport()
                         end,

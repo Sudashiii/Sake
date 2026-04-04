@@ -1,27 +1,94 @@
-# Sake
+<p align="center">
+  <img src="./sake/static/icons/sake-icon.svg" alt="Sake logo" width="120" height="120" />
+</p>
 
-Sake is a self-hostable reading stack built around a Svelte web app and a KOReader plugin.
+<h1 align="center">Sake</h1>
 
-It keeps your library, reading progress, and device sync in one place, with optional search/download providers for importing books into your collection.
+<p align="center">
+  Self-host your reading stack with a clean web library, KOReader sync, and provider-powered book imports.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Sudashiii/Sake/stargazers">
+    <img src="https://img.shields.io/github/stars/Sudashiii/Sake?style=for-the-badge" alt="GitHub stars" />
+  </a>
+  <a href="https://github.com/Sudashiii/Sake/tags">
+    <img src="https://img.shields.io/github/v/tag/Sudashiii/Sake?sort=semver&style=for-the-badge&label=webapp%20version" alt="Current version" />
+  </a>
+  <a href="https://github.com/Sudashiii/Sake/actions/workflows/execute-tests-and-startup-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Sudashiii/Sake/execute-tests-and-startup-checks.yml?style=for-the-badge&label=build" alt="Build status" />
+  </a>
+  <a href="https://github.com/Sudashiii/Sake/pkgs/container/sake">
+    <img src="https://img.shields.io/badge/docker-ghcr.io%2Fsudashiii%2Fsake-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker image" />
+  </a>
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/github/license/Sudashiii/Sake?style=for-the-badge" alt="License" />
+  </a>
+  <a href="https://bun.sh">
+    <img src="https://img.shields.io/badge/runtime-Bun-F9F1E1?style=for-the-badge&logo=bun&logoColor=111111" alt="Bun runtime" />
+  </a>
+</p>
+
+![Sake library page](./docs/img/webapp/library.png)
+
+## Table of contents
+
+- [Why Sake?](#why-sake)
+- [Quick start](#quick-start)
+- [Features](#features)
+- [What lives in this repo?](#what-lives-in-this-repo)
+- [Choose a setup](#choose-a-setup)
+- [Configuration](#configuration)
+- [First boot](#first-boot)
+- [KOReader plugin](#koreader-plugin)
+- [Search providers and downloads](#search-providers-and-downloads)
+- [Useful commands](#useful-commands)
+- [Screenshots](#screenshots)
+- [License](#license)
+
+## Why Sake?
+
+If you already use KOReader, Sake gives you a much nicer home base around it. You get a self-hosted web library, seamless progress sync, note-aware reading updates, easy book delivery to devices, and a built-in plugin update flow without losing the KOReader setup you already like.
+
+## Quick start
+
+For the fastest fully self-hosted setup, use the prebuilt Docker image and the bundled self-host compose file from the repository root:
+
+```bash
+docker compose -f docker-examples/docker-compose.prebuilt.selfhost.yaml up
+```
+
+Then open `http://localhost:5173`.
+
+This setup gives you:
+
+- the published `ghcr.io/sudashiii/sake` image
+- a file-backed libSQL database
+- SeaweedFS as S3-compatible storage
+- automatic database migrations before the app starts
+
+## Features
+
+- Personal library management with covers, metadata, shelves, ratings, and reading state
+- Comprehensive reading stats for your library and reading habits
+- Rule-based shelves to automatically organize your collection
+- Directly download books from multiple provider-based search sources into your collection
+- KOReader device pairing and sync from the same self-hosted stack
+- Seamless background reading progress sync across devices, including notes and sidecar metadata
+- Export an existing KOReader device library back into the web app
+- Built-in KOReader plugin updater and release delivery
+- Flexible deployment with Docker images or local Bun development
+- libSQL plus S3-compatible storage support for managed or fully self-hosted setups
 
 ## What lives in this repo?
 
-This repository has two important layers:
+This repository has three important layers:
 
 - `sake/` - the actual SvelteKit app (`Svelte 5` + `SvelteKit` + `Bun`)
 - `koreaderPlugins/` - the KOReader plugin shipped by the app
 - `docs/` - shared project documentation and screenshots
 
 If you are working on the app itself, run app commands from `sake/`.
-
-## What Sake does
-
-- Manage a personal library with metadata, shelves, ratings, and reading state
-- Sync KOReader devices with the web app
-- Keep reading progress and sidecar data in sync
-- Import books through provider-based search and download flows
-- Serve KOReader plugin updates from the same stack
-- Run on libSQL plus S3-compatible object storage
 
 ## Choose a setup
 
@@ -259,13 +326,18 @@ From the repository root, these compose entry points are available:
 
 ### Web app
 
-<img src="./docs/img/library.png" alt="Library view" width="700">
-<img src="./docs/img/search.png" alt="Search view" width="700">
+<p><img src="./docs/img/webapp/library.png" alt="Library view" width="700"></p>
+<p><img src="./docs/img/webapp/search.png" alt="Search view" width="700"></p>
+<p><img src="./docs/img/webapp/detail.png" alt="Book detail view" width="700"></p>
+<p><img src="./docs/img/webapp/progress.png" alt="Reading progress view" width="700"></p>
 
 ### KOReader plugin
 
-<img src="./docs/img/SakeMenu.png" alt="KOReader plugin menu" width="350">
-<img src="./docs/img/SakeDownload.png" alt="KOReader plugin download view" width="350">
+<p><img src="./docs/koreader/MainMenu.png" alt="KOReader plugin main menu" width="350"></p>
+<p><img src="./docs/koreader/Download.png" alt="KOReader plugin download view" width="350"></p>
+<p><img src="./docs/koreader/Export.png" alt="KOReader plugin export flow" width="350"></p>
+<p><img src="./docs/koreader/Login.png" alt="KOReader plugin login flow" width="350"></p>
+<p><img src="./docs/koreader/VersionList.png" alt="KOReader plugin updater version list" width="350"></p>
 
 ## License
 

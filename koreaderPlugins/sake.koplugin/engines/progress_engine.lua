@@ -31,6 +31,14 @@ function ProgressEngine:hasOpenDocument()
     return self.reader:hasOpenDocument()
 end
 
+function ProgressEngine:getOpenDocumentState()
+    return self.reader:getOpenDocumentState()
+end
+
+function ProgressEngine:reloadCurrentDocument(after_close_callback, after_open_callback)
+    return self.reader:reloadCurrentDocument(after_close_callback, after_open_callback)
+end
+
 function ProgressEngine:isLikelyValidLuaMetadata(content)
     return content and content ~= "" and content:find("return%s*{", 1) ~= nil
 end
@@ -59,6 +67,35 @@ function ProgressEngine:prepareCurrentDocumentProgressSnapshot()
         content = content_or_err,
         device_id = self.settings.device_name,
         percent_finished = live_percent_finished,
+    }
+end
+
+function ProgressEngine:prepareStoredDocumentProgressSnapshot(doc_path)
+    local valid, settings_err = self:validateSettings()
+    if not valid then
+        return false, settings_err
+    end
+
+    local ok_doc, doc_or_err = self.storage:documentPaths(doc_path)
+    if not ok_doc then
+        return false, doc_or_err
+    end
+
+    local paths = doc_or_err
+    local live_percent_finished = self.reader:getLivePercentFinished(paths)
+
+    local ok_file, content_or_err = self.storage:readText(paths.sdr_path)
+    if not ok_file then
+        return false, content_or_err
+    end
+
+    return true, {
+        filename = paths.filename,
+        content = content_or_err,
+        device_id = self.settings.device_name,
+        percent_finished = live_percent_finished,
+        doc_path = paths.doc_path,
+        sdr_path = paths.sdr_path,
     }
 end
 
@@ -133,34 +170,23 @@ function ProgressEngine:applyRemoteProgress(book)
     return true
 end
 
-function ProgressEngine:syncRemoteQueue()
+function ProgressEngine:applyRemoteBooks(books)
     local valid, settings_err = self:validateSettings()
     if not valid then
         return false, settings_err
     end
 
-    local ok_list, books_or_err = ProgressApi.getNewProgressForDevice(self.session, self.settings.device_name)
-    if not ok_list then
-        return false, books_or_err
+    if type(books) ~= "table" then
+        return false, "Missing remote progress queue"
     end
 
-    local books = books_or_err
     if #books == 0 then
         return true, {
             total = 0,
             applied = 0,
             failed = 0,
             errors = {},
-        }
-    end
-
-    if self:hasOpenDocument() then
-        return true, {
-            total = #books,
-            applied = 0,
-            failed = 0,
-            errors = {},
-            deferred = true,
+            books = books,
         }
     end
 
@@ -183,7 +209,62 @@ function ProgressEngine:syncRemoteQueue()
         applied = applied,
         failed = failed,
         errors = errors,
+        books = books,
     }
+end
+
+function ProgressEngine:syncRemoteQueue()
+    local valid, settings_err = self:validateSettings()
+    if not valid then
+        return false, settings_err
+    end
+
+    local ok_list, books_or_err = ProgressApi.getNewProgressForDevice(self.session, self.settings.device_name)
+    if not ok_list then
+        return false, books_or_err
+    end
+
+    local books = books_or_err
+    if #books == 0 then
+        return true, {
+            total = 0,
+            applied = 0,
+            failed = 0,
+            errors = {},
+            books = books,
+        }
+    end
+
+    local open_document = self:getOpenDocumentState()
+    if open_document.open then
+        local current_book = nil
+        local current_filename = tostring(open_document.filename or "")
+
+        if current_filename ~= "" then
+            for _, book in ipairs(books) do
+                local local_paths = self.storage:pathsForStorageKey(book.s3_storage_key)
+                if local_paths.local_filename == current_filename then
+                    current_book = book
+                    break
+                end
+            end
+        end
+
+        return true, {
+            total = #books,
+            applied = 0,
+            failed = 0,
+            errors = {},
+            books = books,
+            deferred = true,
+            current_document = open_document,
+            current_book = current_book,
+            current_book_queued = current_book ~= nil,
+            can_reload_current = current_book ~= nil and open_document.can_reload == true,
+        }
+    end
+
+    return self:applyRemoteBooks(books)
 end
 
 return ProgressEngine

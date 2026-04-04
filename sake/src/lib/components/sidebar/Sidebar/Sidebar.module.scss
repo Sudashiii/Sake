@@ -37,12 +37,13 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 2.35rem;
-	height: 2.35rem;
+	width: 2.9rem;
+	height: 2.9rem;
 	background: transparent;
 	border: none;
 	border-radius: 0;
 	color: inherit;
+	flex-shrink: 0;
 }
 
 .logoText {

@@ -229,7 +229,7 @@
 	<div class="detail-v2-actions">
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onDownloadFromLibrary} disabled={isDownloadingLibraryFile}>{isDownloadingLibraryFile ? 'Downloading...' : 'Download'}</button>
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleArchiveState} disabled={isUpdatingArchiveState}>{isUpdatingArchiveState ? 'Saving...' : selectedBookDetail.isArchived ? 'Unarchive' : 'Archive'}</button>
-		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleExcludeFromNewBooks} disabled={isUpdatingNewBooksExclusion || selectedBookDetail.isArchived}>{isUpdatingNewBooksExclusion ? 'Saving...' : selectedBookDetail.excludeFromNewBooks ? 'Include In New' : 'Exclude From New'}</button>
+		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleExcludeFromNewBooks} disabled={isUpdatingNewBooksExclusion || selectedBookDetail.isArchived}>{isUpdatingNewBooksExclusion ? 'Saving...' : selectedBookDetail.excludeFromNewBooks ? 'Include In Device Downloads' : 'Exclude From Device Downloads'}</button>
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleReadState} disabled={isUpdatingReadState}>{isUpdatingReadState ? 'Saving...' : selectedBookDetail.isRead ? 'Mark Unread' : 'Mark Read'}</button>
 		{#if selectedBook.isDownloaded}
 			<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onOpenReset}>Reset Download</button>
