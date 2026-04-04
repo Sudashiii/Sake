@@ -244,6 +244,49 @@ function ProgressSync:syncCurrentBookProgress(opts)
     }
 end
 
+function ProgressSync:uploadClosedBookProgress(doc_path, opts)
+    logger.info(LOG_PREFIX .. "Close-triggered book progress upload started for: " .. tostring(doc_path))
+
+    local ok_snapshot, snapshot_or_err = self.engine:prepareStoredDocumentProgressSnapshot(doc_path)
+    if not ok_snapshot then
+        self:showError("Close-triggered progress upload failed: " .. tostring(snapshot_or_err), opts)
+        return false, snapshot_or_err
+    end
+
+    local snapshot = snapshot_or_err
+    logger.info(
+        LOG_PREFIX
+            .. "Prepared flushed sidecar snapshot for file: "
+            .. tostring(snapshot.filename)
+            .. " | percent_finished: "
+            .. tostring(snapshot.percent_finished)
+    )
+
+    local deferred = self.network:willRerunWhenOnline(function()
+        self:uploadPreparedSnapshot(snapshot, opts, true)
+    end)
+    if deferred then
+        logger.info(LOG_PREFIX .. "Close-triggered progress upload deferred waiting for network.")
+        return true, {
+            deferred = true,
+            uploaded = false,
+            percent_finished = snapshot.percent_finished,
+            filename = snapshot.filename,
+        }
+    end
+
+    local success, percent_finished_or_err = self:uploadPreparedSnapshot(snapshot, opts, false)
+    if not success then
+        return false, percent_finished_or_err
+    end
+
+    return true, {
+        uploaded = true,
+        percent_finished = percent_finished_or_err,
+        filename = snapshot.filename,
+    }
+end
+
 function ProgressSync:syncNewProgressForDevice(opts)
     logger.info(LOG_PREFIX .. "Device-level progress sync started.")
     local ok_sync, result_or_err = self.engine:syncRemoteQueue()

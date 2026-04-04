@@ -23,6 +23,13 @@ local Sake = WidgetContainer:extend{
     is_doc_only = false,
 }
 
+local CloseUploadBridge = {
+    pending = nil,
+    next_token = 0,
+}
+
+local CLOSE_UPLOAD_SETTLE_SECONDS = 0.1
+
 local function copyTable(value)
     local copy = {}
     for key, item in pairs(value or {}) do
@@ -140,6 +147,88 @@ function Sake:runProgressSync(opts)
     end
 
     return true, result
+end
+
+function Sake:clearPendingCloseUpload(token)
+    if not CloseUploadBridge.pending then
+        return
+    end
+
+    if token ~= nil and CloseUploadBridge.pending.token ~= token then
+        return
+    end
+
+    CloseUploadBridge.pending = nil
+end
+
+function Sake:schedulePendingCloseUpload(token)
+    UIManager:scheduleIn(CLOSE_UPLOAD_SETTLE_SECONDS, function()
+        local pending = CloseUploadBridge.pending
+        if not pending or pending.token ~= token then
+            return
+        end
+
+        if pending.reopened then
+            logger.info("[Sake] Skipping close-triggered progress upload because a new reader opened immediately.")
+            self:clearPendingCloseUpload(token)
+            return
+        end
+
+        logger.info("[Sake] Uploading flushed sidecar for closed book: " .. tostring(pending.doc_path))
+        local ok, err = self.progressSync:uploadClosedBookProgress(pending.doc_path, { silent = true })
+        if not ok then
+            logger.warn("[Sake] Close-triggered progress upload failed: " .. tostring(err))
+        end
+
+        self:clearPendingCloseUpload(token)
+    end)
+end
+
+function Sake:onCloseDocument()
+    if not self.progressSync or (self.progressSync.isReloadInProgress and self.progressSync:isReloadInProgress()) then
+        logger.info("[Sake] Skipping close-upload capture during reload teardown.")
+        self:clearPendingCloseUpload()
+        return
+    end
+
+    if not self.ui or not self.ui.document or not self.ui.document.file then
+        logger.info("[Sake] CloseDocument observed without an active document.")
+        self:clearPendingCloseUpload()
+        return
+    end
+
+    local ok_doc, paths_or_err = self.progressSync.engine.storage:documentPaths(self.ui.document.file)
+    if not ok_doc then
+        logger.warn("[Sake] Failed to capture pending close upload: " .. tostring(paths_or_err))
+        self:clearPendingCloseUpload()
+        return
+    end
+
+    CloseUploadBridge.next_token = CloseUploadBridge.next_token + 1
+    CloseUploadBridge.pending = {
+        token = CloseUploadBridge.next_token,
+        doc_path = paths_or_err.doc_path,
+        filename = paths_or_err.filename,
+        sdr_path = paths_or_err.sdr_path,
+        reopened = false,
+    }
+
+    logger.info("[Sake] Captured pending close upload for: " .. tostring(paths_or_err.doc_path))
+end
+
+function Sake:onCloseWidget()
+    local pending = CloseUploadBridge.pending
+    if not pending then
+        return
+    end
+
+    if self.progressSync and self.progressSync.isReloadInProgress and self.progressSync:isReloadInProgress() then
+        logger.info("[Sake] Skipping close-triggered progress upload because a reload is in progress.")
+        self:clearPendingCloseUpload(pending.token)
+        return
+    end
+
+    self:schedulePendingCloseUpload(pending.token)
 end
 
 function Sake:getPairActionLabel()
@@ -639,6 +728,11 @@ function Sake:handleResume()
 end
 
 function Sake:onReaderReady()
+    if CloseUploadBridge.pending then
+        CloseUploadBridge.pending.reopened = true
+        logger.info("[Sake] Marked pending close upload as reopened due to ReaderReady.")
+    end
+
     if self.init_error_message then
         UIManager:show(InfoMessage:new{
             text = self.init_error_message,

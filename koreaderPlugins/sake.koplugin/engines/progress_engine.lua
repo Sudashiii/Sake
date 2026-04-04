@@ -70,6 +70,35 @@ function ProgressEngine:prepareCurrentDocumentProgressSnapshot()
     }
 end
 
+function ProgressEngine:prepareStoredDocumentProgressSnapshot(doc_path)
+    local valid, settings_err = self:validateSettings()
+    if not valid then
+        return false, settings_err
+    end
+
+    local ok_doc, doc_or_err = self.storage:documentPaths(doc_path)
+    if not ok_doc then
+        return false, doc_or_err
+    end
+
+    local paths = doc_or_err
+    local live_percent_finished = self.reader:getLivePercentFinished(paths)
+
+    local ok_file, content_or_err = self.storage:readText(paths.sdr_path)
+    if not ok_file then
+        return false, content_or_err
+    end
+
+    return true, {
+        filename = paths.filename,
+        content = content_or_err,
+        device_id = self.settings.device_name,
+        percent_finished = live_percent_finished,
+        doc_path = paths.doc_path,
+        sdr_path = paths.sdr_path,
+    }
+end
+
 function ProgressEngine:uploadPreparedProgressSnapshot(snapshot)
     local valid, settings_err = self:validateSettings()
     if not valid then
