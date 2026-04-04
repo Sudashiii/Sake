@@ -109,7 +109,7 @@
 	<div class={styles.sidebarHeader}>
 		{#if !collapsed}
 			<div class={styles.logo}>
-				<span class={styles.logoIcon} aria-hidden="true"><SakeLogo size={18} decorative={true} /></span>
+				<span class={styles.logoIcon} aria-hidden="true"><SakeLogo size={28} decorative={true} /></span>
 				<span class={styles.logoText}>Sake</span>
 			</div>
 		{/if}
