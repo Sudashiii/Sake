@@ -108,7 +108,7 @@ end
 function LibraryExport:start()
     UIManager:show(ConfirmBox:new{
         text = _(
-            "Importing or exporting an existing library can take a while.\n"
+            "Exporting an existing library can take a while.\n"
             .. "Your device may be unusable until the process finishes.\n\n"
             .. "Do you want to continue?"
         ),
