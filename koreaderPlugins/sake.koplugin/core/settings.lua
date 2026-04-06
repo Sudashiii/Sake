@@ -9,11 +9,19 @@ local KEY_MAP = {
     api_key = "sake_api_key",
     device_name = "sake_device_name",
     log_shipping_enabled = "sake_log_shipping_enabled",
+    disable_automatic_book_sync_wakeup = "sake_disable_automatic_book_sync_wakeup",
+    disable_automatic_progress_download_wakeup = "sake_disable_automatic_progress_download_wakeup",
+    disable_automatic_progress_download_reader_ready = "sake_disable_automatic_progress_download_reader_ready",
+    disable_automatic_progress_sync_sleep = "sake_disable_automatic_progress_sync_sleep",
+    disable_automatic_progress_sync_close = "sake_disable_automatic_progress_sync_close",
     home_dir = "home_dir",
 }
 
-local function readBooleanSetting(key)
+local function readBooleanSetting(key, default_value)
     local value = G_reader_settings:readSetting(key)
+    if value == nil then
+        return default_value == true
+    end
     return value == true or value == "true"
 end
 
@@ -25,6 +33,11 @@ function Settings.load()
         api_key = G_reader_settings:readSetting(KEY_MAP.api_key) or "",
         device_name = G_reader_settings:readSetting(KEY_MAP.device_name),
         log_shipping_enabled = readBooleanSetting(KEY_MAP.log_shipping_enabled),
+        disable_automatic_book_sync_wakeup = readBooleanSetting(KEY_MAP.disable_automatic_book_sync_wakeup, false),
+        disable_automatic_progress_download_wakeup = readBooleanSetting(KEY_MAP.disable_automatic_progress_download_wakeup, false),
+        disable_automatic_progress_download_reader_ready = readBooleanSetting(KEY_MAP.disable_automatic_progress_download_reader_ready, false),
+        disable_automatic_progress_sync_sleep = readBooleanSetting(KEY_MAP.disable_automatic_progress_sync_sleep, false),
+        disable_automatic_progress_sync_close = readBooleanSetting(KEY_MAP.disable_automatic_progress_sync_close, false),
         home_dir = G_reader_settings:readSetting(KEY_MAP.home_dir) or ".",
     }
 end

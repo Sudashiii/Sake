@@ -161,10 +161,36 @@ function Sake:clearPendingCloseUpload(token)
     CloseUploadBridge.pending = nil
 end
 
+function Sake:isAutomaticBookSyncWakeupDisabled()
+    return self.settings.disable_automatic_book_sync_wakeup == true
+end
+
+function Sake:isAutomaticProgressDownloadWakeupDisabled()
+    return self.settings.disable_automatic_progress_download_wakeup == true
+end
+
+function Sake:isAutomaticProgressDownloadReaderReadyDisabled()
+    return self.settings.disable_automatic_progress_download_reader_ready == true
+end
+
+function Sake:isAutomaticProgressSyncSleepDisabled()
+    return self.settings.disable_automatic_progress_sync_sleep == true
+end
+
+function Sake:isAutomaticProgressSyncCloseDisabled()
+    return self.settings.disable_automatic_progress_sync_close == true
+end
+
 function Sake:schedulePendingCloseUpload(token)
     UIManager:scheduleIn(CLOSE_UPLOAD_SETTLE_SECONDS, function()
         local pending = CloseUploadBridge.pending
         if not pending or pending.token ~= token then
+            return
+        end
+
+        if self:isAutomaticProgressSyncCloseDisabled() then
+            logger.info("[Sake] Skipping close-triggered progress upload because automatic close sync is disabled.")
+            self:clearPendingCloseUpload(token)
             return
         end
 
@@ -185,6 +211,12 @@ function Sake:schedulePendingCloseUpload(token)
 end
 
 function Sake:onCloseDocument()
+    if self:isAutomaticProgressSyncCloseDisabled() then
+        logger.info("[Sake] Skipping close-upload capture because automatic close sync is disabled.")
+        self:clearPendingCloseUpload()
+        return
+    end
+
     if not self.progressSync or (self.progressSync.isReloadInProgress and self.progressSync:isReloadInProgress()) then
         logger.info("[Sake] Skipping close-upload capture during reload teardown.")
         self:clearPendingCloseUpload()
@@ -613,6 +645,21 @@ function Sake:init()
     self.ctx.actions.onToggleLogShipping = function(touchmenu_instance)
         self:toggleLogShipping(touchmenu_instance)
     end
+    self.ctx.actions.onToggleAutomaticBookSyncWakeup = function(touchmenu_instance)
+        self:toggleAutomaticBookSyncWakeup(touchmenu_instance)
+    end
+    self.ctx.actions.onToggleAutomaticProgressDownloadWakeup = function(touchmenu_instance)
+        self:toggleAutomaticProgressDownloadWakeup(touchmenu_instance)
+    end
+    self.ctx.actions.onToggleAutomaticProgressDownloadReaderReady = function(touchmenu_instance)
+        self:toggleAutomaticProgressDownloadReaderReady(touchmenu_instance)
+    end
+    self.ctx.actions.onToggleAutomaticProgressSyncSleep = function(touchmenu_instance)
+        self:toggleAutomaticProgressSyncSleep(touchmenu_instance)
+    end
+    self.ctx.actions.onToggleAutomaticProgressSyncClose = function(touchmenu_instance)
+        self:toggleAutomaticProgressSyncClose(touchmenu_instance)
+    end
     self.ctx.actions.getPairActionLabel = function() return self:getPairActionLabel() end
     self.ctx.actions.showInput = function(field, title)
         Dialogs.showStringInput(self.ctx, field, title)
@@ -664,6 +711,85 @@ function Sake:toggleLogShipping(touchmenu_instance)
     end
 end
 
+function Sake:toggleBooleanSetting(field, touchmenu_instance, enabled_message, disabled_message, enabled_log, disabled_log)
+    local currently_enabled = self.settings[field] == true
+    Settings.saveField(self.settings, field, not currently_enabled)
+
+    local is_enabled = self.settings[field] == true
+    if is_enabled then
+        logger.info("[Sake] " .. tostring(enabled_log))
+        UIManager:show(InfoMessage:new{
+            text = _(enabled_message),
+            timeout = 4
+        })
+    else
+        logger.info("[Sake] " .. tostring(disabled_log))
+        UIManager:show(InfoMessage:new{
+            text = _(disabled_message),
+            timeout = 4
+        })
+    end
+
+    if touchmenu_instance then
+        touchmenu_instance:updateItems()
+    end
+end
+
+function Sake:toggleAutomaticBookSyncWakeup(touchmenu_instance)
+    self:toggleBooleanSetting(
+        "disable_automatic_book_sync_wakeup",
+        touchmenu_instance,
+        "Automatic book sync on wakeup disabled.",
+        "Automatic book sync on wakeup enabled.",
+        "Automatic book sync on wakeup disabled.",
+        "Automatic book sync on wakeup enabled."
+    )
+end
+
+function Sake:toggleAutomaticProgressSyncSleep(touchmenu_instance)
+    self:toggleBooleanSetting(
+        "disable_automatic_progress_sync_sleep",
+        touchmenu_instance,
+        "Automatic progress sync on sleep disabled.",
+        "Automatic progress sync on sleep enabled.",
+        "Automatic progress sync on sleep disabled.",
+        "Automatic progress sync on sleep enabled."
+    )
+end
+
+function Sake:toggleAutomaticProgressDownloadWakeup(touchmenu_instance)
+    self:toggleBooleanSetting(
+        "disable_automatic_progress_download_wakeup",
+        touchmenu_instance,
+        "Automatic progress download on wakeup disabled.",
+        "Automatic progress download on wakeup enabled.",
+        "Automatic progress download on wakeup disabled.",
+        "Automatic progress download on wakeup enabled."
+    )
+end
+
+function Sake:toggleAutomaticProgressDownloadReaderReady(touchmenu_instance)
+    self:toggleBooleanSetting(
+        "disable_automatic_progress_download_reader_ready",
+        touchmenu_instance,
+        "Automatic progress download on reader ready disabled.",
+        "Automatic progress download on reader ready enabled.",
+        "Automatic progress download on reader ready disabled.",
+        "Automatic progress download on reader ready enabled."
+    )
+end
+
+function Sake:toggleAutomaticProgressSyncClose(touchmenu_instance)
+    self:toggleBooleanSetting(
+        "disable_automatic_progress_sync_close",
+        touchmenu_instance,
+        "Automatic progress sync when leaving the current book disabled.",
+        "Automatic progress sync when leaving the current book enabled.",
+        "Automatic progress sync when leaving the current book disabled.",
+        "Automatic progress sync when leaving the current book enabled."
+    )
+end
+
 function Sake:handleSuspend()
     local valid, missing = Settings.validateRequired(self.settings)
     if not valid then
@@ -675,27 +801,35 @@ function Sake:handleSuspend()
     logger.info("[Sake] Suspend detected. Starting background tasks...")
     self.bg_error_messages = {}
 
-    UIManager:scheduleIn(1.0, function()
-        local success, err = self.progressSync:syncCurrentBookProgress({ silent = true })
-        if not success and err then
-            table.insert(self.bg_error_messages, _("Progress sync failed: ") .. tostring(err))
-        end
-    end)
+    if self:isAutomaticProgressSyncSleepDisabled() then
+        logger.info("[Sake] Skipping automatic progress sync on sleep because it is disabled.")
+    else
+        UIManager:scheduleIn(1.0, function()
+            local success, err = self.progressSync:syncCurrentBookProgress({ silent = true })
+            if not success and err then
+                table.insert(self.bg_error_messages, _("Progress sync failed: ") .. tostring(err))
+            end
+        end)
+    end
 
-    UIManager:scheduleIn(1, function()
-        logger.info("[Sake] Starting silent book sync...")
-        local count, err, titles = self.bookSync:performSilentSync()
-        self.books_downloaded_bg = count
-        self.books_downloaded_bg_titles = titles or {}
-        if err then
-            table.insert(self.bg_error_messages, _("Book sync failed: ") .. tostring(err))
-        end
-        if count > 0 then
-            logger.info("[Sake] Silent sync downloaded " .. count .. " " .. Utils.bookWord(count) .. ".")
-        else
-            logger.info("[Sake] Silent sync finished. No new books.")
-        end
-    end)
+    if self:isAutomaticBookSyncWakeupDisabled() then
+        logger.info("[Sake] Skipping automatic book sync for wakeup because it is disabled.")
+    else
+        UIManager:scheduleIn(1, function()
+            logger.info("[Sake] Starting silent book sync...")
+            local count, err, titles = self.bookSync:performSilentSync()
+            self.books_downloaded_bg = count
+            self.books_downloaded_bg_titles = titles or {}
+            if err then
+                table.insert(self.bg_error_messages, _("Book sync failed: ") .. tostring(err))
+            end
+            if count > 0 then
+                logger.info("[Sake] Silent sync downloaded " .. count .. " " .. Utils.bookWord(count) .. ".")
+            else
+                logger.info("[Sake] Silent sync finished. No new books.")
+            end
+        end)
+    end
 
 end
 
@@ -719,6 +853,11 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
+    if self:isAutomaticProgressDownloadWakeupDisabled() then
+        logger.info("[Sake] Skipping automatic progress download on wakeup because it is disabled.")
+        return
+    end
+
     local ok, err = self:runProgressSync()
     if ok then
         return
@@ -740,6 +879,12 @@ function Sake:onReaderReady()
         })
         self.init_error_message = nil
     end
+
+    if self:isAutomaticProgressDownloadReaderReadyDisabled() then
+        logger.info("[Sake] Skipping automatic progress download on reader ready because it is disabled.")
+        return
+    end
+
     self:runProgressSync({ silent = true, silent_summary = true })
 end
 

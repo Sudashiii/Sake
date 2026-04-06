@@ -96,6 +96,51 @@ function Menu.addToMainMenu(menu_items, ctx)
                                     ctx.actions.onToggleLogShipping(touchmenu_instance)
                                 end,
                             },
+                            {
+                                text = _("Disable Automatic Book Sync (Wakeup)"),
+                                checked_func = function()
+                                    return ctx.settings.disable_automatic_book_sync_wakeup == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleAutomaticBookSyncWakeup(touchmenu_instance)
+                                end,
+                            },
+                            {
+                                text = _("Disable Automatic Progress Download (Wakeup)"),
+                                checked_func = function()
+                                    return ctx.settings.disable_automatic_progress_download_wakeup == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleAutomaticProgressDownloadWakeup(touchmenu_instance)
+                                end,
+                            },
+                            {
+                                text = _("Disable Automatic Progress Download (Reader Ready)"),
+                                checked_func = function()
+                                    return ctx.settings.disable_automatic_progress_download_reader_ready == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleAutomaticProgressDownloadReaderReady(touchmenu_instance)
+                                end,
+                            },
+                            {
+                                text = _("Disable Automatic Progress Sync (Sleep)"),
+                                checked_func = function()
+                                    return ctx.settings.disable_automatic_progress_sync_sleep == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleAutomaticProgressSyncSleep(touchmenu_instance)
+                                end,
+                            },
+                            {
+                                text = _("Disable Automatic Progress Sync (Leaving Current Book)"),
+                                checked_func = function()
+                                    return ctx.settings.disable_automatic_progress_sync_close == true
+                                end,
+                                callback = function(touchmenu_instance)
+                                    ctx.actions.onToggleAutomaticProgressSyncClose(touchmenu_instance)
+                                end,
+                            },
                         },
                     },
                 },
