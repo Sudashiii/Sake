@@ -16,6 +16,7 @@ local DeviceApi = require("api/device")
 local BookSync = require("controllers/book_sync")
 local LibraryExport = require("controllers/library_export")
 local ProgressSync = require("controllers/progress_sync")
+local Network = require("adapters/network")
 local PluginMeta = require("_meta")
 
 local Sake = WidgetContainer:extend{
@@ -149,6 +150,15 @@ function Sake:runProgressSync(opts)
     return true, result
 end
 
+function Sake:shouldSkipAutomaticSyncForOffline(label)
+    if not self.network or self.network:isOnline() then
+        return false
+    end
+
+    logger.info("[Sake] Skipping automatic " .. tostring(label) .. " because the device is offline.")
+    return true
+end
+
 function Sake:clearPendingCloseUpload(token)
     if not CloseUploadBridge.pending then
         return
@@ -185,6 +195,11 @@ function Sake:schedulePendingCloseUpload(token)
     UIManager:scheduleIn(CLOSE_UPLOAD_SETTLE_SECONDS, function()
         local pending = CloseUploadBridge.pending
         if not pending or pending.token ~= token then
+            return
+        end
+
+        if self:shouldSkipAutomaticSyncForOffline("progress sync on close") then
+            self:clearPendingCloseUpload(token)
             return
         end
 
@@ -620,6 +635,7 @@ function Sake:init()
     self.bookSync = BookSync:new(self.ctx)
     self.libraryExport = LibraryExport:new(self.ctx)
     self.progressSync = ProgressSync:new(self.ctx)
+    self.network = Network:new()
 
     local updater_ok, updater_mod_or_err, sake_plugin_dir, plugins_root = loadUpdaterModule()
     if updater_ok and updater_mod_or_err and updater_mod_or_err.new then
@@ -801,6 +817,10 @@ function Sake:handleSuspend()
     logger.info("[Sake] Suspend detected. Starting background tasks...")
     self.bg_error_messages = {}
 
+    if self:shouldSkipAutomaticSyncForOffline("sync on sleep") then
+        return
+    end
+
     if self:isAutomaticProgressSyncSleepDisabled() then
         logger.info("[Sake] Skipping automatic progress sync on sleep because it is disabled.")
     else
@@ -853,6 +873,10 @@ function Sake:handleResume()
         self.bg_error_messages = {}
     end
 
+    if self:shouldSkipAutomaticSyncForOffline("sync on wakeup") then
+        return
+    end
+
     if self:isAutomaticProgressDownloadWakeupDisabled() then
         logger.info("[Sake] Skipping automatic progress download on wakeup because it is disabled.")
         return
@@ -878,6 +902,10 @@ function Sake:onReaderReady()
             timeout = 8
         })
         self.init_error_message = nil
+    end
+
+    if self:shouldSkipAutomaticSyncForOffline("progress download on reader ready") then
+        return
     end
 
     if self:isAutomaticProgressDownloadReaderReadyDisabled() then
