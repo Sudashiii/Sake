@@ -71,10 +71,10 @@ bun run db:generate
 bun run db:migrate
 ```
 
-One-time baseline for already-migrated databases:
+One-time repair for databases that already match the latest schema but have missing Drizzle migration metadata:
 
 ```bash
-node --env-file=.env ./scripts/db/mark-drizzle-baseline.mjs
+bun run db:state:mark
 ```
 
 ## Project layout

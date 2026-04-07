@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { DatabaseVersionInfo } from '$lib/types/App/AppVersion';
+	import { getDatabaseMigrationStatusNote } from '$lib/utils/databaseMigrationStatus';
 	import styles from './SidebarSettingsAppPane.module.scss';
 
 	interface Props {
@@ -77,28 +78,8 @@
 		}
 	}
 
-	function getStatusNote(
-		version: DatabaseVersionInfo | null,
-		errorMessage: string | null,
-		loading: boolean
-	): string | null {
-		if (loading) {
-			return null;
-		}
-
-		if (errorMessage || version?.status === 'unavailable') {
-			return 'Could not inspect the database migration status right now.';
-		}
-
-		if (version?.status === 'outdated' || version?.status === 'untracked') {
-			return 'Run bun run db:migrate or restart the sake-migrator container to bring the database schema up to date.';
-		}
-
-		return null;
-	}
-
 	const statusNote = $derived(
-		getStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)
+		getDatabaseMigrationStatusNote(databaseVersion, appVersionError, isLoadingAppVersion)
 	);
 </script>
 

@@ -45,6 +45,11 @@ function Reader:hasOpenDocument()
     return ui and ui.document and ui.document.file and ui.document.file ~= ""
 end
 
+function Reader:canReloadCurrentDocument()
+    local ui = self.ui
+    return ui and type(ui.reloadDocument) == "function"
+end
+
 function Reader:getCurrentDocumentInfo()
     local ui = self.ui
     if not ui or not ui.document then
@@ -57,6 +62,57 @@ function Reader:getCurrentDocumentInfo()
     end
 
     return self.storage:documentPaths(doc_path)
+end
+
+function Reader:getOpenDocumentState()
+    local ui = self.ui
+    if not ui or not ui.document then
+        return {
+            open = false,
+            can_reload = false,
+        }
+    end
+
+    local doc_path = ui.document.file
+    if not doc_path or doc_path == "" then
+        return {
+            open = false,
+            can_reload = self:canReloadCurrentDocument(),
+        }
+    end
+
+    local ok_paths, paths_or_err = self.storage:documentPaths(doc_path)
+    local state = {
+        open = true,
+        can_reload = self:canReloadCurrentDocument(),
+        doc_path = doc_path,
+    }
+
+    if ok_paths then
+        state.filename = paths_or_err.filename
+        state.sdr_path = paths_or_err.sdr_path
+    end
+
+    return state
+end
+
+function Reader:reloadCurrentDocument(after_close_callback, after_open_callback)
+    local ui = self.ui
+    if not self:hasOpenDocument() then
+        return false, "No document open"
+    end
+    if not self:canReloadCurrentDocument() then
+        return false, "Current reader does not support reload"
+    end
+
+    local ok, err = pcall(function()
+        ui:reloadDocument(after_close_callback, true, after_open_callback)
+    end)
+    if not ok then
+        return false, tostring(err)
+    end
+
+    return true
 end
 
 function Reader:getLivePercentFinished(paths)

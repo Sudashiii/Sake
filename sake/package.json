@@ -17,6 +17,7 @@
 		"db:generate": "drizzle-kit generate && node ./scripts/db/normalize-journal-timestamps.mjs",
 		"db:migrate": "node ./scripts/db/run-with-project-env.mjs ./node_modules/drizzle-kit/bin.cjs migrate",
 		"db:studio": "node ./scripts/db/run-with-project-env.mjs ./node_modules/drizzle-kit/bin.cjs studio",
+		"db:state:mark": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/mark-drizzle-baseline.mjs",
 		"db:baseline:mark": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/mark-drizzle-baseline.mjs",
 		"db:status": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/drizzle-status.mjs",
 		"db:shelves:check": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/check-shelves-sort-order.mjs",

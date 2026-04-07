@@ -67,4 +67,5 @@ export type MetadataDraft = {
 	amazonAsin: string;
 	externalRating: string;
 	externalRatingCount: string;
+	createdAt: string;
 };

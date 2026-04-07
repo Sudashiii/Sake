@@ -150,7 +150,8 @@ export class RefetchLibraryBookMetadataUseCase {
 			language: existingBook.language,
 			year: nextPublicationDate.year,
 			month: nextPublicationDate.month,
-			day: nextPublicationDate.day
+			day: nextPublicationDate.day,
+			createdAt: existingBook.createdAt
 		});
 
 		return apiOk({

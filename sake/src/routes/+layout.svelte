@@ -11,13 +11,22 @@
 	import ToastContainer from '$lib/components/ToastContainer/ToastContainer.svelte';
 	import ZLibraryAuthModal from '$lib/components/layout/ZLibraryAuthModal/ZLibraryAuthModal.svelte';
 	import type { ApiError } from '$lib/types/ApiError';
+	import type { AppVersionResponse } from '$lib/types/App/AppVersion';
+	import {
+		getDatabaseMigrationStatusNote,
+		shouldShowDatabaseMigrationWarning
+	} from '$lib/utils/databaseMigrationStatus';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
 		children: Snippet;
+		data: {
+			appVersionInfo: AppVersionResponse | null;
+			appVersionError: string | null;
+		};
 	}
 
-	const { children }: Props = $props();
+	const { children, data }: Props = $props();
 
 	const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 
@@ -33,6 +42,16 @@
 	let sidebarMobileOpen = $state(false);
 	// Check if we're on the login page (don't show sidebar there)
 	let isLoginPage = $derived($page.url.pathname === '/');
+	let databaseMigrationWarning = $derived(
+		getDatabaseMigrationStatusNote(data.appVersionInfo?.database ?? null, data.appVersionError)
+	);
+	let showDatabaseMigrationWarning = $derived(
+		!isLoginPage &&
+			shouldShowDatabaseMigrationWarning(
+				data.appVersionInfo?.database ?? null,
+				data.appVersionError
+			)
+	);
 	let currentSection = $derived.by(() => {
 		const path = $page.url.pathname;
 		if (path === '/library') {
@@ -211,6 +230,12 @@
 		{/if}
 
 		<main class="content">
+			{#if showDatabaseMigrationWarning && databaseMigrationWarning}
+				<div class="database-migration-warning" role="alert">
+					<strong>Database migration required.</strong>
+					<span>{databaseMigrationWarning}</span>
+				</div>
+			{/if}
 			{@render children()}
 		</main>
 	</div>
@@ -311,6 +336,31 @@
 		padding: 0 1rem;
 		width: 100%;
 		overflow-y: auto;
+	}
+
+	.database-migration-warning {
+		display: grid;
+		gap: 0.28rem;
+		margin: 1rem 0 0;
+		padding: 0.9rem 1rem;
+		border-radius: 0.8rem;
+		border: 1px solid rgba(220, 38, 38, 0.4);
+		background:
+			linear-gradient(135deg, rgba(127, 29, 29, 0.2), rgba(69, 10, 10, 0.3)),
+			rgba(38, 12, 12, 0.9);
+		color: #fecaca;
+		box-shadow: 0 10px 24px -18px rgba(127, 29, 29, 0.8);
+	}
+
+	.database-migration-warning strong {
+		font-size: 0.92rem;
+		font-weight: 700;
+		color: #fee2e2;
+	}
+
+	.database-migration-warning span {
+		font-size: 0.84rem;
+		line-height: 1.5;
 	}
 
 	@media (max-width: 900px) {

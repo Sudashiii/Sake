@@ -7,7 +7,12 @@
 	import ArchivedEmptyState from '$lib/features/archived/components/ArchivedEmptyState/ArchivedEmptyState.svelte';
 	import ArchivedHeader from '$lib/features/archived/components/ArchivedHeader/ArchivedHeader.svelte';
 	import { ZUI } from '$lib/client/zui';
-	import { toastStore } from '$lib/client/stores/toastStore.svelte';
+	import { findBookByOpenBookId, loadLibraryBookDetail } from '$lib/features/library/libraryDetailLoader';
+	import { unarchiveLibraryBookAction } from '$lib/features/library/libraryRouteActions';
+	import {
+		parseOpenBookIdFromSearch,
+		replaceCurrentOpenBookId
+	} from '$lib/features/library/libraryRouteUrlState';
 	import type { ApiError } from '$lib/types/ApiError';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
@@ -26,37 +31,15 @@
 	onMount(() => {
 		(async () => {
 			await loadArchived();
-
-			const params = new URLSearchParams(window.location.search);
-			const openBookIdRaw = params.get('openBookId');
-			const openBookId = openBookIdRaw ? Number.parseInt(openBookIdRaw, 10) : NaN;
-			if (Number.isNaN(openBookId)) {
-				return;
-			}
-
-			const candidate = archivedBooks.find((book) => book.id === openBookId);
+			const candidate = findBookByOpenBookId(
+				archivedBooks,
+				parseOpenBookIdFromSearch(window.location.search)
+			);
 			if (candidate) {
 				await openDetailModal(candidate);
 			}
 		})();
 	});
-
-	function updateArchivedUrl(openBookId?: number | null): void {
-		if (typeof window === 'undefined') {
-			return;
-		}
-
-		const params = new URLSearchParams(window.location.search);
-		if (typeof openBookId === 'number') {
-			params.set('openBookId', String(openBookId));
-		} else {
-			params.delete('openBookId');
-		}
-
-		const query = params.toString();
-		const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-		window.history.replaceState(window.history.state, '', nextUrl);
-	}
 
 	async function loadArchived(): Promise<void> {
 		isLoading = true;
@@ -80,11 +63,10 @@
 		}
 
 		unarchivingBookId = book.id;
-		const result = await ZUI.updateLibraryBookState(book.id, { archived: false });
+		const result = await unarchiveLibraryBookAction(book);
 		unarchivingBookId = null;
 
 		if (!result.ok) {
-			toastStore.add(`Failed to restore "${book.title}": ${result.error.message}`, 'error');
 			return;
 		}
 
@@ -92,7 +74,6 @@
 		if (selectedBook?.id === book.id) {
 			closeDetailModal();
 		}
-		toastStore.add(`"${book.title}" restored to library`, 'success');
 	}
 
 	async function openDetailModal(book: LibraryBook): Promise<void> {
@@ -101,9 +82,9 @@
 		detailError = null;
 		showDetailModal = true;
 		isDetailLoading = true;
-		updateArchivedUrl(book.id);
+		replaceCurrentOpenBookId(book.id);
 
-		const result = await ZUI.getLibraryBookDetail(book.id);
+		const result = await loadLibraryBookDetail(book.id);
 		isDetailLoading = false;
 
 		if (!result.ok) {
@@ -120,7 +101,7 @@
 		selectedBookDetail = null;
 		detailError = null;
 		isDetailLoading = false;
-		updateArchivedUrl(null);
+		replaceCurrentOpenBookId(null);
 	}
 </script>
 

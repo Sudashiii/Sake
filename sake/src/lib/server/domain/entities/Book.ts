@@ -78,4 +78,5 @@ export interface UpdateBookMetadataInput {
 	year: number | null;
 	month: number | null;
 	day: number | null;
+	createdAt: string | null;
 }

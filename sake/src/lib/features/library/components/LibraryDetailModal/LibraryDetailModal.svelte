@@ -43,6 +43,7 @@
 		onSaveMetadataEdit: () => void;
 		onCancelMetadataEdit: () => void;
 		onImportCover: () => void;
+		onUploadCoverFile: (event: Event) => void;
 		onSetRating: (rating: number | null) => void;
 		onToggleShelfAssignment: (shelfId: number) => void;
 		onDownloadFromLibrary: () => void;
@@ -84,6 +85,7 @@
 		onSaveMetadataEdit,
 		onCancelMetadataEdit,
 		onImportCover,
+		onUploadCoverFile,
 		onSetRating,
 		onToggleShelfAssignment,
 		onDownloadFromLibrary,
@@ -143,6 +145,7 @@
 					{isUpdatingReadState}
 					{isDownloadingLibraryFile}
 					{isMovingToTrash}
+					onUploadCoverFile={onUploadCoverFile}
 					onSetRating={onSetRating}
 					onToggleShelfAssignment={onToggleShelfAssignment}
 					onDownloadFromLibrary={onDownloadFromLibrary}
@@ -168,6 +171,7 @@
 					{isEditingMetadata}
 					{isImportingCover}
 					onImportCover={onImportCover}
+					onUploadCoverFile={onUploadCoverFile}
 				/>
 			{:else}
 				<LibraryDetailDevicesTab

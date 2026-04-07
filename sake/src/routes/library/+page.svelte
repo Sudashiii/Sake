@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal/ConfirmModal.svelte';
 	import Loading from '$lib/components/Loading/Loading.svelte';
@@ -13,105 +11,17 @@
 	import LibraryStatsGrid from '$lib/features/library/components/LibraryStatsGrid/LibraryStatsGrid.svelte';
 	import LibraryToolbar from '$lib/features/library/components/LibraryToolbar/LibraryToolbar.svelte';
 	import TrashBookCard from '$lib/features/library/components/TrashBookCard/TrashBookCard.svelte';
-	import {
-		isSeriesSortPreference,
-		parseViewFromUrl
-	} from '$lib/features/library/libraryView';
-	import { LibraryDetailController } from '$lib/features/library/controllers/libraryDetailController.svelte';
-	import { LibraryListController } from '$lib/features/library/controllers/libraryListController.svelte';
-	import { LibraryUploadController } from '$lib/features/library/controllers/libraryUploadController.svelte';
+	import { isSeriesSortPreference } from '$lib/features/library/libraryView';
+	import { LibraryBulkActionsController } from '$lib/features/library/controllers/libraryBulkActionsController.svelte';
+	import { createLibraryPageControllers } from '$lib/features/library/controllers/libraryUrlState.svelte';
 	import styles from './page.module.scss';
 
-	const listController = new LibraryListController();
-	const detailController = new LibraryDetailController({
-		getCurrentView: () => listController.currentView,
-		setCurrentView: (view) => {
-			listController.currentView = view;
-		},
-		loadShelves: () => listController.loadShelves(),
-		loadLibrary: () => listController.loadLibrary(),
-		loadTrash: () => listController.loadTrash(),
-		updateLibraryUrl: (openBookId) => listController.updateLibraryUrl(openBookId),
-		openResetModal: (book) => listController.openResetModal(book),
-		applyBookMetadataUpdate: (updated) => listController.applyBookMetadataUpdate(updated),
-		setBookDownloadedState: (bookId, isDownloaded) =>
-			listController.setBookDownloadedState(bookId, isDownloaded),
-		setBookRatingState: (bookId, rating) => listController.setBookRatingState(bookId, rating),
-		setBookCoverState: (bookId, cover) => listController.setBookCoverState(bookId, cover),
-		setBookArchiveState: (bookId, archivedAt, excludeFromNewBooks) =>
-			listController.setBookArchiveState(bookId, archivedAt, excludeFromNewBooks),
-		setBookShelfIdsState: (bookId, shelfIds) => listController.setBookShelfIdsState(bookId, shelfIds),
-		getIsUpdatingShelves: () => listController.isUpdatingShelves,
-		setIsUpdatingShelves: (value) => {
-			listController.isUpdatingShelves = value;
-		}
-	});
-	const uploadController = new LibraryUploadController({
-		getCurrentView: () => listController.currentView,
-		onLibraryChanged: () => listController.loadLibrary()
-	});
-
-	let selectedShelfId = $derived.by(() => {
-		if ($page.url.pathname !== '/library') {
-			return null;
-		}
-		const raw = $page.url.searchParams.get('shelf');
-		if (!raw) {
-			return null;
-		}
-		const parsed = Number.parseInt(raw, 10);
-		return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-	});
-
-	$effect(() => {
-		listController.selectedShelfId = selectedShelfId;
-		listController.isDetailModalOpen = detailController.showDetailModal;
-	});
+	const { listController, detailController, uploadController, urlState } =
+		createLibraryPageControllers();
+	const bulkActionsController = new LibraryBulkActionsController(listController);
 
 	onMount(() => {
-		(async () => {
-			listController.initializeSortPreference();
-
-			const params = new URLSearchParams(window.location.search);
-			const requestedView = parseViewFromUrl(params.get('view'));
-			const openBookIdParam = params.get('openBookId');
-			const openBookId = openBookIdParam ? Number.parseInt(openBookIdParam, 10) : NaN;
-
-			if (requestedView === 'archived') {
-				const archivedTarget =
-					Number.isNaN(openBookId) ? '/archived' : `/archived?openBookId=${openBookId}`;
-				await goto(archivedTarget, { replaceState: true });
-				return;
-			}
-
-			if (requestedView === 'trash') {
-				await goto('/trash', { replaceState: true });
-				return;
-			}
-
-			if (requestedView === 'library') {
-				listController.currentView = 'library';
-			}
-
-			if (listController.currentView === 'trash') {
-				await listController.loadTrash();
-				return;
-			}
-
-			await listController.loadLibrary();
-			await listController.loadShelves();
-
-			if (!Number.isNaN(openBookId)) {
-				const candidate = listController.books.find(
-					(book) =>
-						book.id === openBookId &&
-						(listController.currentView !== 'archived' || Boolean(book.archived_at))
-				);
-				if (candidate) {
-					await detailController.openDetailModal(candidate);
-				}
-			}
-		})();
+		void urlState.initialize();
 	});
 </script>
 
@@ -164,20 +74,20 @@
 
 	{#if listController.currentView === 'library' && listController.selectionMode}
 		<LibraryBulkActionsBar
-			selectedCount={listController.selectedBookIds.length}
-			visibleCount={listController.filteredLibraryBooks.length}
-			shelves={listController.shelves}
-			isPending={listController.isBulkActionPending}
-			onDisableSelectionMode={listController.disableSelectionMode}
-			onSelectAllVisible={listController.selectAllVisibleBooks}
-			onClearSelection={listController.clearSelectedBooks}
-			onArchiveSelected={() => void listController.handleBulkArchiveSelected()}
-			onMarkReadSelected={() => void listController.handleBulkMarkReadSelected()}
-			onMarkUnreadSelected={() => void listController.handleBulkMarkUnreadSelected()}
-			onMoveToTrashSelected={listController.requestBulkMoveToTrash}
-			onResetDownloadsSelected={() => void listController.handleBulkResetDownloadsSelected()}
-			onAddSelectionToShelf={(shelfId) => void listController.handleBulkShelfSelection(shelfId, 'add')}
-			onRemoveSelectionFromShelf={(shelfId) => void listController.handleBulkShelfSelection(shelfId, 'remove')}
+			selectedCount={bulkActionsController.selectedCount}
+			visibleCount={bulkActionsController.visibleCount}
+			shelves={bulkActionsController.shelves}
+			isPending={bulkActionsController.isPending}
+			onDisableSelectionMode={bulkActionsController.disableSelectionMode}
+			onSelectAllVisible={bulkActionsController.selectAllVisible}
+			onClearSelection={bulkActionsController.clearSelection}
+			onArchiveSelected={bulkActionsController.archiveSelected}
+			onMarkReadSelected={bulkActionsController.markReadSelected}
+			onMarkUnreadSelected={bulkActionsController.markUnreadSelected}
+			onMoveToTrashSelected={bulkActionsController.requestMoveToTrash}
+			onResetDownloadsSelected={bulkActionsController.resetDownloadsSelected}
+			onAddSelectionToShelf={bulkActionsController.addSelectionToShelf}
+			onRemoveSelectionFromShelf={bulkActionsController.removeSelectionFromShelf}
 		/>
 	{/if}
 
@@ -319,7 +229,7 @@
 			{/if}
 		{:else if !listController.isLoading}
 			{#if listController.currentView === 'library'}
-				{#if selectedShelfId !== null}
+				{#if urlState.selectedShelfId !== null}
 					<LibraryEmptyState
 						title="No books on this shelf yet"
 						description="Add books using the bookmark icon on each book."
@@ -406,6 +316,7 @@
 		onSaveMetadataEdit={() => void detailController.saveMetadataEdit()}
 		onCancelMetadataEdit={detailController.cancelMetadataEdit.bind(detailController)}
 		onImportCover={() => void detailController.handleImportCover()}
+		onUploadCoverFile={detailController.handleCoverUploadChange}
 		onSetRating={(rating) => void detailController.handleSetRating(rating)}
 		onToggleShelfAssignment={(shelfId) => void detailController.handleToggleShelfAssignment(shelfId)}
 		onDownloadFromLibrary={() => void detailController.handleDownloadFromLibrary()}

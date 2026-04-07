@@ -8,8 +8,8 @@ import { validatePublicationDateParts } from '$lib/utils/publicationDate';
 
 interface UpdateLibraryBookMetadataInput {
 	bookId: number;
-	metadata: {
-		title?: string;
+		metadata: {
+			title?: string;
 		author?: string | null;
 		publisher?: string | null;
 		series?: string | null;
@@ -25,11 +25,12 @@ interface UpdateLibraryBookMetadataInput {
 		month?: number | null;
 		day?: number | null;
 		externalRating?: number | null;
-		externalRatingCount?: number | null;
-		googleBooksId?: string | null;
-		openLibraryKey?: string | null;
-		amazonAsin?: string | null;
-	};
+			externalRatingCount?: number | null;
+			googleBooksId?: string | null;
+			openLibraryKey?: string | null;
+			amazonAsin?: string | null;
+			createdAt?: string | null;
+		};
 }
 
 interface UpdateLibraryBookMetadataResult {
@@ -113,7 +114,8 @@ export class UpdateLibraryBookMetadataUseCase {
 			language: input.metadata.language === undefined ? existing.language : input.metadata.language,
 			year: nextPublicationDate.year,
 			month: nextPublicationDate.month,
-			day: nextPublicationDate.day
+			day: nextPublicationDate.day,
+			createdAt: input.metadata.createdAt === undefined ? existing.createdAt : input.metadata.createdAt
 		});
 
 		if (shouldDeleteManagedCover) {

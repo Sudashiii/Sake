@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { ZLibraryCredentials } from '$lib/server/application/ports/ZLibraryPort';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
@@ -214,6 +215,14 @@ export function buildManagedBookCoverStorageKey(fileName: string): string {
 
 export function buildManagedBookCoverUrl(fileName: string): string {
 	return `${LIBRARY_COVER_ROUTE_PREFIX}${encodeURIComponent(fileName)}`;
+}
+
+export function buildManagedBookCoverVersionToken(coverBuffer: Buffer): string {
+	return createHash('sha256').update(coverBuffer).digest('hex').slice(0, 12);
+}
+
+export function buildVersionedManagedBookCoverUrl(fileName: string, versionToken: string): string {
+	return `${buildManagedBookCoverUrl(fileName)}?v=${encodeURIComponent(versionToken)}`;
 }
 
 export function buildManagedBookCoverPrefix(bookStorageKey: string): string {
@@ -462,6 +471,7 @@ export class ManagedBookCoverService {
 
 		try {
 			const fileName = buildManagedBookCoverFileName(input.bookStorageKey, extension);
+			const versionToken = buildManagedBookCoverVersionToken(input.coverBuffer);
 			await this.storage.put(
 				buildManagedBookCoverStorageKey(fileName),
 				input.coverBuffer,
@@ -483,7 +493,7 @@ export class ManagedBookCoverService {
 			);
 
 			return {
-				managedUrl: buildManagedBookCoverUrl(fileName),
+				managedUrl: buildVersionedManagedBookCoverUrl(fileName, versionToken),
 				sourceUrl: input.sourceUrl
 			};
 		} catch (error: unknown) {
