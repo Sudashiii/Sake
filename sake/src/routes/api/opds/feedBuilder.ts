@@ -33,9 +33,25 @@ export function renderAcquisitionFeed(
 
   for (const book of books) {
     const bookUrl = `/api/opds/download/${encodeURIComponent(book.s3_storage_key)}`;
-    const coverUrl = book.cover
-      ? `/api/opds/covers/${encodeURIComponent(book.cover)}`
-      : null;
+
+    let coverUrl: string | null = null;
+    let coverMimeType = mimeTypes.default;
+
+    if (book.cover) {
+      // book.cover usually stores the full /api/library/covers/filename.jpg?v=123 route.
+      // We need to strip query params, get the actual filename, and re-append query params
+      // so it correctly routes through our OPDS endpoint without URL-encoding the '?v='
+      const parts = book.cover.split('?');
+      const basePath = parts[0] || "";
+      const queryParams = parts.length > 1 ? `?${parts[1]}` : "";
+      
+      const filename = basePath.split("/").pop() || "";
+      coverUrl = `/api/opds/covers/${encodeURIComponent(filename)}${queryParams}`;
+
+      const coverExt = filename.split(".").pop()?.toLowerCase() || "";
+      coverMimeType = mimeTypes[coverExt] || "image/jpeg";
+    }
+
     const mimeType =
       mimeTypes[book.extension?.toLowerCase() || ""] || mimeTypes.default;
     const bookUpdated = book.createdAt || now;
@@ -52,8 +68,8 @@ export function renderAcquisitionFeed(
 
     if (coverUrl) {
       xml += `
-    <link rel="http://opds-spec.org/image" href="${escapeXml(coverUrl)}" type="image/jpeg"/>
-    <link rel="http://opds-spec.org/image/thumbnail" href="${escapeXml(coverUrl)}" type="image/jpeg"/>`;
+    <link rel="http://opds-spec.org/image" href="${escapeXml(coverUrl)}" type="${escapeXml(coverMimeType)}"/>
+    <link rel="http://opds-spec.org/image/thumbnail" href="${escapeXml(coverUrl)}" type="${escapeXml(coverMimeType)}"/>`;
     }
 
     xml += `
