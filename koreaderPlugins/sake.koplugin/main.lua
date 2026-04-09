@@ -916,4 +916,8 @@ function Sake:onReaderReady()
     self:runProgressSync({ silent = true, silent_summary = true })
 end
 
+function Sake:onSake()
+    self.bookSync:syncNow()
+end
+
 return Sake
