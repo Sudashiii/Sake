@@ -65,6 +65,8 @@ This setup gives you:
 - Built-in KOReader plugin updater and release delivery
 - Flexible deployment with Docker images or local Bun development
 - libSQL plus S3-compatible storage support for managed or fully self-hosted setups
+- Progressive Web App for easier access
+- OPDS and WebDav Support
 
 ## What lives in this repo?
 
