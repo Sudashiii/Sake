@@ -26,10 +26,22 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		return errorResponse('Invalid JSON body', 400);
 	}
 
+	if (!Object.hasOwn(body, 'password')) {
+		return errorResponse('Password is required', 400);
+	}
+
+	if (typeof body.password !== 'string') {
+		return errorResponse('Password must be a string', 400);
+	}
+
+	if (body.password.length === 0) {
+		return errorResponse('Password is required', 400);
+	}
+
 	try {
 		const result = await setBasicAuthPasswordUseCase.execute({
 			userId: locals.auth.user.id,
-			password: typeof body.password === 'string' ? body.password : ''
+			password: body.password
 		});
 
 		if (!result.ok) {
