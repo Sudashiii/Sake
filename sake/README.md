@@ -20,7 +20,7 @@ Copy `.env.example` to `.env` and fill in required values.
 Main groups:
 - Generic libSQL database config (`LIBSQL_*`)
 - Generic S3-compatible storage config (`S3_*`)
-- Basic auth credentials for API access
+- Local account credentials for the web app plus optional OPDS/WebDAV Basic auth
 - Optional Vite dev host overrides (`VITE_ALLOWED_HOSTS`, comma-separated)
 - Optional search-provider activation (`ACTIVATED_PROVIDERS`, comma-separated; providers are opt-in, so leave unset/empty to disable search entirely)
 

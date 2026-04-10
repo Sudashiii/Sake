@@ -255,6 +255,10 @@
 	onDeleteDevice={settingsController.requestDeleteDevice}
 	onLogout={() => void handleAppLogout()}
 	onLogoutAll={() => void handleLogoutAllSessions()}
+	onSaveBasicAuthPassword={(password) => settingsController.handleSetBasicAuthPassword(password)}
+	onRemoveBasicAuthPassword={() => settingsController.handleClearBasicAuthPassword()}
 	isLoggingOut={settingsController.isLoggingOut}
 	isLoggingOutEverywhere={settingsController.isLoggingOutEverywhere}
+	isSavingBasicAuthPassword={settingsController.isSavingBasicAuthPassword}
+	isRemovingBasicAuthPassword={settingsController.isRemovingBasicAuthPassword}
 />

@@ -6,6 +6,7 @@ export const ZUIRoutes = {
 	authLogout: '/auth/logout',
 	authLogoutAll: '/auth/logout-all',
 	authMe: '/auth/me',
+	authBasicPassword: '/auth/basic-password',
 	authApiKeys: '/auth/api-keys',
 	authDeviceKey: '/auth/device-key',
 	devices: '/devices',

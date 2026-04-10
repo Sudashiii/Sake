@@ -5,5 +5,6 @@ export interface UserRepositoryPort {
 	getById(id: number): Promise<UserAccount | undefined>;
 	getByUsername(username: string): Promise<UserAccount | undefined>;
 	create(input: CreateUserAccountInput): Promise<UserAccount>;
+	setBasicAuthPasswordHash(userId: number, passwordHash: string | null, updatedAt: string): Promise<void>;
 	touchLastLogin(id: number, at: string): Promise<void>;
 }

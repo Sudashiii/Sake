@@ -51,6 +51,8 @@ export class SidebarSettingsController {
 	showDeleteDeviceModal = $state(false);
 	isLoggingOut = $state(false);
 	isLoggingOutEverywhere = $state(false);
+	isSavingBasicAuthPassword = $state(false);
+	isRemovingBasicAuthPassword = $state(false);
 
 	private previouslyFocusedSettingsElement: HTMLElement | null = null;
 
@@ -261,6 +263,44 @@ export class SidebarSettingsController {
 		}
 		ZLibAuthService.clearUserName();
 		this.closeModal();
+		return true;
+	};
+
+	handleSetBasicAuthPassword = async (password: string): Promise<boolean> => {
+		if (this.isSavingBasicAuthPassword) {
+			return false;
+		}
+
+		this.isSavingBasicAuthPassword = true;
+		const result = await AuthService.setBasicAuthPassword(password);
+		this.isSavingBasicAuthPassword = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to save Basic authentication password: ${result.error.message}`, 'error');
+			return false;
+		}
+
+		await this.loadCurrentUser();
+		toastStore.add('Basic authentication password saved', 'success');
+		return true;
+	};
+
+	handleClearBasicAuthPassword = async (): Promise<boolean> => {
+		if (this.isRemovingBasicAuthPassword) {
+			return false;
+		}
+
+		this.isRemovingBasicAuthPassword = true;
+		const result = await AuthService.clearBasicAuthPassword();
+		this.isRemovingBasicAuthPassword = false;
+
+		if (!result.ok) {
+			toastStore.add(`Failed to remove Basic authentication password: ${result.error.message}`, 'error');
+			return false;
+		}
+
+		await this.loadCurrentUser();
+		toastStore.add('Basic authentication password removed', 'success');
 		return true;
 	};
 }

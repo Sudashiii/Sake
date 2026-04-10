@@ -2,6 +2,7 @@ export interface UserAccount {
 	id: number;
 	username: string;
 	passwordHash: string;
+	basicAuthPasswordHash: string | null;
 	isDisabled: boolean;
 	createdAt: string;
 	updatedAt: string;

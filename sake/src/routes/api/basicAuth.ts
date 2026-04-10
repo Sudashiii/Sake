@@ -35,7 +35,16 @@ export async function requireBasicAuth(
 	}
 
 	const passwordMatches = await verifyPassword(password, user.passwordHash);
-	if (!passwordMatches) {
+	if (passwordMatches) {
+		return null;
+	}
+
+	if (!user.basicAuthPasswordHash) {
+		return unauthorizedResponse(realm);
+	}
+
+	const basicPasswordMatches = await verifyPassword(password, user.basicAuthPasswordHash);
+	if (!basicPasswordMatches) {
 		return unauthorizedResponse(realm);
 	}
 

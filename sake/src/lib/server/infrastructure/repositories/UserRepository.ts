@@ -12,6 +12,7 @@ function mapUserRow(row: {
 	id: number;
 	username: string;
 	passwordHash: string;
+	basicAuthPasswordHash: string | null;
 	isDisabled: boolean;
 	createdAt: string;
 	updatedAt: string;
@@ -21,6 +22,7 @@ function mapUserRow(row: {
 		id: row.id,
 		username: row.username,
 		passwordHash: row.passwordHash,
+		basicAuthPasswordHash: row.basicAuthPasswordHash,
 		isDisabled: row.isDisabled,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
@@ -32,6 +34,7 @@ const userSelection = {
 	id: users.id,
 	username: users.username,
 	passwordHash: users.passwordHash,
+	basicAuthPasswordHash: users.basicAuthPasswordHash,
 	isDisabled: users.isDisabled,
 	createdAt: users.createdAt,
 	updatedAt: users.updatedAt,
@@ -86,6 +89,16 @@ export class UserRepository implements UserRepositoryPort {
 		);
 
 		return mapUserRow(created);
+	}
+
+	async setBasicAuthPasswordHash(userId: number, passwordHash: string | null, updatedAt: string): Promise<void> {
+		await drizzleDb
+			.update(users)
+			.set({
+				basicAuthPasswordHash: passwordHash,
+				updatedAt
+			})
+			.where(eq(users.id, userId));
 	}
 
 	async touchLastLogin(id: number, at: string): Promise<void> {

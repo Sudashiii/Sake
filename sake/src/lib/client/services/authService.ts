@@ -8,6 +8,8 @@ import { bootstrapLocalAccount } from '../routes/bootstrapLocalAccount';
 import { getCurrentUser } from '../routes/getCurrentUser';
 import { logoutLocalAccount } from '../routes/logoutLocalAccount';
 import { logoutAllLocalAccount } from '../routes/logoutAllLocalAccount';
+import { setBasicAuthPassword as setBasicAuthPasswordRoute } from '../routes/setBasicAuthPassword';
+import { clearBasicAuthPassword as clearBasicAuthPasswordRoute } from '../routes/clearBasicAuthPassword';
 
 export interface AuthCredentials {
 	username: string;
@@ -64,5 +66,27 @@ export const AuthService = {
 
 	async logoutAllSessions(): Promise<Result<void, ApiError>> {
 		return logoutAllLocalAccount();
+	},
+
+	async setBasicAuthPassword(password: string): Promise<Result<boolean, ApiError>> {
+		if (!password) {
+			return err(ApiErrors.validation('Password is required'));
+		}
+
+		const result = await setBasicAuthPasswordRoute(password);
+		if (!result.ok) {
+			return err(result.error);
+		}
+
+		return ok(result.value.hasBasicAuthPassword);
+	},
+
+	async clearBasicAuthPassword(): Promise<Result<boolean, ApiError>> {
+		const result = await clearBasicAuthPasswordRoute();
+		if (!result.ok) {
+			return err(result.error);
+		}
+
+		return ok(result.value.hasBasicAuthPassword);
 	}
 } as const;

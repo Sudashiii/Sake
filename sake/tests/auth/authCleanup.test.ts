@@ -4,6 +4,8 @@ import { GetAuthStatusUseCase } from '$lib/server/application/use-cases/GetAuthS
 import { BootstrapLocalAccountUseCase } from '$lib/server/application/use-cases/BootstrapLocalAccountUseCase';
 import { LoginLocalAccountUseCase } from '$lib/server/application/use-cases/LoginLocalAccountUseCase';
 import { GetCurrentUserUseCase } from '$lib/server/application/use-cases/GetCurrentUserUseCase';
+import { SetBasicAuthPasswordUseCase } from '$lib/server/application/use-cases/SetBasicAuthPasswordUseCase';
+import { ClearBasicAuthPasswordUseCase } from '$lib/server/application/use-cases/ClearBasicAuthPasswordUseCase';
 import { LogoutLocalAccountUseCase } from '$lib/server/application/use-cases/LogoutLocalAccountUseCase';
 import { LogoutAllLocalSessionsUseCase } from '$lib/server/application/use-cases/LogoutAllLocalSessionsUseCase';
 import { CreateDeviceApiKeyUseCase } from '$lib/server/application/use-cases/CreateDeviceApiKeyUseCase';
@@ -46,6 +48,7 @@ class InMemoryUserRepository implements UserRepositoryPort {
 			id: this.nextId++,
 			username: input.username,
 			passwordHash: input.passwordHash,
+			basicAuthPasswordHash: null,
 			isDisabled: false,
 			createdAt: now,
 			updatedAt: now,
@@ -53,6 +56,16 @@ class InMemoryUserRepository implements UserRepositoryPort {
 		};
 		this.users.push(user);
 		return user;
+	}
+
+	async setBasicAuthPasswordHash(userId: number, passwordHash: string | null, updatedAt: string): Promise<void> {
+		const user = this.users.find((entry) => entry.id === userId);
+		if (!user) {
+			return;
+		}
+
+		user.basicAuthPasswordHash = passwordHash;
+		user.updatedAt = updatedAt;
 	}
 
 	async touchLastLogin(id: number, at: string): Promise<void> {
@@ -279,6 +292,39 @@ describe('auth cleanup regression coverage', () => {
 
 		const currentUser = expectOk(await currentUserUseCase.execute({ userId: bootstrapResult.user.id }));
 		assert.equal(currentUser.user.username, 'admin');
+		assert.equal(currentUser.user.hasBasicAuthPassword, false);
+	});
+
+	test('basic auth password can be set and cleared independently from the account password', async () => {
+		const users = new InMemoryUserRepository();
+		const currentUserUseCase = new GetCurrentUserUseCase(users);
+		const setBasicAuthPasswordUseCase = new SetBasicAuthPasswordUseCase(users);
+		const clearBasicAuthPasswordUseCase = new ClearBasicAuthPasswordUseCase(users);
+		const { user } = await seedUser(users);
+
+		const initialCurrentUser = expectOk(await currentUserUseCase.execute({ userId: user.id }));
+		assert.equal(initialCurrentUser.user.hasBasicAuthPassword, false);
+
+		const setResult = expectOk(
+			await setBasicAuthPasswordUseCase.execute({
+				userId: user.id,
+				password: 'separate-basic-auth-123'
+			})
+		);
+		assert.equal(setResult.hasBasicAuthPassword, true);
+
+		const afterSet = expectOk(await currentUserUseCase.execute({ userId: user.id }));
+		assert.equal(afterSet.user.hasBasicAuthPassword, true);
+
+		const clearResult = expectOk(
+			await clearBasicAuthPasswordUseCase.execute({
+				userId: user.id
+			})
+		);
+		assert.equal(clearResult.hasBasicAuthPassword, false);
+
+		const afterClear = expectOk(await currentUserUseCase.execute({ userId: user.id }));
+		assert.equal(afterClear.user.hasBasicAuthPassword, false);
 	});
 
 	test('login creates a session and logout revokes it', async () => {

@@ -20,6 +20,7 @@ interface LoginLocalAccountResult {
 		id: number;
 		username: string;
 		isDisabled: boolean;
+		hasBasicAuthPassword: boolean;
 		lastLoginAt: string | null;
 		createdAt: string;
 	};
@@ -76,6 +77,7 @@ export class LoginLocalAccountUseCase {
 				id: user.id,
 				username: user.username,
 				isDisabled: user.isDisabled,
+				hasBasicAuthPassword: Boolean(user.basicAuthPasswordHash),
 				lastLoginAt: nowIso,
 				createdAt: user.createdAt
 			},
