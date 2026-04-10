@@ -152,6 +152,15 @@ AI tools are allowed, but please use them responsibly.
 - keep AI-assisted PRs especially small and reviewable
 - when in doubt, slow down and narrow the change before opening the PR
 - avoid AI Co-Authors since this repo is not a free ad-space
+- avoid unnecessary AI comments like 
+
+<code>
+// gets the books <br />
+repository.getBooks();
+<br />
+</code>
+<br />
+
 
 AI can help with drafting, refactoring, and boilerplate, but contributors are still responsible for the final code, architecture fit, and correctness of the change.
 

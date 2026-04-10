@@ -51,8 +51,12 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
 		return method === 'GET';
 	}
 
+	if (pathname === '/api/dav' || pathname.startsWith('/api/dav/')) {
+		return method === 'PROPFIND';
+	}
+
 	if (pathname === '/api/opds' || pathname.startsWith('/api/opds/')) {
-                return method === 'GET';
+		return method === 'GET';
 	}
 
 	return false;
