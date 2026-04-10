@@ -20,7 +20,6 @@ export const GET: RequestHandler = async (event) => {
 
     const books = result.value.books;
 
-    // Get unique publishers
     const publishersSet = new Set<string>();
     for (const book of books) {
       if (book.publisher) {

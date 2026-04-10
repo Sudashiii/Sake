@@ -38,13 +38,10 @@ export function renderAcquisitionFeed(
     let coverMimeType = mimeTypes.default;
 
     if (book.cover) {
-      // book.cover usually stores the full /api/library/covers/filename.jpg?v=123 route.
-      // We need to strip query params, get the actual filename, and re-append query params
-      // so it correctly routes through our OPDS endpoint without URL-encoding the '?v='
-      const parts = book.cover.split('?');
+      const parts = book.cover.split("?");
       const basePath = parts[0] || "";
       const queryParams = parts.length > 1 ? `?${parts[1]}` : "";
-      
+
       const filename = basePath.split("/").pop() || "";
       coverUrl = `/api/opds/covers/${encodeURIComponent(filename)}${queryParams}`;
 
