@@ -70,6 +70,8 @@ import { GetAuthStatusUseCase } from '$lib/server/application/use-cases/GetAuthS
 import { BootstrapLocalAccountUseCase } from '$lib/server/application/use-cases/BootstrapLocalAccountUseCase';
 import { LoginLocalAccountUseCase } from '$lib/server/application/use-cases/LoginLocalAccountUseCase';
 import { GetCurrentUserUseCase } from '$lib/server/application/use-cases/GetCurrentUserUseCase';
+import { SetBasicAuthPasswordUseCase } from '$lib/server/application/use-cases/SetBasicAuthPasswordUseCase';
+import { ClearBasicAuthPasswordUseCase } from '$lib/server/application/use-cases/ClearBasicAuthPasswordUseCase';
 import { LogoutLocalAccountUseCase } from '$lib/server/application/use-cases/LogoutLocalAccountUseCase';
 import { LogoutAllLocalSessionsUseCase } from '$lib/server/application/use-cases/LogoutAllLocalSessionsUseCase';
 import { CreateDeviceApiKeyUseCase } from '$lib/server/application/use-cases/CreateDeviceApiKeyUseCase';
@@ -234,6 +236,8 @@ export const loginLocalAccountUseCase = new LoginLocalAccountUseCase(
 	userSessionRepository
 );
 export const getCurrentUserUseCase = new GetCurrentUserUseCase(userRepository);
+export const setBasicAuthPasswordUseCase = new SetBasicAuthPasswordUseCase(userRepository);
+export const clearBasicAuthPasswordUseCase = new ClearBasicAuthPasswordUseCase(userRepository);
 export const logoutLocalAccountUseCase = new LogoutLocalAccountUseCase(userSessionRepository);
 export const logoutAllLocalSessionsUseCase = new LogoutAllLocalSessionsUseCase(userSessionRepository);
 export const createDeviceApiKeyUseCase = new CreateDeviceApiKeyUseCase(

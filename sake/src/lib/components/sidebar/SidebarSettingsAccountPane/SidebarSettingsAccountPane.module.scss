@@ -53,8 +53,71 @@
 		color: var(--color-text-muted);
 	}
 
+	:global(.settings-basic-auth-status) {
+		margin: 0;
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+	}
+
+	:global(.settings-basic-auth-form) {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	:global(.settings-basic-auth-input-wrap) {
+		position: relative;
+	}
+
+	:global(.settings-basic-auth-label) {
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: var(--color-text-primary);
+	}
+
+	:global(.settings-basic-auth-input) {
+		width: 100%;
+		padding: 0.75rem 3rem 0.75rem 0.875rem;
+		border: 1px solid var(--color-border);
+		border-radius: 0.5rem;
+		background: var(--color-surface-elevated, rgba(255, 255, 255, 0.02));
+		color: var(--color-text-primary);
+		font-size: 0.875rem;
+		line-height: 1.5;
+	}
+
+	:global(.settings-basic-auth-generate-btn) {
+		position: absolute;
+		top: 50%;
+		right: 0.5rem;
+		transform: translateY(-50%);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		border: none;
+		border-radius: 0.375rem;
+		background: transparent;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: background 0.16s ease, color 0.16s ease;
+
+		&:hover:not(:disabled) {
+			background: rgba(255, 255, 255, 0.06);
+			color: var(--color-text-primary);
+		}
+
+		&:disabled {
+			opacity: 0.58;
+			cursor: not-allowed;
+		}
+	}
+
 	:global(.settings-logout-btn),
-	:global(.settings-logout-all-btn) {
+	:global(.settings-logout-all-btn),
+	:global(.settings-basic-auth-save-btn),
+	:global(.settings-basic-auth-remove-btn) {
 		width: 100%;
 		padding: 0.625rem 1rem;
 		border-radius: 0.5rem;
@@ -81,6 +144,26 @@
 
 		&:hover:not(:disabled) {
 			background: rgba(30, 34, 48, 0.8);
+		}
+	}
+
+	:global(.settings-basic-auth-save-btn) {
+		border: none;
+		background: #1e2230;
+		color: #c4c1bb;
+
+		&:hover:not(:disabled) {
+			background: rgba(30, 34, 48, 0.8);
+		}
+	}
+
+	:global(.settings-basic-auth-remove-btn) {
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-text-muted);
+
+		&:hover:not(:disabled) {
+			background: rgba(255, 255, 255, 0.04);
 		}
 	}
 

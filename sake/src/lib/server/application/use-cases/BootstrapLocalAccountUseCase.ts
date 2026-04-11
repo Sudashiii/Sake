@@ -20,6 +20,7 @@ interface BootstrapLocalAccountResult {
 		id: number;
 		username: string;
 		isDisabled: boolean;
+		hasBasicAuthPassword: boolean;
 		lastLoginAt: string | null;
 		createdAt: string;
 	};
@@ -84,6 +85,7 @@ export class BootstrapLocalAccountUseCase {
 				id: user.id,
 				username: user.username,
 				isDisabled: user.isDisabled,
+				hasBasicAuthPassword: false,
 				lastLoginAt: nowIso,
 				createdAt: user.createdAt
 			},

@@ -11,6 +11,7 @@ interface GetCurrentUserResult {
 		id: number;
 		username: string;
 		isDisabled: boolean;
+		hasBasicAuthPassword: boolean;
 		lastLoginAt: string | null;
 		createdAt: string;
 	};
@@ -31,6 +32,7 @@ export class GetCurrentUserUseCase {
 				id: user.id,
 				username: user.username,
 				isDisabled: user.isDisabled,
+				hasBasicAuthPassword: Boolean(user.basicAuthPasswordHash),
 				lastLoginAt: user.lastLoginAt,
 				createdAt: user.createdAt
 			}

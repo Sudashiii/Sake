@@ -55,8 +55,12 @@
 		onDeleteDevice: (deviceId: string) => void;
 		onLogout: () => void;
 		onLogoutAll: () => void;
+		onSaveBasicAuthPassword: (password: string) => Promise<boolean>;
+		onRemoveBasicAuthPassword: () => Promise<boolean>;
 		isLoggingOut?: boolean;
 		isLoggingOutEverywhere?: boolean;
+		isSavingBasicAuthPassword?: boolean;
+		isRemovingBasicAuthPassword?: boolean;
 	}
 
 	let {
@@ -94,8 +98,12 @@
 		onDeleteDevice,
 		onLogout,
 		onLogoutAll,
+		onSaveBasicAuthPassword,
+		onRemoveBasicAuthPassword,
 		isLoggingOut = false,
-		isLoggingOutEverywhere = false
+		isLoggingOutEverywhere = false,
+		isSavingBasicAuthPassword = false,
+		isRemovingBasicAuthPassword = false
 	}: Props = $props();
 
 	let modalEl = $state<HTMLDivElement | null>(null);
@@ -183,6 +191,10 @@
 							onLogoutAll={onLogoutAll}
 							{isLoggingOut}
 							{isLoggingOutEverywhere}
+							onSaveBasicAuthPassword={onSaveBasicAuthPassword}
+							onRemoveBasicAuthPassword={onRemoveBasicAuthPassword}
+							{isSavingBasicAuthPassword}
+							{isRemovingBasicAuthPassword}
 						/>
 					{:else if activeSection === 'devices'}
 						<SidebarSettingsDevicesPane
