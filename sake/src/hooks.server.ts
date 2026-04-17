@@ -187,11 +187,11 @@ const requestLogHandle: Handle = async ({ event, resolve }) => {
 const cookieHandle: Handle = async ({ event, resolve }) => {
 	triggerTrashPurgeIfDue();
 
-	const userId = event.cookies.get('userId');
-	const userKey = event.cookies.get('userKey');
+	const userId = event.cookies.get('userId') || process.env.ZLIB_USER_ID;
+	const userKey = event.cookies.get('userKey') || process.env.ZLIB_USER_KEY;
 
 	if (userId && userKey) {
-		event.locals.zuser = { userId, userKey }; 
+		event.locals.zuser = { userId, userKey };
 	}
 
 	return resolve(event);

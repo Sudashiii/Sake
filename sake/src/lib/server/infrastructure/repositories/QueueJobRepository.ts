@@ -86,7 +86,7 @@ export class QueueJobRepository {
 			publisher: persistedJob.publisher,
 			series: persistedJob.series,
 			volume: persistedJob.volume,
-			seriesIndex: persistedJob.seriesIndex,
+			seriesIndex: persistedJob.seriesIndex ?? 1,
 			edition: persistedJob.edition,
 			identifier: persistedJob.identifier,
 			pages: persistedJob.pages,
