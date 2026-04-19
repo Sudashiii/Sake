@@ -10,7 +10,8 @@ import { json } from '@sveltejs/kit';
 // -------------------------------
 // POST /api/zlibrary/search
 // -------------------------------
-export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, locals, cookies } = event;
 	const requestLogger = getRequestLogger(locals);
 	requestLogger.warn(
 		{
@@ -48,7 +49,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 				},
 				'Search rejected'
 			);
-			return zlibraryAuthFailureResponse(searchResult.error.message, searchResult.error.status, cookies, url);
+			return zlibraryAuthFailureResponse(searchResult.error.message, searchResult.error.status, cookies, event);
 		}
 
 		return json(searchResult.value, {

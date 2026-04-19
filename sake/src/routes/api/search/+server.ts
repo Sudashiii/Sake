@@ -9,7 +9,8 @@ import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
-export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, locals, cookies } = event;
 	const requestLogger = getRequestLogger(locals);
 
 	let parsedRequest: SearchBooksRequest;
@@ -43,7 +44,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 				'Search rejected'
 			);
 			if (locals.zuser && isAuthenticationFailureStatus(result.error.status)) {
-				return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, url);
+				return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, event);
 			}
 			return errorResponse(result.error.message, result.error.status);
 		}

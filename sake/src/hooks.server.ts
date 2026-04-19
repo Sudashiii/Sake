@@ -266,7 +266,7 @@ const authHandle: Handle = async ({ event, resolve }) => {
 
 	const hasStaleSessionCookie = Boolean(sessionToken) && !apiKey && !event.locals.auth;
 	if (hasStaleSessionCookie) {
-		clearSakeSessionCookie(cookies, url);
+		clearSakeSessionCookie(cookies, event);
 		event.locals.logger?.info(
 			{ event: 'auth.session_cookie.cleared', pathname, method },
 			'Cleared stale session cookie'

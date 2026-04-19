@@ -8,7 +8,8 @@ import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloa
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
-export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, locals, cookies } = event;
 	const requestLogger = getRequestLogger(locals);
 	let body: ZDownloadBookRequest;
 	try {
@@ -51,7 +52,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 				},
 				'Download rejected'
 			);
-			return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, url);
+			return zlibraryAuthFailureResponse(result.error.message, result.error.status, cookies, event);
 		}
 
 		if (body.downloadToDevice === false) {

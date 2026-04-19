@@ -7,7 +7,8 @@ import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ locals, cookies, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { locals, cookies } = event;
 	const requestLogger = getRequestLogger(locals);
 	const sessionToken = cookies.get(SAKE_SESSION_COOKIE_NAME);
 
@@ -28,8 +29,8 @@ export const POST: RequestHandler = async ({ locals, cookies, url }) => {
 			return errorResponse(result.error.message, result.error.status);
 		}
 
-		clearSakeSessionCookie(cookies, url);
-		clearZlibraryCookies(cookies, url);
+		clearSakeSessionCookie(cookies, event);
+		clearZlibraryCookies(cookies, event);
 
 		return json({ success: true });
 	} catch (err: unknown) {

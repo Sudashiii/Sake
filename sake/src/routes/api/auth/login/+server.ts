@@ -8,7 +8,8 @@ import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, locals, cookies } = event;
 	const requestLogger = getRequestLogger(locals);
 	const ipAddress = getRequestIp(request);
 	let body: { username?: unknown; password?: unknown };
@@ -66,8 +67,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 			return errorResponse(result.error.message, result.error.status);
 		}
 
-		setSakeSessionCookie(cookies, url, result.value.sessionToken, result.value.sessionExpiresAt);
-		clearZlibraryCookies(cookies, url);
+		setSakeSessionCookie(cookies, event, result.value.sessionToken, result.value.sessionExpiresAt);
+		clearZlibraryCookies(cookies, event);
 
 		return json({
 			success: true,
