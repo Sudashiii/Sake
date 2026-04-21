@@ -84,6 +84,10 @@ import { DeleteDeviceUseCase } from '$lib/server/application/use-cases/DeleteDev
 import { GetAppVersionUseCase } from '$lib/server/application/use-cases/GetAppVersionUseCase';
 import { getActivatedSearchProviders } from '$lib/server/config/activatedProviders';
 import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
+import { MetadataAggregatorService } from '$lib/server/application/services/MetadataAggregatorService';
+import { ExternalBookMetadataService } from '$lib/server/application/services/ExternalBookMetadataService';
+import { GoogleBooksMetadataProvider } from '$lib/server/infrastructure/metadata-providers/googleBooksMetadataProvider';
+import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata-providers/openLibraryMetadataProvider';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
@@ -113,12 +117,22 @@ export const deviceProgressDownloadRepository = new DeviceProgressDownloadReposi
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
 export const managedBookCoverService = new ManagedBookCoverService(storage);
 
+export const baselineMetadataAggregator = new MetadataAggregatorService([
+	new GoogleBooksMetadataProvider(),
+	new OpenLibraryMetadataProvider()
+]);
+export const externalBookMetadataService = new ExternalBookMetadataService(
+	baselineMetadataAggregator
+);
+
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
 	bookRepository,
 	storage,
 	() => DavUploadServiceFactory.createS3(),
-	managedBookCoverService
+	managedBookCoverService,
+	undefined,
+	externalBookMetadataService
 );
 export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
@@ -152,7 +166,8 @@ export const getLibraryBookDetailUseCase = new GetLibraryBookDetailUseCase(
 	shelfRepository
 );
 export const refetchLibraryBookMetadataUseCase = new RefetchLibraryBookMetadataUseCase(
-	bookRepository
+	bookRepository,
+	externalBookMetadataService
 );
 export const getNewBooksForDeviceUseCase = new GetNewBooksForDeviceUseCase(bookRepository);
 export const confirmDownloadUseCase = new ConfirmDownloadUseCase(deviceDownloadRepository);
