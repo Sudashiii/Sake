@@ -7,7 +7,8 @@ import type {
 } from '$lib/server/application/ports/MetadataProviderPort';
 import type { MetadataProviderId } from '$lib/types/Metadata/Provider';
 import {
-	asNumber,
+	asNonNegativeNumber,
+	asPositiveNumber,
 	asString,
 	languageScore,
 	languageTokens,
@@ -102,7 +103,7 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 				const hasAuthorMatch =
 					normalizedAuthor.length > 0 &&
 					authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
-				const pages = asNumber(doc.number_of_pages_median);
+				const pages = asPositiveNumber(doc.number_of_pages_median);
 				const langScoreVal = languageScore(targetLangTokens, doc.language ?? []);
 				return (hasTitleMatch ? 5 : 0) + (hasAuthorMatch ? 3 : 0) + (pages ? 2 : 0) + langScoreVal;
 			};
@@ -146,11 +147,11 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 					publisher: asString(doc.publisher?.[0]),
 					publishedDate: { year: null, month: null, day: null },
 					language: asString(doc.language?.[0]),
-					pageCount: asNumber(doc.number_of_pages_median),
+					pageCount: asPositiveNumber(doc.number_of_pages_median),
 					covers: coverUrl ? [{ url: coverUrl, source: 'openlibrary' }] : [],
 					rating: {
-						average: asNumber(doc.ratings_average),
-						count: asNumber(doc.ratings_count)
+						average: asNonNegativeNumber(doc.ratings_average),
+						count: asNonNegativeNumber(doc.ratings_count)
 					},
 					sourceUrl: doc.key ? `https://openlibrary.org${doc.key}` : null
 				} satisfies MetadataCandidate;

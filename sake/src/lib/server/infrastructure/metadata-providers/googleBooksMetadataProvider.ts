@@ -7,7 +7,8 @@ import type {
 } from '$lib/server/application/ports/MetadataProviderPort';
 import type { MetadataProviderId } from '$lib/types/Metadata/Provider';
 import {
-	asNumber,
+	asNonNegativeNumber,
+	asPositiveNumber,
 	asString,
 	languageScore,
 	languageTokens,
@@ -113,7 +114,7 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 				const hasAuthorMatch =
 					normalizedAuthor.length > 0 &&
 					authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
-				const pages = asNumber(item.volumeInfo?.pageCount);
+				const pages = asPositiveNumber(item.volumeInfo?.pageCount);
 				const langScoreVal = languageScore(targetLangTokens, [item.volumeInfo?.language]);
 				return (hasTitleMatch ? 5 : 0) + (hasAuthorMatch ? 3 : 0) + (pages ? 2 : 0) + langScoreVal;
 			};
@@ -151,11 +152,11 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 					publisher: asString(item.volumeInfo?.publisher),
 					publishedDate: pubDate,
 					language: asString(item.volumeInfo?.language),
-					pageCount: asNumber(item.volumeInfo?.pageCount),
+					pageCount: asPositiveNumber(item.volumeInfo?.pageCount),
 					covers: coverUrl ? [{ url: coverUrl, source: 'googlebooks' }] : [],
 					rating: {
-						average: asNumber(item.volumeInfo?.averageRating),
-						count: asNumber(item.volumeInfo?.ratingsCount)
+						average: asNonNegativeNumber(item.volumeInfo?.averageRating),
+						count: asNonNegativeNumber(item.volumeInfo?.ratingsCount)
 					},
 					sourceUrl: asString(item.volumeInfo?.infoLink)
 				} satisfies MetadataCandidate;

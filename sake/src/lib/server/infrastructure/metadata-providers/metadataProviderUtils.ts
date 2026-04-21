@@ -4,8 +4,12 @@ export function asString(value: unknown): string | null {
 	return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-export function asNumber(value: unknown): number | null {
+export function asPositiveNumber(value: unknown): number | null {
 	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function asNonNegativeNumber(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 export function pickFirstValue<T>(...values: Array<T | null | undefined>): T | null {
