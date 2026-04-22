@@ -2,17 +2,19 @@ import type { MetadataProviderPort } from '$lib/server/application/ports/Metadat
 import type { MetadataProviderId } from '$lib/types/Metadata/Provider';
 import { GoogleBooksMetadataProvider } from './googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from './openLibraryMetadataProvider';
+import { HardcoverMetadataProvider } from './hardcoverMetadataProvider';
 
-export function createMetadataProvider(providerId: MetadataProviderId): MetadataProviderPort {
+export function createMetadataProvider(providerId: MetadataProviderId): MetadataProviderPort | null {
 	switch (providerId) {
 		case 'googlebooks':
 			return new GoogleBooksMetadataProvider();
 		case 'openlibrary':
 			return new OpenLibraryMetadataProvider();
 		case 'hardcover':
-			throw new Error('Hardcover metadata provider is not yet implemented');
+			// Only instantiate when token is configured; silently skipped otherwise
+			return process.env.HARDCOVER_API_TOKEN?.trim() ? new HardcoverMetadataProvider() : null;
 		case 'isbndb':
-			throw new Error('ISBNdb metadata provider is not yet implemented');
+			return null; // not yet implemented — Phase 6
 		default: {
 			const exhaustiveId: never = providerId;
 			throw new Error(`Unsupported metadata provider: ${exhaustiveId}`);
@@ -21,5 +23,8 @@ export function createMetadataProvider(providerId: MetadataProviderId): Metadata
 }
 
 export function createMetadataProviders(providerIds: MetadataProviderId[]): MetadataProviderPort[] {
-	return providerIds.map((id) => createMetadataProvider(id));
+	return providerIds.flatMap((id) => {
+		const provider = createMetadataProvider(id);
+		return provider ? [provider] : [];
+	});
 }
