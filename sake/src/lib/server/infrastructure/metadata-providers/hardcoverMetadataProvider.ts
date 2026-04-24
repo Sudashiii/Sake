@@ -17,45 +17,29 @@ import {
 } from './metadataProviderUtils';
 
 // ---------------------------------------------------------------------------
-// Token-bucket rate limiter — 60 requests per minute (Hardcover's stated limit)
+// Smoothed rate limiter — 60 requests per minute (Hardcover's stated limit)
 // ---------------------------------------------------------------------------
 
 const RATE_LIMIT_PER_MINUTE = 60;
-const REFILL_INTERVAL_MS = (60 / RATE_LIMIT_PER_MINUTE) * 1_000; // ms per token = 1000ms
+const REFILL_INTERVAL_MS = (60 / RATE_LIMIT_PER_MINUTE) * 1_000;
 
-class TokenBucket {
-	private tokens: number;
-	private lastRefill: number;
-
-	constructor(private readonly capacity: number) {
-		this.tokens = capacity;
-		this.lastRefill = Date.now();
-	}
-
-	private refill(): void {
-		const now = Date.now();
-		const elapsed = now - this.lastRefill;
-		const newTokens = Math.floor(elapsed / REFILL_INTERVAL_MS);
-		if (newTokens > 0) {
-			this.tokens = Math.min(this.capacity, this.tokens + newTokens);
-			this.lastRefill = now;
-		}
-	}
+class RequestRateLimiter {
+	private nextAllowedAt = 0;
 
 	tryConsume(): boolean {
-		this.refill();
-		if (this.tokens > 0) {
-			this.tokens--;
+		const now = Date.now();
+		if (now >= this.nextAllowedAt) {
+			this.nextAllowedAt = now + REFILL_INTERVAL_MS;
 			return true;
 		}
 		return false;
 	}
 }
 
-const rateLimiter = new TokenBucket(RATE_LIMIT_PER_MINUTE);
+const rateLimiter = new RequestRateLimiter();
 
 // ---------------------------------------------------------------------------
-// GraphQL query — kept to depth ≤ 3 per Hardcover's documented limit
+// GraphQL queries — keep selections narrow and only request fields Sake maps.
 // ---------------------------------------------------------------------------
 
 const SEARCH_QUERY = /* GraphQL */ `
@@ -283,6 +267,15 @@ function mapBookToCandidate(book: HardcoverBook, query: MetadataQuery): Metadata
 const HARDCOVER_API_URL = 'https://api.hardcover.app/v1/graphql';
 const UPSTREAM_TIMEOUT_MS = 30_000;
 const USER_AGENT = 'Sake/1.0 (+https://github.com/Sudashiii/Sake)';
+const DEFAULT_QUERY_LIMIT = 5;
+const MAX_QUERY_LIMIT = 10;
+
+function normalizeLimit(limit: number | undefined): number {
+	if (limit == null || !Number.isFinite(limit)) {
+		return DEFAULT_QUERY_LIMIT;
+	}
+	return Math.min(Math.max(Math.floor(limit), 1), MAX_QUERY_LIMIT);
+}
 
 async function graphqlFetch<T>(
 	token: string,
@@ -362,7 +355,7 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 			return apiError('Hardcover rate limit reached; try again shortly', 429);
 		}
 
-		const limit = query.limit ?? 5;
+		const limit = normalizeLimit(query.limit);
 
 		try {
 			let books: HardcoverBook[];

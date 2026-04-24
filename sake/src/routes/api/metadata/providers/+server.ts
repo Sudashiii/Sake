@@ -1,11 +1,10 @@
 import { activatedMetadataProviders } from '$lib/server/application/composition';
-import { isMetadataLookupEnabled } from '$lib/server/config/activatedMetadataProviders';
 import { errorResponse } from '$lib/server/http/api';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
-	if (!isMetadataLookupEnabled()) {
+	if (activatedMetadataProviders.length === 0) {
 		return errorResponse('Metadata lookup is not enabled', 404);
 	}
 
