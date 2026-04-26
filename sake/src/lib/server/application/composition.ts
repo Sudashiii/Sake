@@ -88,6 +88,9 @@ import { MetadataAggregatorService } from '$lib/server/application/services/Meta
 import { ExternalBookMetadataService } from '$lib/server/application/services/ExternalBookMetadataService';
 import { GoogleBooksMetadataProvider } from '$lib/server/infrastructure/metadata-providers/googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata-providers/openLibraryMetadataProvider';
+import { createMetadataProviders } from '$lib/server/infrastructure/metadata-providers/metadataProviderFactory';
+import { getActivatedMetadataProviders } from '$lib/server/config/activatedMetadataProviders';
+import { SearchMetadataCandidatesUseCase } from '$lib/server/application/use-cases/SearchMetadataCandidatesUseCase';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
@@ -124,6 +127,9 @@ export const baselineMetadataAggregator = new MetadataAggregatorService([
 export const externalBookMetadataService = new ExternalBookMetadataService(
 	baselineMetadataAggregator
 );
+
+export const activatedMetadataProviders = createMetadataProviders(getActivatedMetadataProviders());
+export const activatedMetadataAggregator = new MetadataAggregatorService(activatedMetadataProviders);
 
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
@@ -297,3 +303,7 @@ export const updateShelfRulesUseCase = new UpdateShelfRulesUseCase(shelfReposito
 export const reorderShelvesUseCase = new ReorderShelvesUseCase(shelfRepository);
 export const deleteShelfUseCase = new DeleteShelfUseCase(shelfRepository);
 export const setBookShelvesUseCase = new SetBookShelvesUseCase(bookRepository, shelfRepository);
+export const searchMetadataCandidatesUseCase = new SearchMetadataCandidatesUseCase(
+	activatedMetadataAggregator,
+	bookRepository
+);
