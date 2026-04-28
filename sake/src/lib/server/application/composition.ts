@@ -91,6 +91,7 @@ import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata
 import { createMetadataProviders } from '$lib/server/infrastructure/metadata-providers/metadataProviderFactory';
 import { getActivatedMetadataProviders } from '$lib/server/config/activatedMetadataProviders';
 import { SearchMetadataCandidatesUseCase } from '$lib/server/application/use-cases/SearchMetadataCandidatesUseCase';
+import { ApplyMetadataCandidateUseCase } from '$lib/server/application/use-cases/ApplyMetadataCandidateUseCase';
 import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
 import { GetLibraryCoverUseCase } from '$lib/server/application/use-cases/GetLibraryCoverUseCase';
 import { ImportLibraryBookCoverUseCase } from '$lib/server/application/use-cases/ImportLibraryBookCoverUseCase';
@@ -306,4 +307,8 @@ export const setBookShelvesUseCase = new SetBookShelvesUseCase(bookRepository, s
 export const searchMetadataCandidatesUseCase = new SearchMetadataCandidatesUseCase(
 	activatedMetadataAggregator,
 	bookRepository
+);
+export const applyMetadataCandidateUseCase = new ApplyMetadataCandidateUseCase(
+	bookRepository,
+	managedBookCoverService
 );
