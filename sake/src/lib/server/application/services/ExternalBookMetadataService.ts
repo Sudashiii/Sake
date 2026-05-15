@@ -1,4 +1,6 @@
 import { MetadataAggregatorService } from '$lib/server/application/services/MetadataAggregatorService';
+import { sanitizeMetadataDescription } from '$lib/server/application/services/MetadataDescriptionSanitizer';
+import type { MetadataCandidate } from '$lib/server/application/ports/MetadataProviderPort';
 import { GoogleBooksMetadataProvider } from '$lib/server/infrastructure/metadata-providers/googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata-providers/openLibraryMetadataProvider';
 
@@ -49,6 +51,10 @@ function extractAmazonAsin(identifier: string | null): string | null {
 	return null;
 }
 
+function candidateDescription(candidate: MetadataCandidate): string | null {
+	return sanitizeMetadataDescription(candidate.description, candidate.descriptionFormat);
+}
+
 export class ExternalBookMetadataService {
 	private readonly aggregator: MetadataAggregatorService;
 
@@ -83,7 +89,7 @@ export class ExternalBookMetadataService {
 			openLibraryKey: olCandidate?.identifiers.openLibraryKey ?? null,
 			amazonAsin: extractAmazonAsin(input.identifier),
 			cover: bestCoverUrl,
-			description: pickFirst(...candidates.map((c) => c.description)),
+			description: pickFirst(...candidates.map(candidateDescription)),
 			publisher: pickFirst(...candidates.map((c) => c.publisher)),
 			series: pickFirst(...candidates.map((c) => c.series)),
 			volume: null,

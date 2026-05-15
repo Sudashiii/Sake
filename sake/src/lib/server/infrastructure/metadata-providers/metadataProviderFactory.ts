@@ -3,6 +3,7 @@ import type { MetadataProviderId } from '$lib/types/Metadata/Provider';
 import { GoogleBooksMetadataProvider } from './googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from './openLibraryMetadataProvider';
 import { HardcoverMetadataProvider } from './hardcoverMetadataProvider';
+import { IsbnDbMetadataProvider } from './isbndbMetadataProvider';
 
 export function createMetadataProvider(providerId: MetadataProviderId): MetadataProviderPort | null {
 	switch (providerId) {
@@ -14,7 +15,8 @@ export function createMetadataProvider(providerId: MetadataProviderId): Metadata
 			// Only instantiate when token is configured; silently skipped otherwise
 			return process.env.HARDCOVER_API_TOKEN?.trim() ? new HardcoverMetadataProvider() : null;
 		case 'isbndb':
-			return null; // not yet implemented — Phase 6
+			// Only instantiate when key is configured; silently skipped otherwise
+			return process.env.ISBNDB_API_KEY?.trim() ? new IsbnDbMetadataProvider() : null;
 		default: {
 			const exhaustiveId: never = providerId;
 			throw new Error(`Unsupported metadata provider: ${exhaustiveId}`);

@@ -14,6 +14,7 @@ import {
 	languageTokens,
 	normalizeForMatch
 } from './metadataProviderUtils';
+import { normalizeAuthorForMatch } from '$lib/utils/author';
 
 const TOUCHED_FIELDS = new Set([
 	'title',
@@ -94,7 +95,7 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 			}
 
 			const normalizedTitle = normalizeForMatch(query.title);
-			const normalizedAuthor = normalizeForMatch(query.author);
+			const normalizedAuthor = normalizeAuthorForMatch(query.author);
 
 			const scoreDoc = (doc: (typeof docs)[number]): number => {
 				const title = normalizeForMatch(doc.title);
@@ -102,7 +103,7 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 				const hasTitleMatch = normalizedTitle.length > 0 && title.includes(normalizedTitle);
 				const hasAuthorMatch =
 					normalizedAuthor.length > 0 &&
-					authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
+					authors.some((a) => normalizeAuthorForMatch(a).includes(normalizedAuthor));
 				const pages = asPositiveNumber(doc.number_of_pages_median);
 				const langScoreVal = languageScore(targetLangTokens, doc.language ?? []);
 				return (hasTitleMatch ? 5 : 0) + (hasAuthorMatch ? 3 : 0) + (pages ? 2 : 0) + langScoreVal;

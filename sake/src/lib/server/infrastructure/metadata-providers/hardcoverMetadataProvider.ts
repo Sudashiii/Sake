@@ -15,6 +15,7 @@ import {
 	normalizeForMatch,
 	parseProviderPublicationDate
 } from './metadataProviderUtils';
+import { normalizeAuthorForMatch } from '$lib/utils/author';
 
 // ---------------------------------------------------------------------------
 // Smoothed rate limiter — 60 requests per minute (Hardcover's stated limit)
@@ -194,14 +195,14 @@ function mapBookToCandidate(book: HardcoverBook, query: MetadataQuery): Metadata
 	const subjects = parseTags(book.cached_tags);
 
 	const normalizedTitle = normalizeForMatch(query.title);
-	const normalizedAuthor = normalizeForMatch(query.author);
+	const normalizedAuthor = normalizeAuthorForMatch(query.author);
 	const targetLangTokens = languageTokens(query.language);
 
 	const titleMatch =
 		normalizedTitle.length > 0 && normalizeForMatch(book.title).includes(normalizedTitle);
 	const authorMatch =
 		normalizedAuthor.length > 0 &&
-		authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
+		authors.some((a) => normalizeAuthorForMatch(a).includes(normalizedAuthor));
 	const langScoreVal = languageScore(targetLangTokens, [edition?.language?.language]);
 
 	const providerScore =
