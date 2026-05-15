@@ -195,6 +195,13 @@ Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
 If `ACTIVATED_PROVIDERS` is unset, blank, or contains no valid values, search stays disabled and the search UI remains hidden.
 If `ACTIVATED_METADATA_PROVIDERS` is unset, blank, or contains no valid values, on-demand metadata lookup stays disabled and the metadata update UI remains hidden.
 
+Metadata provider notes:
+
+- `googlebooks` works without a key; `GOOGLE_BOOKS_API_KEY` only improves rate limits.
+- `openlibrary` works without a key.
+- `hardcover` is skipped unless `HARDCOVER_API_TOKEN` is set.
+- `isbndb` is skipped unless `ISBNDB_API_KEY` is set. ISBNdb is a paid provider.
+
 Accepted provider names:
 
 - `anna`, `annas`, `annas-archive`, or `annasarchive`
