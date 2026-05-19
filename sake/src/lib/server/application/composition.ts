@@ -142,7 +142,9 @@ export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
 export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
-export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();
+export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase(
+	externalBookMetadataService
+);
 const activeSearchProviders = getActivatedSearchProviders();
 const searchProviderDependencies = { zlibrary: zlibraryClient };
 const activeSearchProviderInstances = createSearchProviders(
@@ -208,7 +210,9 @@ export const uploadLibraryBookCoverUseCase = new UploadLibraryBookCoverUseCase(
 export const putLibraryFileUseCase = new PutLibraryFileUseCase(
 	storage,
 	bookRepository,
-	managedBookCoverService
+	managedBookCoverService,
+	undefined,
+	externalBookMetadataService
 );
 export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase(
 	bookRepository,
