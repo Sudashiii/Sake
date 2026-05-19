@@ -185,10 +185,9 @@ Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
 
 - `VITE_ALLOWED_HOSTS` - comma-separated host overrides for Vite/dev setups
 - `ACTIVATED_PROVIDERS` - comma-separated search providers
-- `ACTIVATED_METADATA_PROVIDERS` - comma-separated metadata providers, for example `googlebooks,openlibrary,hardcover,isbndb`
+- `ACTIVATED_METADATA_PROVIDERS` - comma-separated metadata providers, for example `googlebooks,openlibrary,hardcover`
 - `GOOGLE_BOOKS_API_KEY` - optional Google Books key for higher rate limits
 - `HARDCOVER_API_TOKEN` - optional server-wide token required for the Hardcover metadata provider
-- `ISBNDB_API_KEY` - optional paid API key required for the ISBNdb metadata provider
 - `METADATA_PROVIDER_TIMEOUT_MS` - optional metadata provider timeout in milliseconds
 - `BODY_SIZE_LIMIT` - upload/body size limit
 
@@ -200,7 +199,6 @@ Metadata provider notes:
 - `googlebooks` works without a key; `GOOGLE_BOOKS_API_KEY` only improves rate limits.
 - `openlibrary` works without a key.
 - `hardcover` is skipped unless `HARDCOVER_API_TOKEN` is set.
-- `isbndb` is skipped unless `ISBNDB_API_KEY` is set. ISBNdb is a paid provider.
 
 Accepted provider names:
 
@@ -226,7 +224,6 @@ ACTIVATED_PROVIDERS=anna,openlib,gutenberg
 ACTIVATED_METADATA_PROVIDERS=googlebooks,openlibrary
 GOOGLE_BOOKS_API_KEY=
 HARDCOVER_API_TOKEN=
-ISBNDB_API_KEY=
 METADATA_PROVIDER_TIMEOUT_MS=
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity
@@ -249,7 +246,6 @@ ACTIVATED_PROVIDERS=anna,openlib,gutenberg
 ACTIVATED_METADATA_PROVIDERS=googlebooks,openlibrary
 GOOGLE_BOOKS_API_KEY=
 HARDCOVER_API_TOKEN=
-ISBNDB_API_KEY=
 METADATA_PROVIDER_TIMEOUT_MS=
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity

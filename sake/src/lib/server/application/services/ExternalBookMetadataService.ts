@@ -1,8 +1,6 @@
 import { MetadataAggregatorService } from '$lib/server/application/services/MetadataAggregatorService';
 import { sanitizeMetadataDescription } from '$lib/server/application/services/MetadataDescriptionSanitizer';
 import type { MetadataCandidate } from '$lib/server/application/ports/MetadataProviderPort';
-import { GoogleBooksMetadataProvider } from '$lib/server/infrastructure/metadata-providers/googleBooksMetadataProvider';
-import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata-providers/openLibraryMetadataProvider';
 
 export interface ExternalBookMetadata {
 	googleBooksId: string | null;
@@ -59,12 +57,7 @@ export class ExternalBookMetadataService {
 	private readonly aggregator: MetadataAggregatorService;
 
 	constructor(aggregator?: MetadataAggregatorService) {
-		this.aggregator =
-			aggregator ??
-			new MetadataAggregatorService([
-				new GoogleBooksMetadataProvider(),
-				new OpenLibraryMetadataProvider()
-			]);
+		this.aggregator = aggregator ?? new MetadataAggregatorService([]);
 	}
 
 	async lookup(input: ExternalBookMetadataLookupInput): Promise<ExternalBookMetadata> {

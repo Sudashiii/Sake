@@ -33,6 +33,8 @@ const TOUCHED_FIELDS = new Set([
 export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'googlebooks';
 
+	constructor(private readonly apiKey?: string | null) {}
+
 	readonly capabilities: MetadataProviderCapabilities = {
 		touchedFields: TOUCHED_FIELDS,
 		hasCover: true,
@@ -45,7 +47,7 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 	}
 
 	private async fetchCandidates(query: MetadataQuery): Promise<ApiResult<MetadataCandidate[]>> {
-		const apiKey = process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
+		const apiKey = this.apiKey?.trim() || process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
 		const limit = query.limit ?? 5;
 
 		const queryParts: string[] = [];

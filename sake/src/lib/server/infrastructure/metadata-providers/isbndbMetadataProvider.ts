@@ -223,6 +223,8 @@ async function fetchJson(url: string, apiKey: string): Promise<ApiResult<unknown
 export class IsbnDbMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'isbndb';
 
+	constructor(private readonly apiKey?: string | null) {}
+
 	readonly capabilities: MetadataProviderCapabilities = {
 		touchedFields: TOUCHED_FIELDS,
 		hasCover: true,
@@ -231,7 +233,7 @@ export class IsbnDbMetadataProvider implements MetadataProviderPort {
 	};
 
 	async lookup(query: MetadataQuery): Promise<ApiResult<MetadataCandidate[]>> {
-		const apiKey = process.env.ISBNDB_API_KEY?.trim();
+		const apiKey = this.apiKey?.trim() || process.env.ISBNDB_API_KEY?.trim();
 		if (!apiKey) {
 			return apiError('ISBNDB_API_KEY is not configured', 503);
 		}
