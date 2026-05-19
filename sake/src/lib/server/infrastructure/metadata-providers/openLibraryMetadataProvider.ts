@@ -14,6 +14,7 @@ import {
 	languageTokens,
 	normalizeForMatch
 } from './metadataProviderUtils';
+import { normalizeAuthorForMatch } from '$lib/utils/author';
 
 const TOUCHED_FIELDS = new Set([
 	'title',
@@ -27,6 +28,73 @@ const TOUCHED_FIELDS = new Set([
 	'language',
 	'identifiers'
 ]);
+
+interface OpenLibraryDoc {
+	key?: string;
+	title?: string;
+	author_name?: string[];
+	language?: string[];
+	cover_i?: number;
+	isbn?: string[];
+	publisher?: string[];
+	first_sentence?: string | { value?: string };
+	ratings_average?: number;
+	ratings_count?: number;
+	number_of_pages_median?: number;
+	subject?: string[];
+}
+
+interface OpenLibraryPayload {
+	docs?: OpenLibraryDoc[];
+}
+
+interface OpenLibraryQueryVariant {
+	id: 'title' | 'title-language' | 'title-author' | 'title-author-language';
+	queryText: string;
+	rank: number;
+}
+
+interface OpenLibraryVariantResult {
+	variant: OpenLibraryQueryVariant;
+	docs: OpenLibraryDoc[];
+}
+
+const OPEN_LIBRARY_FIELDS =
+	'key,title,author_name,language,cover_i,isbn,publisher,first_sentence,ratings_average,ratings_count,number_of_pages_median,subject';
+
+function buildOpenLibraryVariants(input: {
+	title: string;
+	author: string | null | undefined;
+	preferredLanguage: string;
+}): OpenLibraryQueryVariant[] {
+	const variants: OpenLibraryQueryVariant[] = [
+		{
+			id: 'title',
+			queryText: input.title,
+			rank: 1
+		}
+	];
+
+	if (input.preferredLanguage) {
+		variants.push({
+			id: 'title-language',
+			queryText: `${input.title} language:${input.preferredLanguage}`,
+			rank: 2
+		});
+	}
+
+	if (input.author?.trim()) {
+		variants.push({
+			id: input.preferredLanguage ? 'title-author-language' : 'title-author',
+			queryText: `${input.title} ${input.author.trim()}${
+				input.preferredLanguage ? ` language:${input.preferredLanguage}` : ''
+			}`,
+			rank: input.preferredLanguage ? 3 : 2
+		});
+	}
+
+	return variants;
+}
 
 export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'openlibrary';
@@ -50,51 +118,49 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 			targetLangTokens.find((t) => t.length === 2) ??
 			'';
 
-		const queryBase =
-			`${query.title ?? ''}${query.author ? ` ${query.author}` : ''}`.trim();
+		const queryTitle = query.title?.trim() ?? '';
 
-		if (!queryBase) {
+		if (!queryTitle) {
 			return apiError('No query terms provided', 400);
 		}
 
-		const q = encodeURIComponent(
-			preferredLanguage ? `${queryBase} language:${preferredLanguage}` : queryBase
-		);
-		const url =
-			`https://openlibrary.org/search.json?q=${q}&limit=${limit}&fields=key,title,author_name,language,cover_i,isbn,publisher,first_sentence,ratings_average,ratings_count,number_of_pages_median,subject`;
+		const variants = buildOpenLibraryVariants({
+			title: queryTitle,
+			author: query.author,
+			preferredLanguage
+		});
 
 		try {
-			const response = await fetch(url, {
-				headers: { 'User-Agent': 'Sake/1.0 (+https://github.com/Sudashiii/Sake)' }
-			});
-			if (!response.ok) {
-				return apiError(`OpenLibrary API returned ${response.status}`, 502);
+			const settled = await Promise.allSettled(
+				variants.map((variant) => this.fetchVariant(variant, limit))
+			);
+			const successfulResults: OpenLibraryVariantResult[] = [];
+			const failedResults: string[] = [];
+
+			for (const result of settled) {
+				if (result.status === 'fulfilled') {
+					successfulResults.push(result.value);
+				} else {
+					failedResults.push(
+						result.reason instanceof Error ? result.reason.message : String(result.reason)
+					);
+				}
 			}
 
-			const payload = (await response.json()) as {
-				docs?: Array<{
-					key?: string;
-					title?: string;
-					author_name?: string[];
-					language?: string[];
-					cover_i?: number;
-					isbn?: string[];
-					publisher?: string[];
-					first_sentence?: string | { value?: string };
-					ratings_average?: number;
-					ratings_count?: number;
-					number_of_pages_median?: number;
-					subject?: string[];
-				}>;
-			};
+			const selectedResult = successfulResults
+				.filter((result) => result.docs.length > 0)
+				.sort((a, b) => b.variant.rank - a.variant.rank)[0];
 
-			const docs = payload.docs ?? [];
-			if (docs.length === 0) {
+			if (!selectedResult) {
+				if (successfulResults.length === 0 && failedResults.length > 0) {
+					return apiError(failedResults[0] ?? 'OpenLibrary lookup failed', 502);
+				}
 				return apiOk([]);
 			}
 
+			const docs = selectedResult.docs;
 			const normalizedTitle = normalizeForMatch(query.title);
-			const normalizedAuthor = normalizeForMatch(query.author);
+			const normalizedAuthor = normalizeAuthorForMatch(query.author);
 
 			const scoreDoc = (doc: (typeof docs)[number]): number => {
 				const title = normalizeForMatch(doc.title);
@@ -102,7 +168,7 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 				const hasTitleMatch = normalizedTitle.length > 0 && title.includes(normalizedTitle);
 				const hasAuthorMatch =
 					normalizedAuthor.length > 0 &&
-					authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
+					authors.some((a) => normalizeAuthorForMatch(a).includes(normalizedAuthor));
 				const pages = asPositiveNumber(doc.number_of_pages_median);
 				const langScoreVal = languageScore(targetLangTokens, doc.language ?? []);
 				return (hasTitleMatch ? 5 : 0) + (hasAuthorMatch ? 3 : 0) + (pages ? 2 : 0) + langScoreVal;
@@ -162,5 +228,27 @@ export class OpenLibraryMetadataProvider implements MetadataProviderPort {
 		} catch {
 			return apiError('OpenLibrary lookup failed', 502);
 		}
+	}
+
+	private async fetchVariant(
+		variant: OpenLibraryQueryVariant,
+		limit: number
+	): Promise<OpenLibraryVariantResult> {
+		const url =
+			`https://openlibrary.org/search.json?q=${encodeURIComponent(variant.queryText)}&limit=${limit}&fields=${OPEN_LIBRARY_FIELDS}`;
+
+		const response = await fetch(url, {
+			headers: { 'User-Agent': 'Sake/1.0 (+https://github.com/Sudashiii/Sake)' }
+		});
+		if (!response.ok) {
+			throw new Error(`OpenLibrary API returned ${response.status}`);
+		}
+
+		const payload = (await response.json()) as OpenLibraryPayload;
+
+		return {
+			variant,
+			docs: payload.docs ?? []
+		};
 	}
 }

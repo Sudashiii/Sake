@@ -3,18 +3,38 @@ import type { MetadataProviderId } from '$lib/types/Metadata/Provider';
 import { GoogleBooksMetadataProvider } from './googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from './openLibraryMetadataProvider';
 import { HardcoverMetadataProvider } from './hardcoverMetadataProvider';
+import { IsbnDbMetadataProvider } from './isbndbMetadataProvider';
 
-export function createMetadataProvider(providerId: MetadataProviderId): MetadataProviderPort | null {
+export interface MetadataProviderRuntimeConfig {
+	googleBooksApiKey?: string | null;
+	hardcoverApiToken?: string | null;
+	isbnDbApiKey?: string | null;
+}
+
+function configuredValue(value: string | null | undefined): string | null {
+	const trimmed = value?.trim();
+	return trimmed ? trimmed : null;
+}
+
+export function createMetadataProvider(
+	providerId: MetadataProviderId,
+	config: MetadataProviderRuntimeConfig = {}
+): MetadataProviderPort | null {
 	switch (providerId) {
 		case 'googlebooks':
-			return new GoogleBooksMetadataProvider();
+			return new GoogleBooksMetadataProvider(config.googleBooksApiKey);
 		case 'openlibrary':
 			return new OpenLibraryMetadataProvider();
-		case 'hardcover':
+		case 'hardcover': {
 			// Only instantiate when token is configured; silently skipped otherwise
-			return process.env.HARDCOVER_API_TOKEN?.trim() ? new HardcoverMetadataProvider() : null;
-		case 'isbndb':
-			return null; // not yet implemented — Phase 6
+			const token = configuredValue(config.hardcoverApiToken ?? process.env.HARDCOVER_API_TOKEN);
+			return token ? new HardcoverMetadataProvider(token) : null;
+		}
+		case 'isbndb': {
+			// Only instantiate when key is configured; silently skipped otherwise
+			const apiKey = configuredValue(config.isbnDbApiKey ?? process.env.ISBNDB_API_KEY);
+			return apiKey ? new IsbnDbMetadataProvider(apiKey) : null;
+		}
 		default: {
 			const exhaustiveId: never = providerId;
 			throw new Error(`Unsupported metadata provider: ${exhaustiveId}`);
@@ -22,9 +42,12 @@ export function createMetadataProvider(providerId: MetadataProviderId): Metadata
 	}
 }
 
-export function createMetadataProviders(providerIds: MetadataProviderId[]): MetadataProviderPort[] {
+export function createMetadataProviders(
+	providerIds: MetadataProviderId[],
+	config: MetadataProviderRuntimeConfig = {}
+): MetadataProviderPort[] {
 	return providerIds.flatMap((id) => {
-		const provider = createMetadataProvider(id);
+		const provider = createMetadataProvider(id, config);
 		return provider ? [provider] : [];
 	});
 }

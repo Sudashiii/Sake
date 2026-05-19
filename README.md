@@ -185,9 +185,20 @@ Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
 
 - `VITE_ALLOWED_HOSTS` - comma-separated host overrides for Vite/dev setups
 - `ACTIVATED_PROVIDERS` - comma-separated search providers
+- `ACTIVATED_METADATA_PROVIDERS` - comma-separated metadata providers, for example `googlebooks,openlibrary,hardcover`
+- `GOOGLE_BOOKS_API_KEY` - optional Google Books key for higher rate limits
+- `HARDCOVER_API_TOKEN` - optional server-wide token required for the Hardcover metadata provider
+- `METADATA_PROVIDER_TIMEOUT_MS` - optional metadata provider timeout in milliseconds
 - `BODY_SIZE_LIMIT` - upload/body size limit
 
 If `ACTIVATED_PROVIDERS` is unset, blank, or contains no valid values, search stays disabled and the search UI remains hidden.
+If `ACTIVATED_METADATA_PROVIDERS` is unset, blank, or contains no valid values, on-demand metadata lookup stays disabled and the metadata update UI remains hidden.
+
+Metadata provider notes:
+
+- `googlebooks` works without a key; `GOOGLE_BOOKS_API_KEY` only improves rate limits.
+- `openlibrary` works without a key.
+- `hardcover` is skipped unless `HARDCOVER_API_TOKEN` is set.
 
 Accepted provider names:
 
@@ -210,6 +221,10 @@ S3_SECRET_ACCESS_KEY=your-secret-access-key
 S3_FORCE_PATH_STYLE=false
 
 ACTIVATED_PROVIDERS=anna,openlib,gutenberg
+ACTIVATED_METADATA_PROVIDERS=googlebooks,openlibrary
+GOOGLE_BOOKS_API_KEY=
+HARDCOVER_API_TOKEN=
+METADATA_PROVIDER_TIMEOUT_MS=
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity
 ```
@@ -228,6 +243,10 @@ S3_SECRET_ACCESS_KEY=sakeadminsecret
 S3_FORCE_PATH_STYLE=true
 
 ACTIVATED_PROVIDERS=anna,openlib,gutenberg
+ACTIVATED_METADATA_PROVIDERS=googlebooks,openlibrary
+GOOGLE_BOOKS_API_KEY=
+HARDCOVER_API_TOKEN=
+METADATA_PROVIDER_TIMEOUT_MS=
 VITE_ALLOWED_HOSTS=
 BODY_SIZE_LIMIT=Infinity
 ```

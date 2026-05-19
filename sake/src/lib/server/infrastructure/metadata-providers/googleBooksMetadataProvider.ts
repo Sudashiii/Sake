@@ -15,6 +15,7 @@ import {
 	normalizeForMatch,
 	parseProviderPublicationDate
 } from './metadataProviderUtils';
+import { normalizeAuthorForMatch } from '$lib/utils/author';
 
 const TOUCHED_FIELDS = new Set([
 	'title',
@@ -32,6 +33,8 @@ const TOUCHED_FIELDS = new Set([
 export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'googlebooks';
 
+	constructor(private readonly apiKey?: string | null) {}
+
 	readonly capabilities: MetadataProviderCapabilities = {
 		touchedFields: TOUCHED_FIELDS,
 		hasCover: true,
@@ -44,7 +47,7 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 	}
 
 	private async fetchCandidates(query: MetadataQuery): Promise<ApiResult<MetadataCandidate[]>> {
-		const apiKey = process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
+		const apiKey = this.apiKey?.trim() || process.env.GOOGLE_BOOKS_API_KEY?.trim() || '';
 		const limit = query.limit ?? 5;
 
 		const queryParts: string[] = [];
@@ -104,7 +107,7 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 			}
 
 			const normalizedTitle = normalizeForMatch(query.title);
-			const normalizedAuthor = normalizeForMatch(query.author);
+			const normalizedAuthor = normalizeAuthorForMatch(query.author);
 			const targetLangTokens = languageTokens(query.language);
 
 			const scoreItem = (item: (typeof items)[number]): number => {
@@ -113,7 +116,7 @@ export class GoogleBooksMetadataProvider implements MetadataProviderPort {
 				const hasTitleMatch = normalizedTitle.length > 0 && title.includes(normalizedTitle);
 				const hasAuthorMatch =
 					normalizedAuthor.length > 0 &&
-					authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
+					authors.some((a) => normalizeAuthorForMatch(a).includes(normalizedAuthor));
 				const pages = asPositiveNumber(item.volumeInfo?.pageCount);
 				const langScoreVal = languageScore(targetLangTokens, [item.volumeInfo?.language]);
 				return (hasTitleMatch ? 5 : 0) + (hasAuthorMatch ? 3 : 0) + (pages ? 2 : 0) + langScoreVal;

@@ -21,6 +21,7 @@ const IMAGE_CONTENT_TYPE_TO_EXTENSION = new Map<string, string>([
 	['image/avif', 'avif']
 ]);
 
+export const MIN_MANAGED_BOOK_COVER_BYTES = 1024;
 export const MAX_MANAGED_BOOK_COVER_BYTES = 10 * 1024 * 1024;
 
 export interface ManagedBookCoverResult {
@@ -144,6 +145,48 @@ function extensionFromImageContentType(contentType: string | null): string | nul
 	}
 
 	return IMAGE_CONTENT_TYPE_TO_EXTENSION.get(contentType) ?? null;
+}
+
+function hasImageMagicBytes(buffer: Buffer, contentType: string): boolean {
+	switch (contentType) {
+		case 'image/jpeg':
+		case 'image/jpg':
+			return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+		case 'image/png':
+			return (
+				buffer.length >= 8 &&
+				buffer[0] === 0x89 &&
+				buffer[1] === 0x50 &&
+				buffer[2] === 0x4e &&
+				buffer[3] === 0x47 &&
+				buffer[4] === 0x0d &&
+				buffer[5] === 0x0a &&
+				buffer[6] === 0x1a &&
+				buffer[7] === 0x0a
+			);
+		case 'image/gif': {
+			if (buffer.length < 6) {
+				return false;
+			}
+			const signature = buffer.subarray(0, 6).toString('ascii');
+			return signature === 'GIF87a' || signature === 'GIF89a';
+		}
+		case 'image/webp':
+			return (
+				buffer.length >= 12 &&
+				buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+				buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+			);
+		case 'image/avif':
+			return (
+				buffer.length >= 12 &&
+				buffer.subarray(4, 8).toString('ascii') === 'ftyp' &&
+				(buffer.subarray(8, 12).toString('ascii') === 'avif' ||
+					buffer.subarray(8, 12).toString('ascii') === 'avis')
+			);
+		default:
+			return false;
+	}
 }
 
 function parseProtocolRelativeOrAbsoluteUrl(value: string): URL | null {
@@ -296,8 +339,20 @@ export class ManagedBookCoverService {
 			return { managedUrl: null, sourceUrl: null };
 		}
 
+		if (extensionFromImageContentType(contentType) === null) {
+			this.serviceLogger.warn(
+				{
+					event: 'library.cover.buffer.unsupported_image_type',
+					bookStorageKey: input.bookStorageKey,
+					contentType
+				},
+				'Managed cover buffer used an unsupported image type'
+			);
+			return { managedUrl: null, sourceUrl: null };
+		}
+
 		if (
-			input.coverBuffer.byteLength === 0 ||
+			input.coverBuffer.byteLength < MIN_MANAGED_BOOK_COVER_BYTES ||
 			input.coverBuffer.byteLength > MAX_MANAGED_BOOK_COVER_BYTES
 		) {
 			this.serviceLogger.warn(
@@ -306,7 +361,20 @@ export class ManagedBookCoverService {
 					bookStorageKey: input.bookStorageKey,
 					byteLength: input.coverBuffer.byteLength
 				},
-				'Managed cover buffer was empty or too large'
+				'Managed cover buffer was too small or too large'
+			);
+			return { managedUrl: null, sourceUrl: null };
+		}
+
+		if (!hasImageMagicBytes(input.coverBuffer, contentType)) {
+			this.serviceLogger.warn(
+				{
+					event: 'library.cover.buffer.invalid_signature',
+					bookStorageKey: input.bookStorageKey,
+					contentType,
+					byteLength: input.coverBuffer.byteLength
+				},
+				'Managed cover buffer did not match the declared image type'
 			);
 			return { managedUrl: null, sourceUrl: null };
 		}
@@ -411,7 +479,10 @@ export class ManagedBookCoverService {
 				response,
 				maxBytes: MAX_MANAGED_BOOK_COVER_BYTES
 			});
-			if (coverRead.exceededLimit || coverRead.byteLength === 0) {
+			if (
+				coverRead.exceededLimit ||
+				coverRead.byteLength < MIN_MANAGED_BOOK_COVER_BYTES
+			) {
 				this.serviceLogger.warn(
 					{
 						event: 'library.cover.fetch.invalid_size',
@@ -420,7 +491,22 @@ export class ManagedBookCoverService {
 						sourceUrl: resolvedSourceUrl,
 						byteLength: coverRead.byteLength
 					},
-					'Managed cover fetch returned an empty or oversized payload'
+					'Managed cover fetch returned a too-small or oversized payload'
+				);
+				return { managedUrl: null, sourceUrl: resolvedSourceUrl };
+			}
+
+			if (!hasImageMagicBytes(coverRead.buffer, contentType)) {
+				this.serviceLogger.warn(
+					{
+						event: 'library.cover.fetch.invalid_signature',
+						bookStorageKey: input.bookStorageKey,
+						provider: input.provider,
+						sourceUrl: resolvedSourceUrl,
+						contentType,
+						byteLength: coverRead.byteLength
+					},
+					'Managed cover fetch returned bytes that did not match the declared image type'
 				);
 				return { managedUrl: null, sourceUrl: resolvedSourceUrl };
 			}

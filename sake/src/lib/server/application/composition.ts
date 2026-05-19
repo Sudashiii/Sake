@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
 import { S3Storage } from '$lib/server/infrastructure/storage/S3Storage';
 import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
@@ -86,8 +87,6 @@ import { getActivatedSearchProviders } from '$lib/server/config/activatedProvide
 import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import { MetadataAggregatorService } from '$lib/server/application/services/MetadataAggregatorService';
 import { ExternalBookMetadataService } from '$lib/server/application/services/ExternalBookMetadataService';
-import { GoogleBooksMetadataProvider } from '$lib/server/infrastructure/metadata-providers/googleBooksMetadataProvider';
-import { OpenLibraryMetadataProvider } from '$lib/server/infrastructure/metadata-providers/openLibraryMetadataProvider';
 import { createMetadataProviders } from '$lib/server/infrastructure/metadata-providers/metadataProviderFactory';
 import { getActivatedMetadataProviders } from '$lib/server/config/activatedMetadataProviders';
 import { SearchMetadataCandidatesUseCase } from '$lib/server/application/use-cases/SearchMetadataCandidatesUseCase';
@@ -120,16 +119,15 @@ export const deviceProgressDownloadRepository = new DeviceProgressDownloadReposi
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
 export const managedBookCoverService = new ManagedBookCoverService(storage);
 
-export const baselineMetadataAggregator = new MetadataAggregatorService([
-	new GoogleBooksMetadataProvider(),
-	new OpenLibraryMetadataProvider()
-]);
-export const externalBookMetadataService = new ExternalBookMetadataService(
-	baselineMetadataAggregator
-);
-
-export const activatedMetadataProviders = createMetadataProviders(getActivatedMetadataProviders());
+export const activatedMetadataProviders = createMetadataProviders(getActivatedMetadataProviders(), {
+	googleBooksApiKey: env.GOOGLE_BOOKS_API_KEY,
+	hardcoverApiToken: env.HARDCOVER_API_TOKEN,
+	isbnDbApiKey: env.ISBNDB_API_KEY
+});
 export const activatedMetadataAggregator = new MetadataAggregatorService(activatedMetadataProviders);
+export const externalBookMetadataService = new ExternalBookMetadataService(
+	activatedMetadataAggregator
+);
 
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
@@ -144,7 +142,9 @@ export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
 export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
-export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase();
+export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase(
+	externalBookMetadataService
+);
 const activeSearchProviders = getActivatedSearchProviders();
 const searchProviderDependencies = { zlibrary: zlibraryClient };
 const activeSearchProviderInstances = createSearchProviders(
@@ -210,7 +210,9 @@ export const uploadLibraryBookCoverUseCase = new UploadLibraryBookCoverUseCase(
 export const putLibraryFileUseCase = new PutLibraryFileUseCase(
 	storage,
 	bookRepository,
-	managedBookCoverService
+	managedBookCoverService,
+	undefined,
+	externalBookMetadataService
 );
 export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase(
 	bookRepository,

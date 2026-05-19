@@ -10,11 +10,10 @@ import {
 	asNonNegativeNumber,
 	asPositiveNumber,
 	asString,
-	languageScore,
-	languageTokens,
 	normalizeForMatch,
 	parseProviderPublicationDate
 } from './metadataProviderUtils';
+import { normalizeAuthorForMatch } from '$lib/utils/author';
 
 // ---------------------------------------------------------------------------
 // Smoothed rate limiter — 60 requests per minute (Hardcover's stated limit)
@@ -44,64 +43,9 @@ const rateLimiter = new RequestRateLimiter();
 
 const SEARCH_QUERY = /* GraphQL */ `
   query SakeMetadataSearch($query: String!, $limit: Int!) {
-    search(query: $query, query_type: "Book", per_page: $limit) {
-      results {
-        hit {
-          id
-          title
-          description
-          rating
-          ratings_count
-          slug
-          cached_contributors
-          cached_tags
-          default_edition_id
-          default_edition {
-            isbn_13
-            isbn_10
-            pages
-            release_date
-            image { url width height }
-            publisher { name }
-            language { language }
-          }
-          book_series {
-            position
-            series { name }
-          }
-        }
-      }
-    }
-  }
-`;
-
-const ISBN_LOOKUP_QUERY = /* GraphQL */ `
-  query SakeMetadataByISBN($isbn: String!, $limit: Int!) {
-    books(
-      where: { editions: { _or: [{ isbn_13: { _eq: $isbn } }, { isbn_10: { _eq: $isbn } }] } }
-      limit: $limit
-    ) {
-      id
-      title
-      description
-      rating
-      ratings_count
-      slug
-      cached_contributors
-      cached_tags
-      default_edition {
-        isbn_13
-        isbn_10
-        pages
-        release_date
-        image { url width height }
-        publisher { name }
-        language { language }
-      }
-      book_series {
-        position
-        series { name }
-      }
+    search(query: $query, query_type: "Book", per_page: $limit, page: 1) {
+      ids
+      results
     }
   }
 `;
@@ -110,45 +54,33 @@ const ISBN_LOOKUP_QUERY = /* GraphQL */ `
 // Response shape helpers
 // ---------------------------------------------------------------------------
 
-interface HardcoverEdition {
-	isbn_13?: string | null;
-	isbn_10?: string | null;
-	pages?: number | null;
-	release_date?: string | null;
-	image?: { url?: string | null; width?: number | null; height?: number | null } | null;
-	publisher?: { name?: string | null } | null;
-	language?: { language?: string | null } | null;
-}
-
-interface HardcoverSeries {
-	position?: number | null;
-	series?: { name?: string | null } | null;
-}
-
-interface HardcoverBook {
-	id?: number | null;
+interface HardcoverSearchDocument {
+	id?: string | number | null;
 	title?: string | null;
+	subtitle?: string | null;
+	author_names?: string[] | null;
 	description?: string | null;
 	rating?: number | null;
 	ratings_count?: number | null;
 	slug?: string | null;
-	cached_contributors?: string | null;
-	cached_tags?: string | null;
-	default_edition?: HardcoverEdition | null;
-	book_series?: HardcoverSeries[] | null;
+	image?: { url?: string | null; width?: number | null; height?: number | null } | null;
+	isbns?: string[] | null;
+	pages?: number | null;
+	release_date?: string | null;
+	release_year?: number | null;
+	genres?: string[] | null;
+	tags?: string[] | null;
+	series_names?: string[] | null;
 }
 
 interface HardcoverSearchResult {
 	data?: {
 		search?: {
-			results?: Array<{ hit?: HardcoverBook | null } | null> | null;
+			ids?: Array<string | number> | null;
+			results?: {
+				hits?: Array<{ document?: HardcoverSearchDocument | null } | null> | null;
+			} | null;
 		} | null;
-	} | null;
-}
-
-interface HardcoverISBNResult {
-	data?: {
-		books?: HardcoverBook[] | null;
 	} | null;
 }
 
@@ -160,61 +92,51 @@ interface GraphQLError {
 // Field helpers
 // ---------------------------------------------------------------------------
 
-function parseContributors(cached: string | null | undefined): string[] {
-	if (!cached) return [];
-	try {
-		const parsed = JSON.parse(cached) as Array<{ name?: string; author?: { name?: string } }>;
-		if (!Array.isArray(parsed)) return [];
-		return parsed.flatMap((entry) => {
-			const name = asString(entry.name ?? entry.author?.name);
-			return name ? [name] : [];
-		});
-	} catch {
-		return [];
+function firstMatchingIsbn(isbns: string[], length: 10 | 13, preferred: string | null | undefined): string | null {
+	const normalizedPreferred = preferred?.replace(/[^0-9X]/gi, '').toUpperCase() ?? '';
+	const matchingPreferred = isbns.find((isbn) => {
+		const normalized = isbn.replace(/[^0-9X]/gi, '').toUpperCase();
+		return normalized.length === length && normalized === normalizedPreferred;
+	});
+	if (matchingPreferred) {
+		return matchingPreferred;
 	}
+
+	return isbns.find((isbn) => isbn.replace(/[^0-9X]/gi, '').length === length) ?? null;
 }
 
-function parseTags(cached: string | null | undefined): string[] {
-	if (!cached) return [];
-	try {
-		const parsed = JSON.parse(cached) as Array<{ tag?: string; name?: string }>;
-		if (!Array.isArray(parsed)) return [];
-		return parsed.flatMap((entry) => {
-			const tag = asString(entry.tag ?? entry.name);
-			return tag ? [tag] : [];
-		});
-	} catch {
-		return [];
-	}
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+	return [...new Set(values.flatMap((value) => {
+		const stringValue = asString(value);
+		return stringValue ? [stringValue] : [];
+	}))];
 }
 
-function mapBookToCandidate(book: HardcoverBook, query: MetadataQuery): MetadataCandidate {
-	const edition = book.default_edition;
-	const authors = parseContributors(book.cached_contributors);
-	const subjects = parseTags(book.cached_tags);
+function mapBookToCandidate(book: HardcoverSearchDocument, query: MetadataQuery): MetadataCandidate {
+	const authors = uniqueStrings(book.author_names ?? []);
+	const subjects = uniqueStrings([...(book.genres ?? []), ...(book.tags ?? [])]);
+	const isbns = uniqueStrings(book.isbns ?? []);
+	const isbn13 = firstMatchingIsbn(isbns, 13, query.isbn);
+	const isbn10 = firstMatchingIsbn(isbns, 10, query.isbn);
 
 	const normalizedTitle = normalizeForMatch(query.title);
-	const normalizedAuthor = normalizeForMatch(query.author);
-	const targetLangTokens = languageTokens(query.language);
+	const normalizedAuthor = normalizeAuthorForMatch(query.author);
 
 	const titleMatch =
 		normalizedTitle.length > 0 && normalizeForMatch(book.title).includes(normalizedTitle);
 	const authorMatch =
 		normalizedAuthor.length > 0 &&
-		authors.some((a) => normalizeForMatch(a).includes(normalizedAuthor));
-	const langScoreVal = languageScore(targetLangTokens, [edition?.language?.language]);
+		authors.some((a) => normalizeAuthorForMatch(a).includes(normalizedAuthor));
 
 	const providerScore =
 		(titleMatch ? 5 : 0) +
 		(authorMatch ? 3 : 0) +
-		(asPositiveNumber(edition?.pages) ? 2 : 0) +
-		langScoreVal;
+		(asPositiveNumber(book.pages) ? 2 : 0);
 
-	const imageUrl = asString(edition?.image?.url);
-	const imageWidth = edition?.image?.width ?? undefined;
-	const imageHeight = edition?.image?.height ?? undefined;
+	const imageUrl = asString(book.image?.url);
+	const imageWidth = book.image?.width ?? undefined;
+	const imageHeight = book.image?.height ?? undefined;
 
-	const firstSeries = book.book_series?.[0];
 	const sourceUrl = book.slug
 		? `https://hardcover.app/books/${book.slug}`
 		: null;
@@ -223,25 +145,27 @@ function mapBookToCandidate(book: HardcoverBook, query: MetadataQuery): Metadata
 		providerId: 'hardcover',
 		providerScore,
 		identifiers: {
-			isbn10: asString(edition?.isbn_10),
-			isbn13: asString(edition?.isbn_13),
+			isbn10: asString(isbn10),
+			isbn13: asString(isbn13),
 			asin: null,
 			googleBooksId: null,
 			openLibraryKey: null,
 			hardcoverId: book.id != null ? String(book.id) : null
 		},
 		title: asString(book.title) ?? '',
-		subtitle: null,
+		subtitle: asString(book.subtitle),
 		authors,
 		description: asString(book.description),
 		descriptionFormat: 'markdown',
 		subjects,
-		series: asString(firstSeries?.series?.name),
-		seriesIndex: asNonNegativeNumber(firstSeries?.position),
-		publisher: asString(edition?.publisher?.name),
-		publishedDate: parseProviderPublicationDate(edition?.release_date ?? null),
-		language: asString(edition?.language?.language),
-		pageCount: asPositiveNumber(edition?.pages),
+		series: asString(book.series_names?.[0]),
+		seriesIndex: null,
+		publisher: null,
+		publishedDate: parseProviderPublicationDate(
+			book.release_date ?? (book.release_year != null ? String(book.release_year) : null)
+		),
+		language: null,
+		pageCount: asPositiveNumber(book.pages),
 		covers: imageUrl
 			? [
 					{
@@ -284,17 +208,19 @@ async function graphqlFetch<T>(
 ): Promise<T> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+	const body = { query, variables };
+	const headers = {
+		'Content-Type': 'application/json',
+		Authorization: `Bearer ${token}`,
+		'User-Agent': USER_AGENT
+	};
 
 	try {
 		const response = await fetch(HARDCOVER_API_URL, {
 			method: 'POST',
 			signal: controller.signal,
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${token}`,
-				'User-Agent': USER_AGENT
-			},
-			body: JSON.stringify({ query, variables })
+			headers,
+			body: JSON.stringify(body)
 		});
 
 		if (!response.ok) {
@@ -334,6 +260,8 @@ const TOUCHED_FIELDS = new Set([
 export class HardcoverMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'hardcover';
 
+	constructor(private readonly apiToken?: string | null) {}
+
 	readonly capabilities: MetadataProviderCapabilities = {
 		touchedFields: TOUCHED_FIELDS,
 		hasCover: true,
@@ -346,7 +274,7 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 	}
 
 	private async fetchCandidates(query: MetadataQuery): Promise<ApiResult<MetadataCandidate[]>> {
-		const token = process.env.HARDCOVER_API_TOKEN?.trim();
+		const token = this.apiToken?.trim() || process.env.HARDCOVER_API_TOKEN?.trim();
 		if (!token) {
 			return apiError('HARDCOVER_API_TOKEN is not configured', 503);
 		}
@@ -358,29 +286,11 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 		const limit = normalizeLimit(query.limit);
 
 		try {
-			let books: HardcoverBook[];
-
-			if (query.isbn) {
-				const data = await graphqlFetch<HardcoverISBNResult['data']>(
-					token,
-					ISBN_LOOKUP_QUERY,
-					{ isbn: query.isbn, limit }
-				);
-				books = data?.books ?? [];
-
-				// If ISBN lookup returns nothing, fall through to title search
-				if (books.length === 0 && query.title) {
-					if (!rateLimiter.tryConsume()) {
-						// We're rate-limited on the fallback call — return empty rather than error
-						return apiOk([]);
-					}
-					books = await this.searchByTitle(token, query.title, limit);
-				}
-			} else if (query.title) {
-				books = await this.searchByTitle(token, query.title, limit);
-			} else {
+			const searchQuery = query.title?.trim() || query.isbn?.trim();
+			if (!searchQuery) {
 				return apiError('No query terms provided for Hardcover lookup', 400);
 			}
+			const books = await this.search(token, searchQuery, limit);
 
 			if (books.length === 0) {
 				return apiOk([]);
@@ -398,17 +308,17 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 		}
 	}
 
-	private async searchByTitle(
+	private async search(
 		token: string,
-		title: string,
+		searchQuery: string,
 		limit: number
-	): Promise<HardcoverBook[]> {
+	): Promise<HardcoverSearchDocument[]> {
 		const data = await graphqlFetch<HardcoverSearchResult['data']>(
 			token,
 			SEARCH_QUERY,
-			{ query: title, limit }
+			{ query: searchQuery, limit }
 		);
-		const hits = data?.search?.results ?? [];
-		return hits.flatMap((r) => (r?.hit ? [r.hit] : []));
+		const hits = data?.search?.results?.hits ?? [];
+		return hits.flatMap((hit) => (hit?.document ? [hit.document] : []));
 	}
 }
