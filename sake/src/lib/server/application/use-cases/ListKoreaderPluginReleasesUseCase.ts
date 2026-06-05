@@ -1,5 +1,6 @@
 import type { PluginRelease } from '$lib/server/domain/entities/PluginRelease';
 import type { PluginReleaseRepositoryPort } from '$lib/server/application/ports/PluginReleaseRepositoryPort';
+import { compareKoreaderPluginVersions } from '$lib/server/application/services/koreaderPluginVersion';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
 
@@ -15,22 +16,6 @@ export interface KoreaderPluginReleaseManifest {
 interface ListKoreaderPluginReleasesResult {
 	latestVersion: string;
 	releases: KoreaderPluginReleaseManifest[];
-}
-
-function compareVersionStrings(left: string, right: string): number {
-	const leftParts = left.match(/\d+/g)?.map((part) => Number.parseInt(part, 10)) ?? [];
-	const rightParts = right.match(/\d+/g)?.map((part) => Number.parseInt(part, 10)) ?? [];
-	const maxLength = Math.max(leftParts.length, rightParts.length);
-
-	for (let index = 0; index < maxLength; index += 1) {
-		const leftValue = leftParts[index] ?? 0;
-		const rightValue = rightParts[index] ?? 0;
-		if (leftValue !== rightValue) {
-			return rightValue - leftValue;
-		}
-	}
-
-	return right.localeCompare(left);
 }
 
 function toManifest(release: PluginRelease): KoreaderPluginReleaseManifest {
@@ -64,9 +49,9 @@ export class ListKoreaderPluginReleasesUseCase {
 				return left.isLatest ? -1 : 1;
 			}
 
-			const versionCompare = compareVersionStrings(left.version, right.version);
+			const versionCompare = compareKoreaderPluginVersions(left.version, right.version);
 			if (versionCompare !== 0) {
-				return versionCompare;
+				return -versionCompare;
 			}
 
 			return right.updatedAt.localeCompare(left.updatedAt);

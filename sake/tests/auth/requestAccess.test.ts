@@ -46,4 +46,9 @@ describe('requestAccess', () => {
 		assert.equal(isPublicApiRoute('/api/plugin/koreader/releases', 'POST'), false);
 		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/releases', 'POST'), false);
 	});
+
+	test('keeps the manual upstream plugin version check session-only', () => {
+		assert.equal(isPublicApiRoute('/api/plugin/koreader/upstream-version', 'GET'), false);
+		assert.equal(isApiKeyAllowedRoute('/api/plugin/koreader/upstream-version', 'GET'), false);
+	});
 });

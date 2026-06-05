@@ -10,6 +10,8 @@ export const ZUIRoutes = {
 	authApiKeys: '/auth/api-keys',
 	authDeviceKey: '/auth/device-key',
 	devices: '/devices',
+	koreaderPluginReleases: '/plugin/koreader/releases',
+	koreaderPluginUpstreamVersion: '/plugin/koreader/upstream-version',
 	searchBooks: '/search',
 	searchQueue: '/search/queue',
 	searchDownload: '/search/download',

@@ -46,6 +46,7 @@ import { SyncKoreaderPluginReleaseUseCase } from '$lib/server/application/use-ca
 import { GetLatestKoreaderPluginUseCase } from '$lib/server/application/use-cases/GetLatestKoreaderPluginUseCase';
 import { GetKoreaderPluginDownloadUseCase } from '$lib/server/application/use-cases/GetKoreaderPluginDownloadUseCase';
 import { ListKoreaderPluginReleasesUseCase } from '$lib/server/application/use-cases/ListKoreaderPluginReleasesUseCase';
+import { GetKoreaderPluginUpstreamVersionUseCase } from '$lib/server/application/use-cases/GetKoreaderPluginUpstreamVersionUseCase';
 import { PluginReleaseRepository } from '$lib/server/infrastructure/repositories/PluginReleaseRepository';
 import { UserRepository } from '$lib/server/infrastructure/repositories/UserRepository';
 import { UserSessionRepository } from '$lib/server/infrastructure/repositories/UserSessionRepository';
@@ -245,6 +246,8 @@ export const getLatestKoreaderPluginUseCase = new GetLatestKoreaderPluginUseCase
 export const listKoreaderPluginReleasesUseCase = new ListKoreaderPluginReleasesUseCase(
 	pluginReleaseRepository
 );
+export const getKoreaderPluginUpstreamVersionUseCase =
+	new GetKoreaderPluginUpstreamVersionUseCase(pluginReleaseRepository);
 export const getKoreaderPluginDownloadUseCase = new GetKoreaderPluginDownloadUseCase(
 	storage,
 	pluginReleaseRepository
