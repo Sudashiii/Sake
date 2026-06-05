@@ -289,6 +289,16 @@ end
 
 function ProgressSync:syncNewProgressForDevice(opts)
     logger.info(LOG_PREFIX .. "Device-level progress sync started.")
+    local deferred_until_online = self.network:willRerunWhenOnline(function()
+        self:syncNewProgressForDevice(opts)
+    end)
+    if deferred_until_online then
+        logger.info(LOG_PREFIX .. "Progress download deferred waiting for network.")
+        return true, {
+            network_deferred = true,
+        }
+    end
+
     local ok_sync, result_or_err = self.engine:syncRemoteQueue()
     if not ok_sync then
         self:showError("Progress queue fetch failed: " .. tostring(result_or_err), opts)
