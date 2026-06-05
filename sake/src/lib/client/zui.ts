@@ -50,6 +50,8 @@ import {
 import { uploadLibraryBookCover } from './routes/uploadLibraryBookCover';
 import { getQueueStatus, type QueueStatusResponse } from './routes/getQueueStatus';
 import { getAppVersion } from './routes/getAppVersion';
+import { getKoreaderPluginReleases } from './routes/getKoreaderPluginReleases';
+import { getKoreaderPluginUpstreamVersion } from './routes/getKoreaderPluginUpstreamVersion';
 import { getLibraryBookProgressHistory } from './routes/getLibraryBookProgressHistory';
 import type { BookProgressHistoryResponse } from '$lib/types/Library/BookProgressHistory';
 import { getReadingActivityStats } from './routes/getReadingActivityStats';
@@ -74,6 +76,10 @@ import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 import type { AppVersionResponse } from '$lib/types/App/AppVersion';
 import type { AuthApiKeysResponse } from '$lib/types/Auth/ApiKey';
 import type { DeleteDeviceResponse, DevicesResponse } from '$lib/types/Auth/Device';
+import type {
+	KoreaderPluginReleasesResponse,
+	KoreaderPluginUpstreamVersionResponse
+} from '$lib/types/Plugin/KoreaderPlugin';
 
 /**
  * Facade for all Z-Library UI client operations.
@@ -116,6 +122,13 @@ export const ZUI = {
 	): Promise<Result<QueueSearchBookResponse, ApiError>> => queueSearchBookToLibrary(book),
 
 	getAppVersion: (): Promise<Result<AppVersionResponse, ApiError>> => getAppVersion(),
+
+	getKoreaderPluginReleases: (): Promise<Result<KoreaderPluginReleasesResponse, ApiError>> =>
+		getKoreaderPluginReleases(),
+
+	getKoreaderPluginUpstreamVersion: (): Promise<
+		Result<KoreaderPluginUpstreamVersionResponse, ApiError>
+	> => getKoreaderPluginUpstreamVersion(),
 
 	getQueueStatus: (): Promise<Result<QueueStatusResponse, ApiError>> =>
 		getQueueStatus(),

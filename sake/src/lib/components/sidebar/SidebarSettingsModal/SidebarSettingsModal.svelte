@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import AppWindowIcon from '$lib/assets/icons/AppWindowIcon.svelte';
+	import DownloadIcon from '$lib/assets/icons/DownloadIcon.svelte';
 	import LogInIcon from '$lib/assets/icons/LogInIcon.svelte';
 	import SmartphoneIcon from '$lib/assets/icons/SmartphoneIcon.svelte';
 	import UserCircleIcon from '$lib/assets/icons/UserCircleIcon.svelte';
@@ -9,11 +10,16 @@
 	import SidebarSettingsAccountPane from '../SidebarSettingsAccountPane/SidebarSettingsAccountPane.svelte';
 	import SidebarSettingsDevicesPane from '../SidebarSettingsDevicesPane/SidebarSettingsDevicesPane.svelte';
 	import SidebarSettingsLoginsPane from '../SidebarSettingsLoginsPane/SidebarSettingsLoginsPane.svelte';
+	import SidebarSettingsPluginPane from '../SidebarSettingsPluginPane/SidebarSettingsPluginPane.svelte';
 	import styles from './SidebarSettingsModal.module.scss';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { DatabaseVersionInfo } from '$lib/types/App/AppVersion';
 	import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
 	import type { RegisteredDevice } from '$lib/types/Auth/Device';
+	import type {
+		KoreaderPluginReleasesResponse,
+		KoreaderPluginUpstreamVersionResponse
+	} from '$lib/types/Plugin/KoreaderPlugin';
 
 	interface SettingsSection {
 		id: string;
@@ -42,6 +48,12 @@
 		databaseVersion: DatabaseVersionInfo | null;
 		appVersionError: string | null;
 		isLoadingAppVersion?: boolean;
+		pluginReleasesInfo: KoreaderPluginReleasesResponse | null;
+		pluginReleasesError: string | null;
+		isLoadingPluginReleases?: boolean;
+		pluginUpstreamVersionInfo: KoreaderPluginUpstreamVersionResponse | null;
+		pluginUpstreamVersionError: string | null;
+		isCheckingPluginUpstreamVersion?: boolean;
 		appEnvironment: string;
 		appSourceUrl: string;
 		appSourceLabel: string;
@@ -53,6 +65,8 @@
 		onRevokeApiKey: (apiKeyId: number, deviceId: string) => void;
 		onRefreshDevices: () => void;
 		onDeleteDevice: (deviceId: string) => void;
+		onRefreshPluginReleases: () => void;
+		onCheckPluginUpstreamVersion: () => void;
 		onLogout: () => void;
 		onLogoutAll: () => void;
 		onSaveBasicAuthPassword: (password: string) => Promise<boolean>;
@@ -85,6 +99,12 @@
 		databaseVersion,
 		appVersionError,
 		isLoadingAppVersion = false,
+		pluginReleasesInfo,
+		pluginReleasesError,
+		isLoadingPluginReleases = false,
+		pluginUpstreamVersionInfo,
+		pluginUpstreamVersionError,
+		isCheckingPluginUpstreamVersion = false,
 		appEnvironment,
 		appSourceUrl,
 		appSourceLabel,
@@ -96,6 +116,8 @@
 		onRevokeApiKey,
 		onRefreshDevices,
 		onDeleteDevice,
+		onRefreshPluginReleases,
+		onCheckPluginUpstreamVersion,
 		onLogout,
 		onLogoutAll,
 		onSaveBasicAuthPassword,
@@ -124,6 +146,9 @@
 	function getSectionIcon(sectionId: string) {
 		if (sectionId === 'app') {
 			return AppWindowIcon;
+		}
+		if (sectionId === 'plugin') {
+			return DownloadIcon;
 		}
 		if (sectionId === 'logins') {
 			return LogInIcon;
@@ -166,6 +191,18 @@
 							{appEnvironment}
 							appSourceUrl={appSourceUrl}
 							appSourceLabel={appSourceLabel}
+						/>
+					{:else if activeSection === 'plugin'}
+						<SidebarSettingsPluginPane
+							releasesInfo={pluginReleasesInfo}
+							releasesError={pluginReleasesError}
+							{isLoadingPluginReleases}
+							upstreamVersionInfo={pluginUpstreamVersionInfo}
+							upstreamVersionError={pluginUpstreamVersionError}
+							{isCheckingPluginUpstreamVersion}
+							{formatDateTime}
+							onRefresh={onRefreshPluginReleases}
+							onCheckUpstream={onCheckPluginUpstreamVersion}
 						/>
 					{:else if activeSection === 'logins'}
 						<SidebarSettingsLoginsPane

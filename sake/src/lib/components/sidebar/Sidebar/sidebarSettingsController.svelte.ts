@@ -7,12 +7,17 @@ import type { AppVersionResponse } from '$lib/types/App/AppVersion';
 import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 import type { RegisteredDevice } from '$lib/types/Auth/Device';
 import type { CurrentUser } from '$lib/types/Auth/CurrentUser';
+import type {
+	KoreaderPluginReleasesResponse,
+	KoreaderPluginUpstreamVersionResponse
+} from '$lib/types/Plugin/KoreaderPlugin';
 import { createWebappVersion } from '$lib/webappVersion';
 import { env } from '$env/dynamic/public';
 
 const fallbackAppVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERSION });
 const SETTINGS_BASE_SECTIONS = [
 	{ id: 'app', label: 'App' },
+	{ id: 'plugin', label: 'Plugin' },
 	{ id: 'account', label: 'Account' },
 	{ id: 'devices', label: 'Devices' }
 ] as const;
@@ -39,6 +44,12 @@ export class SidebarSettingsController {
 	appVersionInfo = $state<AppVersionResponse | null>(null);
 	appVersionError = $state<string | null>(null);
 	isLoadingAppVersion = $state(false);
+	pluginReleasesInfo = $state<KoreaderPluginReleasesResponse | null>(null);
+	pluginReleasesError = $state<string | null>(null);
+	isLoadingPluginReleases = $state(false);
+	pluginUpstreamVersionInfo = $state<KoreaderPluginUpstreamVersionResponse | null>(null);
+	pluginUpstreamVersionError = $state<string | null>(null);
+	isCheckingPluginUpstreamVersion = $state(false);
 	apiKeys = $state<AuthApiKey[]>([]);
 	apiKeysError = $state<string | null>(null);
 	isLoadingApiKeys = $state(false);
@@ -88,6 +99,7 @@ export class SidebarSettingsController {
 		this.showSettingsModal = true;
 		this.activeSection = 'app';
 		void this.loadAppVersion();
+		void this.loadKoreaderPluginReleases();
 		void this.loadCurrentUser();
 		void this.loadAuthApiKeys();
 		void this.loadDevices();
@@ -167,6 +179,26 @@ export class SidebarSettingsController {
 			return;
 		}
 		this.devices = result.value.devices;
+	};
+
+	loadKoreaderPluginReleases = async (): Promise<void> => {
+		if (this.isLoadingPluginReleases) {
+			return;
+		}
+		this.isLoadingPluginReleases = true;
+		this.pluginReleasesError = null;
+		const result = await ZUI.getKoreaderPluginReleases();
+		this.isLoadingPluginReleases = false;
+		if (!result.ok) {
+			if (result.error.type === 'not_found') {
+				this.pluginReleasesInfo = { latestVersion: '', releases: [] };
+				return;
+			}
+			this.pluginReleasesInfo = null;
+			this.pluginReleasesError = result.error.message;
+			return;
+		}
+		this.pluginReleasesInfo = result.value;
 	};
 
 	loadCurrentUser = async (): Promise<void> => {
@@ -302,5 +334,25 @@ export class SidebarSettingsController {
 		await this.loadCurrentUser();
 		toastStore.add('Basic authentication password removed', 'success');
 		return true;
+	};
+
+	handleCheckPluginUpstreamVersion = async (): Promise<void> => {
+		if (this.isCheckingPluginUpstreamVersion) {
+			return;
+		}
+
+		this.isCheckingPluginUpstreamVersion = true;
+		this.pluginUpstreamVersionError = null;
+		const result = await ZUI.getKoreaderPluginUpstreamVersion();
+		this.isCheckingPluginUpstreamVersion = false;
+
+		if (!result.ok) {
+			this.pluginUpstreamVersionInfo = null;
+			this.pluginUpstreamVersionError = result.error.message;
+			toastStore.add(`Failed to check plugin version: ${result.error.message}`, 'error');
+			return;
+		}
+
+		this.pluginUpstreamVersionInfo = result.value;
 	};
 }

@@ -242,6 +242,12 @@
 	databaseVersion={settingsController.databaseVersion}
 	appVersionError={settingsController.appVersionError}
 	isLoadingAppVersion={settingsController.isLoadingAppVersion}
+	pluginReleasesInfo={settingsController.pluginReleasesInfo}
+	pluginReleasesError={settingsController.pluginReleasesError}
+	isLoadingPluginReleases={settingsController.isLoadingPluginReleases}
+	pluginUpstreamVersionInfo={settingsController.pluginUpstreamVersionInfo}
+	pluginUpstreamVersionError={settingsController.pluginUpstreamVersionError}
+	isCheckingPluginUpstreamVersion={settingsController.isCheckingPluginUpstreamVersion}
 	appEnvironment={settingsController.appEnvironment}
 	appSourceUrl={settingsController.appSourceUrl}
 	appSourceLabel={settingsController.appSourceLabel}
@@ -253,6 +259,8 @@
 	onRevokeApiKey={(apiKeyId, deviceId) => void settingsController.handleRevokeApiKey(apiKeyId, deviceId)}
 	onRefreshDevices={() => void settingsController.loadDevices()}
 	onDeleteDevice={settingsController.requestDeleteDevice}
+	onRefreshPluginReleases={() => void settingsController.loadKoreaderPluginReleases()}
+	onCheckPluginUpstreamVersion={() => void settingsController.handleCheckPluginUpstreamVersion()}
 	onLogout={() => void handleAppLogout()}
 	onLogoutAll={() => void handleLogoutAllSessions()}
 	onSaveBasicAuthPassword={(password) => settingsController.handleSetBasicAuthPassword(password)}
