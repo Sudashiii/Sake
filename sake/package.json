@@ -24,7 +24,8 @@
 		"db:keys:dry-run": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/backfill-sanitized-storage-keys.mjs",
 		"db:keys:apply": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/backfill-sanitized-storage-keys.mjs --apply",
 		"db:keys:dedupe:dry-run": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/backfill-sanitized-storage-keys.mjs --dedupe",
-		"db:keys:dedupe:apply": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/backfill-sanitized-storage-keys.mjs --dedupe --apply"
+		"db:keys:dedupe:apply": "node ./scripts/db/run-with-project-env.mjs ./scripts/db/backfill-sanitized-storage-keys.mjs --dedupe --apply",
+		"demo:reset": "bun ./scripts/demo/reset-demo.ts"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",
