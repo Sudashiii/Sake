@@ -137,4 +137,22 @@ describe('KOReader sidecar data handling', () => {
 		assert.equal(document.get(['summary', 'status']), 'complete');
 		assert.equal(document.get(['summary', 'percent_finished']), 1);
 	});
+
+	test('preserves the existing location when a relocation has no text XPointer', () => {
+		const merged = mergeKoreaderSidecar(
+			EXISTING_SIDECAR,
+			{
+				percentFinished: 0.5,
+				upsertedAnnotations: [],
+				deletedAnnotationIds: []
+			},
+			'2026-06-06'
+		);
+
+		assert.equal(merged.lastXPointer, '/body/DocFragment[1]/body/p/text().0');
+		assert.equal(
+			LuaDataDocument.parse(merged.source).get(['last_xpointer']),
+			'/body/DocFragment[1]/body/p/text().0'
+		);
+	});
 });

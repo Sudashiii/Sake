@@ -51,6 +51,7 @@
 		type SelectionDraft
 	} from '$lib/features/reader/readerRuntime';
 	import { ReaderSaveQueue } from '$lib/features/reader/readerSaveQueue';
+	import { createReaderSessionId } from '$lib/features/reader/readerSessionId';
 	import {
 		ReaderTapNavigation,
 		type ReaderTapDiagnostic
@@ -107,7 +108,7 @@
 		readerFooterStatusModeLabel(nextReaderFooterStatusMode(footerStatusMode))
 	);
 	const renderedAnnotationCfis = new Map<string, string>();
-	const readerSessionId = crypto.randomUUID();
+	const readerSessionId = createReaderSessionId();
 	const tapNavigation = new ReaderTapNavigation(
 		(direction) => {
 			if (!rendition) return;
@@ -372,6 +373,8 @@
 				applyAppearance();
 				if (sidecar?.lastXPointer) {
 					await restoreXPointer(sidecar.lastXPointer);
+				} else if (sidecar && percentFinished > 0) {
+					await rendition.display(book.locations.cfiFromPercentage(percentFinished));
 				} else {
 					await rendition.display();
 				}

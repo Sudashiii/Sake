@@ -35,7 +35,7 @@ export interface SidecarSnapshot {
 
 export interface SidecarChanges {
 	percentFinished: number;
-	lastXPointer: string;
+	lastXPointer?: string;
 	upsertedAnnotations: ReaderAnnotation[];
 	deletedAnnotationIds: string[];
 }
@@ -176,10 +176,13 @@ export function mergeKoreaderSidecar(
 	);
 	const percentFinished = Math.max(0, Math.min(1, changes.percentFinished));
 	const status = percentFinished >= 1 ? 'complete' : 'reading';
+	const lastXPointer = changes.lastXPointer ?? latest.lastXPointer;
 
 	let document = LuaDataDocument.parse(source);
 	document = document.set(['annotations'], annotationTable);
-	document = document.set(['last_xpointer'], changes.lastXPointer);
+	if (changes.lastXPointer) {
+		document = document.set(['last_xpointer'], changes.lastXPointer);
+	}
 	document = document.set(['percent_finished'], percentFinished);
 	document = document.set(['summary', 'modified'], modifiedDate);
 	document = document.set(['summary', 'percent_finished'], percentFinished);
@@ -188,7 +191,7 @@ export function mergeKoreaderSidecar(
 	return {
 		source: document.source,
 		percentFinished,
-		lastXPointer: changes.lastXPointer,
+		lastXPointer,
 		annotations: mergedAnnotations
 	};
 }

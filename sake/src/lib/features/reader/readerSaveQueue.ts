@@ -1,6 +1,8 @@
 import type { ReaderAnnotation, SidecarSnapshot } from './koreaderSidecar';
 import { saveKoreaderSidecar } from './koreaderSidecarClient';
 
+type SaveKoreaderSidecar = typeof saveKoreaderSidecar;
+
 interface SavePosition {
 	percentFinished: number;
 	lastXPointer: string | null;
@@ -17,13 +19,15 @@ export class ReaderSaveQueue {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private isSaving = false;
 	private saveAgain = false;
+	private isDestroyed = false;
 
 	constructor(
 		private readonly fileName: string,
 		private readonly readerSessionId: string,
 		private readonly getPosition: () => SavePosition,
 		private readonly onSaved: (snapshot: SidecarSnapshot) => void,
-		private readonly onStatus: (status: SaveStatus) => void
+		private readonly onStatus: (status: SaveStatus) => void,
+		private readonly saveSidecar: SaveKoreaderSidecar = saveKoreaderSidecar
 	) {}
 
 	upsert(annotation: ReaderAnnotation): void {
@@ -37,29 +41,29 @@ export class ReaderSaveQueue {
 	}
 
 	schedule(delay = 700): void {
-		if (!this.getPosition().lastXPointer) return;
+		if (this.isDestroyed) return;
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = setTimeout(() => void this.flush(), delay);
 	}
 
-	async flush(): Promise<void> {
+	async flush(isFinalAttempt = false): Promise<void> {
+		if (this.isDestroyed && !isFinalAttempt) return;
 		const position = this.getPosition();
-		if (!position.lastXPointer) return;
 		if (this.isSaving) {
 			this.saveAgain = true;
 			return;
 		}
 
 		this.isSaving = true;
-		this.onStatus({ isSaving: true, error: null });
+		if (!this.isDestroyed) this.onStatus({ isSaving: true, error: null });
 		const capturedUpserts = [...this.upserts.values()];
 		const capturedDeletes = [...this.deletions];
 		try {
-			const merged = await saveKoreaderSidecar(
+			const merged = await this.saveSidecar(
 				this.fileName,
 				{
 					percentFinished: position.percentFinished,
-					lastXPointer: position.lastXPointer,
+					lastXPointer: position.lastXPointer ?? undefined,
 					upsertedAnnotations: capturedUpserts,
 					deletedAnnotationIds: capturedDeletes
 				},
@@ -69,23 +73,30 @@ export class ReaderSaveQueue {
 				if (this.upserts.get(annotation.id) === annotation) this.upserts.delete(annotation.id);
 			}
 			for (const id of capturedDeletes) this.deletions.delete(id);
-			this.onSaved(merged);
-			this.onStatus({ isSaving: false, error: null });
+			if (!this.isDestroyed) {
+				this.onSaved(merged);
+				this.onStatus({ isSaving: false, error: null });
+			}
 		} catch (error: unknown) {
-			this.onStatus({
-				isSaving: false,
-				error: error instanceof Error ? error.message : 'Failed to save reading state'
-			});
+			if (!this.isDestroyed) {
+				this.onStatus({
+					isSaving: false,
+					error: error instanceof Error ? error.message : 'Failed to save reading state'
+				});
+			}
 		} finally {
 			this.isSaving = false;
 			if (this.saveAgain) {
 				this.saveAgain = false;
-				void this.flush();
+				void this.flush(this.isDestroyed);
 			}
 		}
 	}
 
 	destroy(): void {
 		if (this.timer) clearTimeout(this.timer);
+		this.timer = null;
+		this.isDestroyed = true;
+		void this.flush(true);
 	}
 }

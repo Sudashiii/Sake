@@ -5,6 +5,7 @@ import {
 	toKoreaderXPointer,
 	type DomNodeLike
 } from '$lib/features/reader/koreaderXPointer';
+import { cfiToKoreaderXPointer } from '$lib/features/reader/readerRuntime';
 
 class TestNode implements DomNodeLike {
 	readonly childNodes: TestNode[] = [];
@@ -111,5 +112,20 @@ describe('KOReader normalized EPUB XPointers', () => {
 			),
 			null
 		);
+	});
+
+	test('returns null instead of throwing for an image-only rendition location', () => {
+		const body = element('body', element('img'));
+		const document = {};
+		const startContainer = Object.assign(body, { ownerDocument: document });
+		const rendition = {
+			getRange: () => ({
+				startContainer,
+				startOffset: 0
+			}),
+			getContents: () => [{ document, sectionIndex: 0 }]
+		};
+
+		assert.equal(cfiToKoreaderXPointer(rendition as never, 'epubcfi(/6/2)', 1), null);
 	});
 });

@@ -47,17 +47,21 @@ export function cfiToKoreaderXPointer(
 	cfi: string,
 	spineCount: number
 ): string | null {
-	const range = rendition.getRange(cfi);
-	const contents =
-		renditionContents(rendition).find(
-			(item) => item.document === range.startContainer.ownerDocument
-		) ?? null;
-	if (!contents) return null;
-	return toKoreaderXPointer(
-		{ node: range.startContainer, offset: range.startOffset },
-		{ spineIndex: contents.sectionIndex, spineCount },
-		'forward'
-	);
+	try {
+		const range = rendition.getRange(cfi);
+		const contents =
+			renditionContents(rendition).find(
+				(item) => item.document === range.startContainer.ownerDocument
+			) ?? null;
+		if (!contents) return null;
+		return toKoreaderXPointer(
+			{ node: range.startContainer, offset: range.startOffset },
+			{ spineIndex: contents.sectionIndex, spineCount },
+			'forward'
+		);
+	} catch {
+		return null;
+	}
 }
 
 export function selectionFromCfi(
