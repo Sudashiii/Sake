@@ -1,0 +1,384 @@
+.reader {
+	position: fixed;
+	inset: 0;
+	z-index: 20;
+	display: grid;
+	grid-template-rows: 58px minmax(0, 1fr) 34px;
+	background: #0d0f14;
+	color: #e9e6df;
+}
+
+.toolbar {
+	display: grid;
+	grid-template-columns: 1fr minmax(0, 2fr) 1fr;
+	align-items: center;
+	gap: 16px;
+	padding: 0 16px;
+	border-bottom: 1px solid #262a32;
+	background: #14171d;
+}
+
+.toolbarGroup {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+
+	&:last-child {
+		justify-content: flex-end;
+	}
+
+	button,
+	a {
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 38px;
+		border: 1px solid transparent;
+		border-radius: 9px;
+		background: transparent;
+		color: #c6cbd3;
+		cursor: pointer;
+
+		&:hover {
+			border-color: #343944;
+			background: #20242c;
+			color: #fff;
+		}
+	}
+}
+
+.title {
+	min-width: 0;
+	text-align: center;
+
+	strong,
+	span {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	strong {
+		font-size: 14px;
+	}
+
+	span {
+		margin-top: 2px;
+		color: #858c98;
+		font-size: 11px;
+	}
+}
+
+.saveStatus {
+	color: #7f8793;
+	font-size: 11px;
+}
+
+.viewportShell {
+	position: relative;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.viewport {
+	width: 100%;
+	height: 100%;
+}
+
+.tapZones {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	pointer-events: none;
+
+	> div {
+		position: relative;
+		display: grid;
+		place-items: center;
+		border-color: rgb(233 230 223 / 0.45);
+		border-style: dashed;
+
+		span {
+			padding: 5px 8px;
+			border-radius: 6px;
+			background: rgb(13 15 20 / 0.82);
+			color: #f2eee5;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+	}
+
+	output {
+		position: absolute;
+		top: 12px;
+		left: 50%;
+		max-width: calc(100% - 32px);
+		padding: 7px 10px;
+		overflow: hidden;
+		border: 1px solid rgb(233 230 223 / 0.3);
+		border-radius: 7px;
+		background: rgb(13 15 20 / 0.88);
+		color: #f2eee5;
+		font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		transform: translateX(-50%);
+	}
+}
+
+.previousZone {
+	border-width: 0 1px 0 0;
+	background: rgb(78 121 202 / 0.17);
+}
+
+.centerZone {
+	border-width: 0 1px 0 0;
+	background: rgb(143 150 163 / 0.08);
+}
+
+.nextZone {
+	border-width: 0;
+	background: rgb(81 154 112 / 0.17);
+}
+
+.loading {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	display: grid;
+	place-content: center;
+	justify-items: center;
+	gap: 12px;
+	background: #0d0f14;
+	color: #9299a4;
+}
+
+.pageButton {
+	position: absolute;
+	top: 50%;
+	z-index: 4;
+	display: grid;
+	place-items: center;
+	width: 46px;
+	height: 72px;
+	border: 0;
+	border-radius: 12px;
+	background: rgb(18 20 25 / 0.72);
+	color: #d9dde3;
+	opacity: 0.25;
+	transform: translateY(-50%);
+	transition: opacity 150ms ease, background 150ms ease;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		background: rgb(18 20 25 / 0.94);
+		opacity: 1;
+	}
+}
+
+.previous {
+	left: 12px;
+}
+
+.next {
+	right: 12px;
+}
+
+.footer {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 0 18px;
+	border-top: 1px solid #242831;
+	background: #13161c;
+	color: #8c939e;
+	font-size: 11px;
+}
+
+.mobilePageButton {
+	display: none;
+}
+
+.progressTrack {
+	flex: 1;
+	height: 3px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: #30343d;
+
+	span {
+		display: block;
+		height: 100%;
+		background: #c9a962;
+		transition: width 200ms ease;
+	}
+}
+
+.footerStatus {
+	min-width: 78px;
+	border: 0;
+	border-radius: 6px;
+	padding: 5px 7px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: right;
+	white-space: nowrap;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		background: #20242c;
+		color: #e9e6df;
+	}
+}
+
+.backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 25;
+	border: 0;
+	background: rgb(0 0 0 / 0.45);
+}
+
+.selectionCard {
+	position: fixed;
+	z-index: 40;
+	right: 24px;
+	bottom: 54px;
+	width: min(420px, calc(100vw - 32px));
+	padding: 16px;
+	border: 1px solid #363b46;
+	border-radius: 14px;
+	background: #1b1f27;
+	box-shadow: 0 18px 50px rgb(0 0 0 / 0.38);
+
+	p {
+		max-height: 90px;
+		margin: 0 0 12px;
+		overflow: auto;
+		color: #dfe2e7;
+		font-family: Georgia, serif;
+		line-height: 1.5;
+	}
+
+	textarea {
+		box-sizing: border-box;
+		width: 100%;
+		resize: vertical;
+		border: 1px solid #373d48;
+		border-radius: 8px;
+		padding: 10px;
+		background: #101319;
+		color: #f0f1f3;
+	}
+
+	> div {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	button {
+		border: 1px solid #373d48;
+		border-radius: 8px;
+		padding: 8px 12px;
+		background: transparent;
+		color: #dfe2e7;
+		cursor: pointer;
+	}
+}
+
+.colorField {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 10px;
+	color: #aeb4be;
+	font-size: 12px;
+
+	select {
+		border: 1px solid #373d48;
+		border-radius: 8px;
+		padding: 7px 9px;
+		background: #101319;
+		color: #f0f1f3;
+	}
+}
+
+.primary {
+	border-color: #c9a962 !important;
+	background: #c9a962 !important;
+	color: #15130d !important;
+	font-weight: 700;
+}
+
+.error {
+	position: fixed;
+	z-index: 50;
+	left: 50%;
+	bottom: 48px;
+	max-width: min(520px, calc(100vw - 32px));
+	padding: 10px 14px;
+	border: 1px solid #7c3d42;
+	border-radius: 9px;
+	background: #3b2024;
+	color: #f3c9cd;
+	transform: translateX(-50%);
+}
+
+@media (max-width: 700px) {
+	.reader {
+		grid-template-rows: 58px minmax(0, 1fr) 48px;
+	}
+
+	.toolbar {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		padding: 0 8px;
+	}
+
+	.saveStatus {
+		display: none;
+	}
+
+	.pageButton {
+		display: none;
+	}
+
+	.footer {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 10px;
+		height: 48px;
+		padding: 0 10px;
+
+		&.withControls {
+			grid-template-columns: 38px minmax(0, 1fr) auto 38px;
+		}
+	}
+
+	.mobilePageButton {
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 36px;
+		border: 1px solid #303641;
+		border-radius: 8px;
+		background: #1b1f27;
+		color: #d9dde3;
+		cursor: pointer;
+	}
+
+	.selectionCard {
+		right: 16px;
+		bottom: 46px;
+	}
+}

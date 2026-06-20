@@ -1,5 +1,6 @@
 <script lang="ts">
 	import EditIcon from '$lib/assets/icons/EditIcon.svelte';
+	import BookOpenIcon from '$lib/assets/icons/BookOpenIcon.svelte';
 	import type { LibraryBook } from '$lib/types/Library/Book';
 	import type { LibraryBookDetail } from '$lib/types/Library/BookDetail';
 	import type { LibraryShelf } from '$lib/types/Library/Shelf';
@@ -227,6 +228,12 @@
 	</div>
 
 	<div class="detail-v2-actions">
+		{#if selectedBook.extension?.toLowerCase() === 'epub'}
+			<a class="detail-v2-btn detail-v2-btn-primary" href={`/library/${selectedBook.id}/read`}>
+				<BookOpenIcon size={15} decorative={true} />
+				<span>Read</span>
+			</a>
+		{/if}
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onDownloadFromLibrary} disabled={isDownloadingLibraryFile}>{isDownloadingLibraryFile ? 'Downloading...' : 'Download'}</button>
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleArchiveState} disabled={isUpdatingArchiveState}>{isUpdatingArchiveState ? 'Saving...' : selectedBookDetail.isArchived ? 'Unarchive' : 'Archive'}</button>
 		<button class="detail-v2-btn detail-v2-btn-secondary" onclick={onToggleExcludeFromNewBooks} disabled={isUpdatingNewBooksExclusion || selectedBookDetail.isArchived}>{isUpdatingNewBooksExclusion ? 'Saving...' : selectedBookDetail.excludeFromNewBooks ? 'Include In Device Downloads' : 'Exclude From Device Downloads'}</button>

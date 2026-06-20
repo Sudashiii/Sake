@@ -166,9 +166,16 @@ export const bookProgressHistory = sqliteTable(
 			.notNull()
 			.references(() => books.id, { onDelete: 'cascade' }),
 		progressPercent: real('progress_percent').notNull(),
-		recordedAt: text('recorded_at').notNull()
+		recordedAt: text('recorded_at').notNull(),
+		readerSessionId: text('reader_session_id')
 	},
-	(table) => [uniqueIndex('book_progress_history_book_recorded_unique').on(table.bookId, table.recordedAt)]
+	(table) => [
+		uniqueIndex('book_progress_history_book_recorded_unique').on(table.bookId, table.recordedAt),
+		uniqueIndex('book_progress_history_book_reader_session_unique').on(
+			table.bookId,
+			table.readerSessionId
+		)
+	]
 );
 
 export const queueJobs = sqliteTable(

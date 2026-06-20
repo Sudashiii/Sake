@@ -45,14 +45,14 @@
   "screenshots": [
     {
       "src": "/screenshots/install-wide.png",
-      "sizes": "1280x720",
+      "sizes": "1305x877",
       "type": "image/png",
       "form_factor": "wide",
       "label": "Sake desktop view"
     },
     {
       "src": "/screenshots/install-mobile.png",
-      "sizes": "720x1280",
+      "sizes": "586x1284",
       "type": "image/png",
       "label": "Sake mobile view"
     }

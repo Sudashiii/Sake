@@ -42,11 +42,13 @@
 	let sidebarMobileOpen = $state(false);
 	// Check if we're on the login page (don't show sidebar there)
 	let isLoginPage = $derived($page.url.pathname === '/');
+	let isReaderPage = $derived(/^\/library\/\d+\/read$/.test($page.url.pathname));
+	let hasAppChrome = $derived(!isLoginPage && !isReaderPage);
 	let databaseMigrationWarning = $derived(
 		getDatabaseMigrationStatusNote(data.appVersionInfo?.database ?? null, data.appVersionError)
 	);
 	let showDatabaseMigrationWarning = $derived(
-		!isLoginPage &&
+		hasAppChrome &&
 			shouldShowDatabaseMigrationWarning(
 				data.appVersionInfo?.database ?? null,
 				data.appVersionError
@@ -206,10 +208,10 @@
 
 <div
 	class="app-layout"
-	class:with-sidebar={!isLoginPage}
+	class:with-sidebar={hasAppChrome}
 	class:sidebar-collapsed={sidebarCollapsed}
 >
-	{#if !isLoginPage}
+	{#if hasAppChrome}
 		<Sidebar
 			bind:collapsed={sidebarCollapsed}
 			bind:mobileOpen={sidebarMobileOpen}
@@ -222,7 +224,7 @@
 	{/if}
 
 	<div class="main-content">
-		{#if !isLoginPage}
+		{#if hasAppChrome}
 			<AppTopBar
 				currentSection={currentSection}
 				onToggleMobileSidebar={toggleMobileSidebar}
@@ -241,7 +243,7 @@
 	</div>
 </div>
 
-{#if sidebarMobileOpen && !isLoginPage}
+{#if sidebarMobileOpen && hasAppChrome}
 	<MobileSidebarBackdrop onClose={() => (sidebarMobileOpen = false)} />
 {/if}
 

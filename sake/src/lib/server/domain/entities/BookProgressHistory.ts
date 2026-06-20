@@ -3,5 +3,5 @@ export interface BookProgressHistory {
 	bookId: number;
 	progressPercent: number;
 	recordedAt: string;
+	readerSessionId: string | null;
 }
-

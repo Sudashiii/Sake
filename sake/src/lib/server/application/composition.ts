@@ -33,6 +33,7 @@ import { GetBookProgressHistoryUseCase } from '$lib/server/application/use-cases
 import { GetNewProgressForDeviceUseCase } from '$lib/server/application/use-cases/GetNewProgressForDeviceUseCase';
 import { ConfirmProgressDownloadUseCase } from '$lib/server/application/use-cases/ConfirmProgressDownloadUseCase';
 import { GetLibraryFileUseCase } from '$lib/server/application/use-cases/GetLibraryFileUseCase';
+import { GetLibraryBookContentUseCase } from '$lib/server/application/use-cases/GetLibraryBookContentUseCase';
 import { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
 import { DeleteLibraryFileUseCase } from '$lib/server/application/use-cases/DeleteLibraryFileUseCase';
 import { ListDavDirectoryUseCase } from '$lib/server/application/use-cases/ListDavDirectoryUseCase';
@@ -199,6 +200,10 @@ export const confirmProgressDownloadUseCase = new ConfirmProgressDownloadUseCase
 );
 
 export const getLibraryFileUseCase = new GetLibraryFileUseCase(storage);
+export const getLibraryBookContentUseCase = new GetLibraryBookContentUseCase(
+	bookRepository,
+	storage
+);
 export const getLibraryCoverUseCase = new GetLibraryCoverUseCase(storage);
 export const importLibraryBookCoverUseCase = new ImportLibraryBookCoverUseCase(
 	bookRepository,

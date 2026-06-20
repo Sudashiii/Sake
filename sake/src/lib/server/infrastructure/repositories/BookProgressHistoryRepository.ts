@@ -9,14 +9,15 @@ export class BookProgressHistoryRepository implements BookProgressHistoryReposit
 	private readonly repoLogger = createChildLogger({ repository: 'BookProgressHistoryRepository' });
 
 	async appendSnapshot(
-		input: Omit<BookProgressHistory, 'id' | 'recordedAt'>
+		input: Pick<BookProgressHistory, 'bookId' | 'progressPercent'>
 	): Promise<BookProgressHistory> {
 		const [created] = await drizzleDb
 			.insert(bookProgressHistory)
 			.values({
 				bookId: input.bookId,
 				progressPercent: input.progressPercent,
-				recordedAt: new Date().toISOString()
+				recordedAt: new Date().toISOString(),
+				readerSessionId: null
 			})
 			.onConflictDoNothing({
 				target: [bookProgressHistory.bookId, bookProgressHistory.recordedAt]
@@ -63,6 +64,45 @@ export class BookProgressHistoryRepository implements BookProgressHistoryReposit
 		);
 
 		return existing;
+	}
+
+	async upsertReaderSessionSnapshot(
+		input: Pick<BookProgressHistory, 'bookId' | 'progressPercent'> & { readerSessionId: string }
+	): Promise<BookProgressHistory> {
+		const recordedAt = new Date().toISOString();
+		const [snapshot] = await drizzleDb
+			.insert(bookProgressHistory)
+			.values({
+				bookId: input.bookId,
+				progressPercent: input.progressPercent,
+				recordedAt,
+				readerSessionId: input.readerSessionId
+			})
+			.onConflictDoUpdate({
+				target: [bookProgressHistory.bookId, bookProgressHistory.readerSessionId],
+				set: {
+					progressPercent: input.progressPercent,
+					recordedAt
+				}
+			})
+			.returning();
+
+		if (!snapshot) {
+			throw new Error('Failed to upsert reader session progress history snapshot');
+		}
+
+		this.repoLogger.info(
+			{
+				event: 'book.progress_history.reader_session.upserted',
+				bookId: snapshot.bookId,
+				progressPercent: snapshot.progressPercent,
+				recordedAt: snapshot.recordedAt,
+				readerSessionId: snapshot.readerSessionId
+			},
+			'Reader session progress history snapshot upserted'
+		);
+
+		return snapshot;
 	}
 
 	async getByBookId(bookId: number): Promise<BookProgressHistory[]> {

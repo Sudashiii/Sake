@@ -51,6 +51,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		const fileName = formData.get('fileName');
 		const file = formData.get('file');
 		const deviceId = formData.get('deviceId');
+		const readerSessionId = formData.get('readerSessionId');
 		const percentFinishedRaw = formData.get('percentFinished');
 
 		if (typeof fileName !== 'string' || fileName.length === 0) {
@@ -81,6 +82,16 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			);
 			return errorResponse('percentFinished must be a number between 0 and 1', 400);
 		}
+		if (
+			readerSessionId !== null &&
+			(typeof readerSessionId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(readerSessionId))
+		) {
+			requestLogger.warn(
+				{ event: 'progress.upload.validation_failed', reason: 'readerSessionId invalid' },
+				'Invalid readerSessionId in form data'
+			);
+			return errorResponse('readerSessionId must be a UUID', 400);
+		}
 
 		const deviceResult = resolveAuthorizedDeviceId(
 			locals,
@@ -104,7 +115,8 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			fileName,
 			fileData: body,
 			percentFinished,
-			deviceId: deviceResult.deviceId ?? undefined
+			deviceId: deviceResult.deviceId ?? undefined,
+			readerSessionId: readerSessionId || undefined
 		});
 
 		if (!result.ok) {
