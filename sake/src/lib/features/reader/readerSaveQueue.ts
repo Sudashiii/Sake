@@ -20,6 +20,7 @@ export class ReaderSaveQueue {
 
 	constructor(
 		private readonly fileName: string,
+		private readonly readerSessionId: string,
 		private readonly getPosition: () => SavePosition,
 		private readonly onSaved: (snapshot: SidecarSnapshot) => void,
 		private readonly onStatus: (status: SaveStatus) => void
@@ -54,12 +55,16 @@ export class ReaderSaveQueue {
 		const capturedUpserts = [...this.upserts.values()];
 		const capturedDeletes = [...this.deletions];
 		try {
-			const merged = await saveKoreaderSidecar(this.fileName, {
-				percentFinished: position.percentFinished,
-				lastXPointer: position.lastXPointer,
-				upsertedAnnotations: capturedUpserts,
-				deletedAnnotationIds: capturedDeletes
-			});
+			const merged = await saveKoreaderSidecar(
+				this.fileName,
+				{
+					percentFinished: position.percentFinished,
+					lastXPointer: position.lastXPointer,
+					upsertedAnnotations: capturedUpserts,
+					deletedAnnotationIds: capturedDeletes
+				},
+				this.readerSessionId
+			);
 			for (const annotation of capturedUpserts) {
 				if (this.upserts.get(annotation.id) === annotation) this.upserts.delete(annotation.id);
 			}

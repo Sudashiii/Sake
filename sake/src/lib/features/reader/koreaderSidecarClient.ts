@@ -47,7 +47,8 @@ export async function fetchKoreaderSidecar(fileName: string): Promise<SidecarSna
 
 export async function saveKoreaderSidecar(
 	fileName: string,
-	changes: SidecarChanges
+	changes: SidecarChanges,
+	readerSessionId?: string
 ): Promise<SidecarSnapshot> {
 	const latest = await fetchKoreaderSidecar(fileName);
 	const merged = mergeKoreaderSidecar(latest?.source ?? null, changes, localDate());
@@ -58,6 +59,9 @@ export async function saveKoreaderSidecar(
 		new File([merged.source], 'metadata.epub.lua', { type: 'application/x-lua' })
 	);
 	formData.set('percentFinished', String(merged.percentFinished));
+	if (readerSessionId) {
+		formData.set('readerSessionId', readerSessionId);
+	}
 
 	const response = await fetch('/api/library/progress', {
 		method: 'PUT',

@@ -14,6 +14,7 @@ interface PutProgressInput {
 	fileData: ArrayBuffer;
 	percentFinished: number;
 	deviceId?: string;
+	readerSessionId?: string;
 }
 
 interface PutProgressResult {
@@ -94,7 +95,27 @@ export class PutProgressUseCase {
 		const normalizedPercent = Math.max(0, Math.min(1, input.percentFinished));
 		const previousPercent = typeof book.progress_percent === 'number' ? book.progress_percent : null;
 		await this.bookRepository.updateProgress(book.id, progressKey, normalizedPercent);
-		if (previousPercent === null || normalizedPercent > previousPercent) {
+		if (input.readerSessionId) {
+			try {
+				await this.bookProgressHistoryRepository.upsertReaderSessionSnapshot({
+					bookId: book.id,
+					progressPercent: normalizedPercent,
+					readerSessionId: input.readerSessionId
+				});
+			} catch (cause: unknown) {
+				if (isMissingProgressHistoryTableError(cause)) {
+					this.useCaseLogger.warn(
+						{
+							event: 'progress.history.migration_missing',
+							bookId: book.id
+						},
+						'Progress history table not available yet; skipping history snapshot'
+					);
+				} else {
+					throw cause;
+				}
+			}
+		} else if (previousPercent === null || normalizedPercent > previousPercent) {
 			try {
 				await this.bookProgressHistoryRepository.appendSnapshot({
 					bookId: book.id,

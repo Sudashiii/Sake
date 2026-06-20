@@ -1,25 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import {
-	bookPageFromPagination,
-	type ReaderPagination
-} from '$lib/features/reader/readerPagination';
-
-const pagination: ReaderPagination = {
-	sectionPageOffsets: [0, 6, 18],
-	totalPages: 30
-};
+import { bookPageFromLocation } from '$lib/features/reader/readerPagination';
 
 describe('reader pagination', () => {
-	test('maps a chapter page into the whole-book page count', () => {
-		assert.equal(bookPageFromPagination(pagination, 0, 1), 1);
-		assert.equal(bookPageFromPagination(pagination, 1, 1), 7);
-		assert.equal(bookPageFromPagination(pagination, 2, 4), 22);
+	test('maps EPUB locations into one-based whole-book pages', () => {
+		assert.equal(bookPageFromLocation(30, 0), 1);
+		assert.equal(bookPageFromLocation(30, 6), 7);
+		assert.equal(bookPageFromLocation(30, 21), 22);
 	});
 
-	test('clamps the final page and rejects unavailable positions', () => {
-		assert.equal(bookPageFromPagination(pagination, 2, 99), 30);
-		assert.equal(bookPageFromPagination(pagination, 3, 1), null);
-		assert.equal(bookPageFromPagination(pagination, 1, 0), null);
+	test('clamps the final page and rejects unavailable locations', () => {
+		assert.equal(bookPageFromLocation(30, 99), 30);
+		assert.equal(bookPageFromLocation(0, 0), null);
+		assert.equal(bookPageFromLocation(30, -1), null);
+		assert.equal(bookPageFromLocation(Number.NaN, 1), null);
 	});
 });

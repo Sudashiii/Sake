@@ -22,11 +22,7 @@
 		loadReaderNavigationPreferences,
 		saveReaderNavigationPreferences
 	} from '$lib/features/reader/readerPreferences';
-	import {
-		bookPageFromPagination,
-		measureReaderPagination,
-		type ReaderPagination
-	} from '$lib/features/reader/readerPagination';
+	import { bookPageFromLocation } from '$lib/features/reader/readerPagination';
 	import {
 		formatReaderFooterStatus,
 		loadReaderFooterStatusMode,
@@ -66,12 +62,8 @@
 
 	let viewportShell = $state<HTMLDivElement | null>(null);
 	let viewport = $state<HTMLDivElement | null>(null);
-	let paginationViewport = $state<HTMLDivElement | null>(null);
 	let book: Book | null = null;
 	let rendition: Rendition | null = null;
-	let epubData: ArrayBuffer | null = null;
-	let readerPagination: ReaderPagination | null = null;
-	let currentSectionIndex: number | null = null;
 	let spineCount = 1;
 	let toc = $state<NavItem[]>([]);
 	let annotations = $state<ReaderAnnotation[]>([]);
@@ -100,8 +92,6 @@
 	let noteDraft = $state('');
 	let highlightColor = $state('yellow');
 	let unbindTapNavigation: (() => void) | null = null;
-	let paginationRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-	let paginationRequestId = 0;
 	let footerStatus = $derived(
 		formatReaderFooterStatus(footerStatusMode, {
 			percentFinished,
@@ -117,6 +107,7 @@
 		readerFooterStatusModeLabel(nextReaderFooterStatusMode(footerStatusMode))
 	);
 	const renderedAnnotationCfis = new Map<string, string>();
+	const readerSessionId = crypto.randomUUID();
 	const tapNavigation = new ReaderTapNavigation(
 		(direction) => {
 			if (!rendition) return;
@@ -126,6 +117,7 @@
 	);
 	const saveQueue = new ReaderSaveQueue(
 		data.book.fileName,
+		readerSessionId,
 		() => ({ percentFinished, lastXPointer: currentXPointer }),
 		(snapshot) => (annotations = snapshot.annotations),
 		(status) => {
@@ -141,47 +133,6 @@
 		applyReaderAppearance(rendition, theme, fontSize);
 		localStorage.setItem('readerTheme', theme);
 		localStorage.setItem('readerFontSize', String(fontSize));
-		schedulePaginationRefresh();
-	}
-
-	function updateBookPage(): void {
-		bookPage =
-			readerPagination && currentSectionIndex !== null && chapterPage !== null
-				? bookPageFromPagination(readerPagination, currentSectionIndex, chapterPage)
-				: null;
-	}
-
-	function schedulePaginationRefresh(): void {
-		if (!epubData || !paginationViewport) return;
-		if (paginationRefreshTimer) clearTimeout(paginationRefreshTimer);
-		paginationRefreshTimer = setTimeout(() => void refreshPagination(), 150);
-	}
-
-	async function refreshPagination(): Promise<void> {
-		if (!epubData || !paginationViewport) return;
-		const requestId = ++paginationRequestId;
-		readerPagination = null;
-		bookPaginationStatus = 'pending';
-		bookPage = null;
-		bookTotalPages = null;
-		try {
-			const measured = await measureReaderPagination({
-				epubData,
-				host: paginationViewport,
-				theme,
-				fontSize,
-				isCancelled: () => requestId !== paginationRequestId
-			});
-			if (!measured || requestId !== paginationRequestId) return;
-			readerPagination = measured;
-			bookTotalPages = measured.totalPages;
-			bookPaginationStatus = 'ready';
-			updateBookPage();
-		} catch (error: unknown) {
-			if (requestId !== paginationRequestId) return;
-			bookPaginationStatus = 'unavailable';
-			console.error('[Sake reader pagination] Failed to count rendered pages', error);
-		}
 	}
 
 	function updateNavigationPreferences(): void {
@@ -266,19 +217,19 @@
 		percentFinished = Number.isFinite(calculated)
 			? calculated
 			: Math.max(0, Math.min(1, location.start.percentage ?? 0));
-		currentSectionIndex = location.start.index;
 		chapterPage = location.start.displayed.page;
 		chapterTotalPages = location.start.displayed.total;
-		updateBookPage();
+		const fallbackLocation = Math.floor(percentFinished * Math.max(0, (bookTotalPages ?? 1) - 1));
+		bookPage = bookPageFromLocation(
+			bookTotalPages ?? 0,
+			location.start.location >= 0 ? location.start.location : fallbackLocation
+		);
 		renderVisibleAnnotations();
 		saveQueue.schedule();
 	}
 
 	function cycleFooterStatus(): void {
 		const nextMode = nextReaderFooterStatusMode(footerStatusMode);
-		if (nextMode === 'book-progress' && bookPaginationStatus === 'unavailable') {
-			schedulePaginationRefresh();
-		}
 		footerStatusMode = nextMode;
 		saveReaderFooterStatusMode(localStorage, footerStatusMode);
 	}
@@ -354,7 +305,6 @@
 	onMount(() => {
 		let isDestroyed = false;
 		let clockTimer: ReturnType<typeof setTimeout> | null = null;
-		let resizeObserver: ResizeObserver | null = null;
 
 		const updateClock = (): void => {
 			currentTime = new Date();
@@ -363,10 +313,6 @@
 		};
 
 		updateClock();
-		if (viewportShell) {
-			resizeObserver = new ResizeObserver(schedulePaginationRefresh);
-			resizeObserver.observe(viewportShell);
-		}
 		void (async () => {
 			try {
 				theme = parseReaderTheme(localStorage.getItem('readerTheme'));
@@ -390,7 +336,7 @@
 				if (!contentResponse.ok) {
 					throw new Error('Failed to load EPUB content');
 				}
-				epubData = await contentResponse.arrayBuffer();
+				const epubData = await contentResponse.arrayBuffer();
 				book = epubModule.default(epubData.slice(0));
 				await book.ready;
 				const spine = await book.loaded.spine;
@@ -399,6 +345,12 @@
 				annotations = sidecar?.annotations ?? [];
 				percentFinished = sidecar?.percentFinished ?? 0;
 				await book.locations.generate(1200);
+				bookTotalPages = book.locations.length();
+				bookPaginationStatus = bookTotalPages > 0 ? 'ready' : 'unavailable';
+				bookPage = bookPageFromLocation(
+					bookTotalPages,
+					Math.floor(percentFinished * Math.max(0, bookTotalPages - 1))
+				);
 				if (isDestroyed || !viewport) {
 					return;
 				}
@@ -423,7 +375,6 @@
 				} else {
 					await rendition.display();
 				}
-				schedulePaginationRefresh();
 			} catch (error: unknown) {
 				saveError = error instanceof Error ? error.message : 'Failed to open this EPUB';
 			} finally {
@@ -433,10 +384,7 @@
 
 		return () => {
 			isDestroyed = true;
-			paginationRequestId += 1;
-			if (paginationRefreshTimer) clearTimeout(paginationRefreshTimer);
 			if (clockTimer) clearTimeout(clockTimer);
-			resizeObserver?.disconnect();
 			saveQueue.destroy();
 			unbindTapNavigation?.();
 			rendition?.destroy();
@@ -468,7 +416,6 @@
 			<div class={styles.loading}><BookOpenIcon size={30} decorative={true} /><span>Opening book…</span></div>
 		{/if}
 		<div bind:this={viewport} class={styles.viewport}></div>
-		<div bind:this={paginationViewport} class={styles.paginationViewport} aria-hidden="true"></div>
 		{#if isTapNavigationDebugEnabled}
 			<div class={styles.tapZones} aria-hidden="true">
 				<div class={styles.previousZone}><span>Previous</span></div>
