@@ -10,6 +10,8 @@ interface GetLibraryBookDetailInput {
 export interface LibraryBookDetail {
 	success: true;
 	bookId: number;
+	fileName: string;
+	extension: string | null;
 	title: string;
 	author: string | null;
 	publisher: string | null;
@@ -64,6 +66,8 @@ export class GetLibraryBookDetailUseCase {
 		return apiOk({
 			success: true,
 			bookId: input.bookId,
+			fileName: book.s3_storage_key,
+			extension: book.extension,
 			title: book.title,
 			author: book.author,
 			publisher: book.publisher,

@@ -1,6 +1,8 @@
 export interface LibraryBookDetail {
 	success: boolean;
 	bookId: number;
+	fileName: string;
+	extension: string | null;
 	title: string;
 	author: string | null;
 	publisher: string | null;
