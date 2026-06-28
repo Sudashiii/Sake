@@ -34,11 +34,18 @@ export class HardcoverProgressSettingsRepository {
 	}
 
 	async markSuccessful(at: string): Promise<void> {
-		const current = await this.get();
-		await this.setEnabled(current?.enabled ?? true);
 		await drizzleDb
-			.update(hardcoverProgressSettings)
-			.set({ lastSuccessfulSyncAt: at, updatedAt: at })
-			.where(eq(hardcoverProgressSettings.id, SETTINGS_ID));
+			.insert(hardcoverProgressSettings)
+			.values({
+				id: SETTINGS_ID,
+				enabled: true,
+				lastSuccessfulSyncAt: at,
+				createdAt: at,
+				updatedAt: at
+			})
+			.onConflictDoUpdate({
+				target: hardcoverProgressSettings.id,
+				set: { lastSuccessfulSyncAt: at, updatedAt: at }
+			});
 	}
 }

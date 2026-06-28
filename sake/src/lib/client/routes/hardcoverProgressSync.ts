@@ -6,26 +6,12 @@ import type {
 } from '$lib/types/Integrations/HardcoverProgress';
 import { ZUIRoutes } from '../base/routes';
 
-async function request<T>(method: 'GET' | 'PUT' | 'POST', body?: unknown): Promise<Result<T, ApiError>> {
-	try {
-		const response = await fetch(`/api${ZUIRoutes.hardcoverProgress}`, {
-			method,
-			headers: { 'Content-Type': 'application/json' },
-			...(body === undefined ? {} : { body: JSON.stringify(body) })
-		});
-		if (!response.ok) return err(await ApiErrors.fromResponse(response));
-		return ok((await response.json()) as T);
-	} catch (cause: unknown) {
-		return err(ApiErrors.network('Network request failed', cause));
-	}
-}
-
 export function getHardcoverProgressSyncStatus() {
-	return request<HardcoverProgressSyncStatus>('GET');
+	return requestPath<HardcoverProgressSyncStatus>(ZUIRoutes.hardcoverProgress, 'GET');
 }
 
 export function updateHardcoverProgressSyncSetting(enabled: boolean) {
-	return request<HardcoverProgressSyncStatus>('PUT', { enabled });
+	return requestPath<HardcoverProgressSyncStatus>(ZUIRoutes.hardcoverProgress, 'PUT', { enabled });
 }
 
 export function triggerHardcoverProgressSync() {

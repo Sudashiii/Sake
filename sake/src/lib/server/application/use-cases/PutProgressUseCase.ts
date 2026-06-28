@@ -177,12 +177,14 @@ export class PutProgressUseCase {
 				);
 			}
 		}
-		void this.hardcoverProgressSync?.enqueueBook(book.id).catch((cause: unknown) => {
+		try {
+			await this.hardcoverProgressSync?.enqueueBook(book.id);
+		} catch (cause: unknown) {
 			this.useCaseLogger.error(
 				{ event: 'progress.hardcover_enqueue.failed', bookId: book.id, cause },
 				'Failed to enqueue Hardcover progress sync'
 			);
-		});
+		}
 
 		return apiOk({ progressKey });
 	}

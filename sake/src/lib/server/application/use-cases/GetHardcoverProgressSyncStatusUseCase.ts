@@ -19,7 +19,7 @@ export class GetHardcoverProgressSyncStatusUseCase {
 		const demoMode = isDemoMode();
 		return apiOk({
 			tokenConfigured: this.tokenConfigured,
-			enabled: stored?.enabled ?? this.tokenConfigured,
+			enabled: stored?.enabled ?? false,
 			available: this.tokenConfigured && !demoMode,
 			demoMode,
 			lastSuccessfulSyncAt: stored?.lastSuccessfulSyncAt ?? null,

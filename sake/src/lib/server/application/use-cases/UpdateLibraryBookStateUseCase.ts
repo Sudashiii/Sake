@@ -84,7 +84,11 @@ export class UpdateLibraryBookStateUseCase {
 			excludeFromNewBooks: nextExclude
 		});
 		if (input.isRead !== undefined) {
-			void this.hardcoverProgressSync?.enqueueBook(input.bookId).catch(() => undefined);
+			try {
+				await this.hardcoverProgressSync?.enqueueBook(input.bookId);
+			} catch {
+				// The local read state must still succeed if the integration queue is unavailable.
+			}
 		}
 
 		return apiOk({

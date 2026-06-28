@@ -2,7 +2,7 @@ import type {
 	HardcoverProgressQueueJob,
 	HardcoverProgressQueuePort
 } from '$lib/server/application/ports/HardcoverProgressQueuePort';
-import { and, asc, desc, eq, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { books, hardcoverProgressSyncJobs } from '$lib/server/infrastructure/db/schema';
 
@@ -10,13 +10,8 @@ export type HardcoverProgressJobStatus = 'pending' | 'processing' | 'completed' 
 export type HardcoverProgressJob = typeof hardcoverProgressSyncJobs.$inferSelect;
 
 export class HardcoverProgressSyncJobRepository implements HardcoverProgressQueuePort {
-	async getByBookId(bookId: number): Promise<HardcoverProgressJob | null> {
-		const [row] = await drizzleDb
-			.select()
-			.from(hardcoverProgressSyncJobs)
-			.where(eq(hardcoverProgressSyncJobs.bookId, bookId))
-			.limit(1);
-		return row ?? null;
+	async getAll(): Promise<HardcoverProgressJob[]> {
+		return drizzleDb.select().from(hardcoverProgressSyncJobs);
 	}
 
 	async enqueue(input: {
@@ -54,49 +49,56 @@ export class HardcoverProgressSyncJobRepository implements HardcoverProgressQueu
 			});
 	}
 
-	async recoverProcessing(): Promise<void> {
+	async recoverProcessing(staleBefore: string): Promise<void> {
 		await drizzleDb
 			.update(hardcoverProgressSyncJobs)
 			.set({ status: 'pending', nextAttemptAt: null, updatedAt: new Date().toISOString() })
-			.where(eq(hardcoverProgressSyncJobs.status, 'processing'));
-	}
-
-	async nextDue(): Promise<HardcoverProgressJob | null> {
-		const now = new Date().toISOString();
-		const [row] = await drizzleDb
-			.select()
-			.from(hardcoverProgressSyncJobs)
 			.where(
-				or(
-					eq(hardcoverProgressSyncJobs.status, 'pending'),
-					and(
-						eq(hardcoverProgressSyncJobs.status, 'failed'),
-						lte(hardcoverProgressSyncJobs.nextAttemptAt, now)
-					)
+				and(
+					eq(hardcoverProgressSyncJobs.status, 'processing'),
+					lte(hardcoverProgressSyncJobs.updatedAt, staleBefore)
 				)
-			)
-			.orderBy(asc(hardcoverProgressSyncJobs.updatedAt))
-			.limit(1);
-		return row ?? null;
+			);
 	}
 
-	async markProcessing(id: number): Promise<void> {
-		await drizzleDb
-			.update(hardcoverProgressSyncJobs)
-			.set({
-				status: 'processing',
-				attempts: sql`${hardcoverProgressSyncJobs.attempts} + 1`,
-				updatedAt: new Date().toISOString()
-			})
-			.where(eq(hardcoverProgressSyncJobs.id, id));
+	async claimNextDue(): Promise<HardcoverProgressJob | null> {
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			const now = new Date().toISOString();
+			const due = or(
+				eq(hardcoverProgressSyncJobs.status, 'pending'),
+				and(
+					eq(hardcoverProgressSyncJobs.status, 'failed'),
+					lte(hardcoverProgressSyncJobs.nextAttemptAt, now)
+				)
+			);
+			const [candidate] = await drizzleDb
+				.select({ id: hardcoverProgressSyncJobs.id })
+				.from(hardcoverProgressSyncJobs)
+				.where(due)
+				.orderBy(asc(hardcoverProgressSyncJobs.updatedAt))
+				.limit(1);
+			if (!candidate) return null;
+
+			const [claimed] = await drizzleDb
+				.update(hardcoverProgressSyncJobs)
+				.set({
+					status: 'processing',
+					attempts: sql`${hardcoverProgressSyncJobs.attempts} + 1`,
+					updatedAt: now
+				})
+				.where(and(eq(hardcoverProgressSyncJobs.id, candidate.id), due))
+				.returning();
+			if (claimed) return claimed;
+		}
+		return null;
 	}
 
 	async markCompleted(
-		id: number,
+		job: HardcoverProgressJob,
 		input: { hardcoverBookId: string; hardcoverUserBookId: number; outcome: string }
-	): Promise<void> {
+	): Promise<boolean> {
 		const now = new Date().toISOString();
-		await drizzleDb
+		const updated = await drizzleDb
 			.update(hardcoverProgressSyncJobs)
 			.set({
 				status: 'completed',
@@ -108,29 +110,64 @@ export class HardcoverProgressSyncJobRepository implements HardcoverProgressQueu
 				updatedAt: now,
 				completedAt: now
 			})
-			.where(eq(hardcoverProgressSyncJobs.id, id));
+			.where(this.matchesClaim(job))
+			.returning({ id: hardcoverProgressSyncJobs.id });
+		return updated.length > 0;
 	}
 
-	async markSkipped(id: number, outcome: string): Promise<void> {
+	async markSkipped(job: HardcoverProgressJob, outcome: string): Promise<boolean> {
 		const now = new Date().toISOString();
-		await drizzleDb
+		const updated = await drizzleDb
 			.update(hardcoverProgressSyncJobs)
 			.set({ status: 'skipped', outcome, error: null, nextAttemptAt: null, updatedAt: now, completedAt: now })
-			.where(eq(hardcoverProgressSyncJobs.id, id));
+			.where(this.matchesClaim(job))
+			.returning({ id: hardcoverProgressSyncJobs.id });
+		return updated.length > 0;
 	}
 
-	async markFailed(id: number, error: string, attempts: number, isRetryable: boolean): Promise<void> {
+	async markFailed(job: HardcoverProgressJob, error: string, isRetryable: boolean): Promise<boolean> {
 		const now = new Date();
-		const delayMs = Math.min(60 * 60 * 1000, 5_000 * 2 ** Math.max(0, attempts - 1));
-		await drizzleDb
+		const delayMs = Math.min(60 * 60 * 1000, 5_000 * 2 ** Math.max(0, job.attempts - 1));
+		const updated = await drizzleDb
 			.update(hardcoverProgressSyncJobs)
 			.set({
 				status: 'failed',
 				error,
-				nextAttemptAt: isRetryable && attempts < 6 ? new Date(now.getTime() + delayMs).toISOString() : null,
+				nextAttemptAt: isRetryable && job.attempts < 6 ? new Date(now.getTime() + delayMs).toISOString() : null,
 				updatedAt: now.toISOString()
 			})
-			.where(eq(hardcoverProgressSyncJobs.id, id));
+			.where(this.matchesClaim(job))
+			.returning({ id: hardcoverProgressSyncJobs.id });
+		return updated.length > 0;
+	}
+
+	async getNextWorkerWakeAt(processingLeaseMs: number): Promise<string | null> {
+		const [retryRows, processingRows] = await Promise.all([
+			drizzleDb
+				.select({ at: hardcoverProgressSyncJobs.nextAttemptAt })
+				.from(hardcoverProgressSyncJobs)
+				.where(
+					and(
+						eq(hardcoverProgressSyncJobs.status, 'failed'),
+						isNotNull(hardcoverProgressSyncJobs.nextAttemptAt)
+					)
+				)
+				.orderBy(asc(hardcoverProgressSyncJobs.nextAttemptAt))
+				.limit(1),
+			drizzleDb
+				.select({ at: hardcoverProgressSyncJobs.updatedAt })
+				.from(hardcoverProgressSyncJobs)
+				.where(eq(hardcoverProgressSyncJobs.status, 'processing'))
+				.orderBy(asc(hardcoverProgressSyncJobs.updatedAt))
+				.limit(1)
+		]);
+		const candidates = [
+			retryRows[0]?.at ?? null,
+			processingRows[0]?.at
+				? new Date(new Date(processingRows[0].at).getTime() + processingLeaseMs).toISOString()
+				: null
+		].filter((value): value is string => value !== null);
+		return candidates.sort()[0] ?? null;
 	}
 
 	async counts(): Promise<Record<HardcoverProgressJobStatus, number>> {
@@ -184,8 +221,21 @@ export class HardcoverProgressSyncJobRepository implements HardcoverProgressQueu
 			})
 			.from(hardcoverProgressSyncJobs)
 			.innerJoin(books, eq(hardcoverProgressSyncJobs.bookId, books.id))
-			.orderBy(desc(hardcoverProgressSyncJobs.createdAt))
+			.orderBy(desc(hardcoverProgressSyncJobs.updatedAt))
 			.limit(limit);
 		return rows;
+	}
+
+	private matchesClaim(job: HardcoverProgressJob) {
+		return and(
+			eq(hardcoverProgressSyncJobs.id, job.id),
+			eq(hardcoverProgressSyncJobs.status, 'processing'),
+			eq(hardcoverProgressSyncJobs.attempts, job.attempts),
+			eq(hardcoverProgressSyncJobs.updatedAt, job.updatedAt),
+			eq(hardcoverProgressSyncJobs.sourceProgressPercent, job.sourceProgressPercent),
+			job.sourceProgressUpdatedAt === null
+				? isNull(hardcoverProgressSyncJobs.sourceProgressUpdatedAt)
+				: eq(hardcoverProgressSyncJobs.sourceProgressUpdatedAt, job.sourceProgressUpdatedAt)
+		);
 	}
 }

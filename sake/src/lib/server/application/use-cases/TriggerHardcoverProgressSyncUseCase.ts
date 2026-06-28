@@ -13,6 +13,9 @@ export class TriggerHardcoverProgressSyncUseCase {
 		if (/^(1|true|yes|on)$/i.test(process.env.SAKE_DEMO_MODE?.trim() ?? '')) {
 			return apiError('Hardcover progress sync is unavailable in demo mode', 403);
 		}
+		if (!(await this.sync.isEnabled())) {
+			return apiError('Hardcover progress sync is disabled', 409);
+		}
 		const enqueued = await this.sync.reconcile(true);
 		return apiOk({ success: true, enqueued });
 	}

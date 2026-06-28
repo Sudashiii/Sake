@@ -198,7 +198,11 @@ export class ExportDeviceLibraryBookUseCase {
 			bookId: book.id,
 			progressUpdatedAt
 		});
-		void this.hardcoverProgressSync?.enqueueBook(book.id).catch(() => undefined);
+		try {
+			await this.hardcoverProgressSync?.enqueueBook(book.id);
+		} catch {
+			// The imported local progress remains authoritative even when the integration queue is unavailable.
+		}
 
 		return apiOk('imported');
 	}

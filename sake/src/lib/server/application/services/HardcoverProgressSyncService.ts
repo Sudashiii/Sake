@@ -40,6 +40,8 @@ const BOOK_CONTEXT_QUERY = /* GraphQL */ `
 	}
 `;
 
+const PROCESSING_LEASE_MS = 5 * 60 * 1000;
+
 const ISBN_QUERY = /* GraphQL */ `
 	query SakeHardcoverExactIsbn($isbn: String!) {
 		editions(
@@ -205,6 +207,8 @@ export function describeHardcoverSyncFailure(cause: unknown): string {
 
 export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 	private isProcessing = false;
+	private shouldProcessAgain = false;
+	private workerWakeTimer: ReturnType<typeof setTimeout> | null = null;
 	private readonly logger = createChildLogger({ service: 'HardcoverProgressSyncService' });
 
 	constructor(
@@ -216,7 +220,7 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 
 	async isEnabled(): Promise<boolean> {
 		if (!this.client || isDemoMode()) return false;
-		return (await this.settingsRepository.get())?.enabled ?? true;
+		return (await this.settingsRepository.get())?.enabled ?? false;
 	}
 
 	async enqueueBook(bookId: number, isInitialSync = false): Promise<void> {
@@ -229,17 +233,21 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			progressUpdatedAt: book.progress_updated_at,
 			isInitialSync
 		});
-		void this.processPending();
+		this.requestProcessing();
 	}
 
 	async reconcile(isInitialSync = false): Promise<number> {
 		if (!(await this.isEnabled())) return 0;
-		const books = await this.bookRepository.getAll();
+		const [books, jobs] = await Promise.all([
+			this.bookRepository.getAll(),
+			this.jobRepository.getAll()
+		]);
+		const jobsByBookId = new Map(jobs.map((job) => [job.bookId, job]));
 		const candidates = books.filter((book) => typeof book.progress_percent === 'number');
 		let enqueued = 0;
 		for (const book of candidates) {
 			const progressPercent = Math.max(0, Math.min(1, book.progress_percent ?? 0));
-			const existingJob = await this.jobRepository.getByBookId(book.id);
+			const existingJob = jobsByBookId.get(book.id) ?? null;
 			const hasSameProgress =
 				existingJob !== null &&
 				hasSameSourceProgress(existingJob, progressPercent, book.progress_updated_at);
@@ -260,30 +268,32 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			});
 			enqueued += 1;
 		}
-		void this.processPending();
+		this.requestProcessing();
 		return enqueued;
 	}
 
 	async processPending(): Promise<void> {
-		if (this.isProcessing || !(await this.isEnabled()) || !this.client) return;
+		if (this.isProcessing) {
+			this.shouldProcessAgain = true;
+			return;
+		}
+		if (!this.client) return;
 		this.isProcessing = true;
+		this.clearWorkerWakeTimer();
 		try {
-			await this.jobRepository.recoverProcessing();
+			if (!(await this.isEnabled())) return;
+			const staleBefore = new Date(Date.now() - PROCESSING_LEASE_MS).toISOString();
+			await this.jobRepository.recoverProcessing(staleBefore);
 			while (await this.isEnabled()) {
-				const job = await this.jobRepository.nextDue();
+				const job = await this.jobRepository.claimNextDue();
 				if (!job) break;
-				await this.jobRepository.markProcessing(job.id);
 				try {
 					await this.processJob(job);
 				} catch (cause: unknown) {
 					const error = describeHardcoverSyncFailure(cause);
 					const isRetryable =
 						cause instanceof HardcoverClientError ? cause.isRetryable : true;
-					await this.jobRepository.markFailed(job.id, error, job.attempts + 1, isRetryable);
-					if (isRetryable && job.attempts + 1 < 6) {
-						const delayMs = Math.min(60 * 60 * 1000, 5_000 * 2 ** job.attempts);
-						setTimeout(() => void this.processPending(), delayMs + 100);
-					}
+					await this.jobRepository.markFailed(job, error, isRetryable);
 					this.logger.error(
 						{ event: 'hardcover.progress_sync.failed', bookId: job.bookId, error: toLogError(cause) },
 						'Hardcover progress sync failed'
@@ -292,19 +302,25 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			}
 		} finally {
 			this.isProcessing = false;
+			if (this.shouldProcessAgain) {
+				this.shouldProcessAgain = false;
+				this.requestProcessing();
+			} else {
+				await this.scheduleNextWorkerWake();
+			}
 		}
 	}
 
 	private async processJob(job: HardcoverProgressJob): Promise<void> {
 		const book = await this.bookRepository.getById(job.bookId);
 		if (!book) {
-			await this.jobRepository.markSkipped(job.id, 'book_not_found');
+			await this.jobRepository.markSkipped(job, 'book_not_found');
 			return;
 		}
 
 		const resolution = await this.resolveHardcoverBookId(book);
 		if (resolution.kind === 'skipped') {
-			await this.jobRepository.markSkipped(job.id, resolution.skipOutcome);
+			await this.jobRepository.markSkipped(job, resolution.skipOutcome);
 			return;
 		}
 		const hardcoverBookId = resolution.hardcoverBookId;
@@ -314,7 +330,7 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 		});
 		const remoteBook = context.books_by_pk;
 		if (!remoteBook) {
-			await this.jobRepository.markSkipped(job.id, 'hardcover_book_not_found');
+			await this.jobRepository.markSkipped(job, 'hardcover_book_not_found');
 			return;
 		}
 
@@ -325,7 +341,7 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			positiveInteger(existingRead?.progress_pages) !== null ||
 			(typeof existingRead?.progress === 'number' && existingRead.progress > 0);
 		if (job.isInitialSync && (isRemoteRead || hasRemoteProgress)) {
-			await this.jobRepository.markSkipped(job.id, 'remote_progress_exists');
+			await this.jobRepository.markSkipped(job, 'remote_progress_exists');
 			return;
 		}
 
@@ -337,7 +353,7 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			positiveInteger(remoteBook.pages) ??
 			positiveInteger(book.pages);
 		if (!totalPages) {
-			await this.jobRepository.markSkipped(job.id, 'page_count_unavailable');
+			await this.jobRepository.markSkipped(job, 'page_count_unavailable');
 			return;
 		}
 
@@ -422,12 +438,41 @@ export class HardcoverProgressSyncService implements HardcoverProgressSyncPort {
 			throw new HardcoverClientError(readError, 502, false, 'mutation');
 		}
 
-		await this.settingsRepository.markSuccessful(new Date().toISOString());
-		await this.jobRepository.markCompleted(job.id, {
+		const completed = await this.jobRepository.markCompleted(job, {
 			hardcoverBookId,
 			hardcoverUserBookId: userBook.id,
 			outcome: job.sourceProgressPercent >= 1 ? 'marked_read' : 'progress_updated'
 		});
+		if (completed) {
+			await this.settingsRepository.markSuccessful(new Date().toISOString());
+		}
+	}
+
+	private requestProcessing(): void {
+		void this.processPending().catch((cause: unknown) => {
+			this.logger.error(
+				{ event: 'hardcover.progress_sync.worker_failed', error: toLogError(cause) },
+				'Hardcover progress worker failed'
+			);
+		});
+	}
+
+	private clearWorkerWakeTimer(): void {
+		if (this.workerWakeTimer === null) return;
+		clearTimeout(this.workerWakeTimer);
+		this.workerWakeTimer = null;
+	}
+
+	private async scheduleNextWorkerWake(): Promise<void> {
+		this.clearWorkerWakeTimer();
+		if (!(await this.isEnabled())) return;
+		const wakeAt = await this.jobRepository.getNextWorkerWakeAt(PROCESSING_LEASE_MS);
+		if (!wakeAt) return;
+		const delayMs = Math.max(0, new Date(wakeAt).getTime() - Date.now()) + 100;
+		this.workerWakeTimer = setTimeout(() => {
+			this.workerWakeTimer = null;
+			this.requestProcessing();
+		}, delayMs);
 	}
 
 	private async resolveHardcoverBookId(book: Book): Promise<HardcoverBookResolution> {

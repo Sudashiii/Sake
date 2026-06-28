@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
+import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 import {
 	describeHardcoverSyncFailure,
 	HardcoverProgressSyncService
@@ -15,6 +16,7 @@ import type {
 	HardcoverProgressJob,
 	HardcoverProgressSyncJobRepository
 } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
+import { TriggerHardcoverProgressSyncUseCase } from '$lib/server/application/use-cases/TriggerHardcoverProgressSyncUseCase';
 
 function book(): Book {
 	return {
@@ -104,30 +106,32 @@ function dependencies(testJob: HardcoverProgressJob) {
 		updateHardcoverId: async () => {}
 	} as unknown as BookRepositoryPort;
 	const settings = {
-		get: async () => null,
+		get: async () => ({ enabled: true, lastSuccessfulSyncAt: null }),
 		markSuccessful: async () => {}
 	} as unknown as HardcoverProgressSettingsRepository;
 	const jobs = {
-		getByBookId: async () => null,
+		getAll: async () => (nextJob ? [nextJob] : []),
 		enqueue: async (input: (typeof enqueued)[number]) => {
 			enqueued.push(input);
 		},
 		recoverProcessing: async () => {},
-		nextDue: async () => {
+		claimNextDue: async () => {
 			const value = nextJob;
 			nextJob = null;
 			return value;
 		},
-		markProcessing: async () => {},
-		markCompleted: async (_id: number, value: { outcome: string }) => {
+		markCompleted: async (_job: HardcoverProgressJob, value: { outcome: string }) => {
 			completed = value;
+			return true;
 		},
-		markSkipped: async (_id: number, value: string) => {
+		markSkipped: async (_job: HardcoverProgressJob, value: string) => {
 			skipped = value;
+			return true;
 		},
 		markFailed: async () => {
 			throw new Error('Unexpected sync failure');
-		}
+		},
+		getNextWorkerWakeAt: async () => null
 	} as unknown as HardcoverProgressSyncJobRepository;
 	return {
 		repository,
@@ -294,7 +298,7 @@ describe('HardcoverProgressSyncService', () => {
 			completedAt: '2026-06-14T10:01:00.000Z'
 		};
 		const deps = dependencies(previousJob);
-		deps.jobs.getByBookId = async () => previousJob;
+		deps.jobs.getAll = async () => [previousJob];
 		const service = new HardcoverProgressSyncService(
 			deps.repository,
 			deps.settings,
@@ -321,7 +325,7 @@ describe('HardcoverProgressSyncService', () => {
 			completedAt: '2026-06-14T10:01:00.000Z'
 		};
 		const deps = dependencies(affectedJob);
-		deps.jobs.getByBookId = async () => affectedJob;
+		deps.jobs.getAll = async () => [affectedJob];
 		const service = new HardcoverProgressSyncService(
 			deps.repository,
 			deps.settings,
@@ -341,5 +345,73 @@ describe('HardcoverProgressSyncService', () => {
 			progressUpdatedAt: '2026-06-14T10:00:00.000Z',
 			isInitialSync: false
 		}]);
+	});
+
+	test('stays disabled until an explicit setting is stored', async () => {
+		let recovered = false;
+		const service = new HardcoverProgressSyncService(
+			{ getAll: async () => [] } as unknown as BookRepositoryPort,
+			{ get: async () => null } as unknown as HardcoverProgressSettingsRepository,
+			{
+				recoverProcessing: async () => {
+					recovered = true;
+				},
+				getNextWorkerWakeAt: async () => null
+			} as unknown as HardcoverProgressSyncJobRepository,
+			new ScriptedClient(() => {
+				throw new Error('Disabled sync must not call Hardcover');
+			})
+		);
+
+		assert.equal(await service.isEnabled(), false);
+		await service.processPending();
+		assert.equal(recovered, false);
+	});
+
+	test('serializes simultaneous worker starts before the first settings read resolves', async () => {
+		let activeClaims = 0;
+		let maximumActiveClaims = 0;
+		const service = new HardcoverProgressSyncService(
+			{} as BookRepositoryPort,
+			{
+				get: async () => ({ enabled: true, lastSuccessfulSyncAt: null })
+			} as HardcoverProgressSettingsRepository,
+			{
+				recoverProcessing: async () => {},
+				claimNextDue: async () => {
+					activeClaims += 1;
+					maximumActiveClaims = Math.max(maximumActiveClaims, activeClaims);
+					await new Promise((resolve) => setTimeout(resolve, 0));
+					activeClaims -= 1;
+					return null;
+				},
+				getNextWorkerWakeAt: async () => null
+			} as unknown as HardcoverProgressSyncJobRepository,
+			new ScriptedClient(() => {
+				throw new Error('No job should reach Hardcover');
+			})
+		);
+
+		await Promise.all([service.processPending(), service.processPending()]);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		assert.equal(maximumActiveClaims, 1);
+	});
+
+	test('manual trigger rejects a disabled integration', async () => {
+		let reconciled = false;
+		const sync = {
+			isEnabled: async () => false,
+			reconcile: async () => {
+				reconciled = true;
+				return 0;
+			}
+		} as unknown as HardcoverProgressSyncPort;
+		const result = await new TriggerHardcoverProgressSyncUseCase(sync, true).execute();
+
+		assert.equal(result.ok, false);
+		if (result.ok) return;
+		assert.equal(result.error.status, 409);
+		assert.equal(reconciled, false);
 	});
 });
