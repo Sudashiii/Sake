@@ -8,6 +8,7 @@ import {
 } from '$lib/server/domain/value-objects/ProgressFile';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
+import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 
 interface PutProgressInput {
 	fileName: string;
@@ -37,7 +38,8 @@ export class PutProgressUseCase {
 		private readonly bookRepository: BookRepositoryPort,
 		private readonly bookProgressHistoryRepository: BookProgressHistoryRepositoryPort,
 		private readonly storage: StoragePort,
-		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort
+		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
 	) {}
 
 	async execute(input: PutProgressInput): Promise<ApiResult<PutProgressResult>> {
@@ -174,6 +176,14 @@ export class PutProgressUseCase {
 					'Device progress download marker updated'
 				);
 			}
+		}
+		try {
+			await this.hardcoverProgressSync?.enqueueBook(book.id);
+		} catch (cause: unknown) {
+			this.useCaseLogger.error(
+				{ event: 'progress.hardcover_enqueue.failed', bookId: book.id, cause },
+				'Failed to enqueue Hardcover progress sync'
+			);
 		}
 
 		return apiOk({ progressKey });

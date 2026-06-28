@@ -22,6 +22,7 @@ export interface BookRepositoryPort {
 	): Promise<string[]>;
 	create(book: CreateBookInput): Promise<Book>;
 	updateMetadata(id: number, metadata: UpdateBookMetadataInput): Promise<Book>;
+	updateHardcoverId(bookId: number, hardcoverId: string): Promise<void>;
 	delete(id: number): Promise<void>;
 	resetDownloadStatus(bookId: number): Promise<void>;
 	updateProgress(

@@ -1,5 +1,6 @@
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 
 interface UpdateLibraryBookStateInput {
 	bookId: number;
@@ -20,7 +21,10 @@ interface UpdateLibraryBookStateResult {
 }
 
 export class UpdateLibraryBookStateUseCase {
-	constructor(private readonly bookRepository: BookRepositoryPort) {}
+	constructor(
+		private readonly bookRepository: BookRepositoryPort,
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
+	) {}
 
 	async execute(input: UpdateLibraryBookStateInput): Promise<ApiResult<UpdateLibraryBookStateResult>> {
 		if (input.isRead === undefined && input.excludeFromNewBooks === undefined && input.archived === undefined) {
@@ -79,6 +83,13 @@ export class UpdateLibraryBookStateUseCase {
 			progressBeforeRead: nextProgressBeforeRead,
 			excludeFromNewBooks: nextExclude
 		});
+		if (input.isRead !== undefined) {
+			try {
+				await this.hardcoverProgressSync?.enqueueBook(input.bookId);
+			} catch {
+				// The local read state must still succeed if the integration queue is unavailable.
+			}
+		}
 
 		return apiOk({
 			success: true,

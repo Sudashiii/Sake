@@ -14,28 +14,7 @@ import {
 	parseProviderPublicationDate
 } from './metadataProviderUtils';
 import { normalizeAuthorForMatch } from '$lib/utils/author';
-
-// ---------------------------------------------------------------------------
-// Smoothed rate limiter — 60 requests per minute (Hardcover's stated limit)
-// ---------------------------------------------------------------------------
-
-const RATE_LIMIT_PER_MINUTE = 60;
-const REFILL_INTERVAL_MS = (60 / RATE_LIMIT_PER_MINUTE) * 1_000;
-
-class RequestRateLimiter {
-	private nextAllowedAt = 0;
-
-	tryConsume(): boolean {
-		const now = Date.now();
-		if (now >= this.nextAllowedAt) {
-			this.nextAllowedAt = now + REFILL_INTERVAL_MS;
-			return true;
-		}
-		return false;
-	}
-}
-
-const rateLimiter = new RequestRateLimiter();
+import { HardcoverClient } from '$lib/server/infrastructure/clients/HardcoverClient';
 
 // ---------------------------------------------------------------------------
 // GraphQL queries — keep selections narrow and only request fields Sake maps.
@@ -82,10 +61,6 @@ interface HardcoverSearchResult {
 			} | null;
 		} | null;
 	} | null;
-}
-
-interface GraphQLError {
-	message?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,13 +159,6 @@ function mapBookToCandidate(book: HardcoverSearchDocument, query: MetadataQuery)
 	} satisfies MetadataCandidate;
 }
 
-// ---------------------------------------------------------------------------
-// GraphQL fetch helper
-// ---------------------------------------------------------------------------
-
-const HARDCOVER_API_URL = 'https://api.hardcover.app/v1/graphql';
-const UPSTREAM_TIMEOUT_MS = 30_000;
-const USER_AGENT = 'Sake/1.0 (+https://github.com/Sudashiii/Sake)';
 const DEFAULT_QUERY_LIMIT = 5;
 const MAX_QUERY_LIMIT = 10;
 
@@ -199,43 +167,6 @@ function normalizeLimit(limit: number | undefined): number {
 		return DEFAULT_QUERY_LIMIT;
 	}
 	return Math.min(Math.max(Math.floor(limit), 1), MAX_QUERY_LIMIT);
-}
-
-async function graphqlFetch<T>(
-	token: string,
-	query: string,
-	variables: Record<string, unknown>
-): Promise<T> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-	const body = { query, variables };
-	const headers = {
-		'Content-Type': 'application/json',
-		Authorization: `Bearer ${token}`,
-		'User-Agent': USER_AGENT
-	};
-
-	try {
-		const response = await fetch(HARDCOVER_API_URL, {
-			method: 'POST',
-			signal: controller.signal,
-			headers,
-			body: JSON.stringify(body)
-		});
-
-		if (!response.ok) {
-			throw new Error(`Hardcover API returned HTTP ${response.status}`);
-		}
-
-		const json = (await response.json()) as { data?: T; errors?: GraphQLError[] };
-		if (json.errors && json.errors.length > 0) {
-			throw new Error(json.errors.map((e) => e.message ?? 'unknown error').join('; '));
-		}
-
-		return json.data as T;
-	} finally {
-		clearTimeout(timer);
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +191,10 @@ const TOUCHED_FIELDS = new Set([
 export class HardcoverMetadataProvider implements MetadataProviderPort {
 	readonly id: MetadataProviderId = 'hardcover';
 
-	constructor(private readonly apiToken?: string | null) {}
+	constructor(
+		private readonly apiToken?: string | null,
+		private readonly client?: HardcoverClient | null
+	) {}
 
 	readonly capabilities: MetadataProviderCapabilities = {
 		touchedFields: TOUCHED_FIELDS,
@@ -279,10 +213,6 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 			return apiError('HARDCOVER_API_TOKEN is not configured', 503);
 		}
 
-		if (!rateLimiter.tryConsume()) {
-			return apiError('Hardcover rate limit reached; try again shortly', 429);
-		}
-
 		const limit = normalizeLimit(query.limit);
 
 		try {
@@ -290,7 +220,7 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 			if (!searchQuery) {
 				return apiError('No query terms provided for Hardcover lookup', 400);
 			}
-			const books = await this.search(token, searchQuery, limit);
+			const books = await this.search(this.client ?? new HardcoverClient(token), searchQuery, limit);
 
 			if (books.length === 0) {
 				return apiOk([]);
@@ -309,15 +239,14 @@ export class HardcoverMetadataProvider implements MetadataProviderPort {
 	}
 
 	private async search(
-		token: string,
+		client: HardcoverClient,
 		searchQuery: string,
 		limit: number
 	): Promise<HardcoverSearchDocument[]> {
-		const data = await graphqlFetch<HardcoverSearchResult['data']>(
-			token,
-			SEARCH_QUERY,
-			{ query: searchQuery, limit }
-		);
+		const data = await client.execute<NonNullable<HardcoverSearchResult['data']>>(SEARCH_QUERY, {
+			query: searchQuery,
+			limit
+		});
 		const hits = data?.search?.results?.hits ?? [];
 		return hits.flatMap((hit) => (hit?.document ? [hit.document] : []));
 	}

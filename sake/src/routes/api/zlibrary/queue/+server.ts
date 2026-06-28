@@ -1,8 +1,9 @@
-import { getQueueStatusUseCase, queueDownloadUseCase } from '$lib/server/application/composition';
+import { queueDownloadUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
 import { parseZDownloadBookRequest } from '$lib/server/http/zlibraryDownloadRequest';
 import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
+import { getQueueStatusResponse } from '$lib/server/http/getQueueStatusResponse';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
 import type { ZDownloadBookRequest } from '$lib/types/ZLibrary/Requests/ZDownloadBookRequest';
 import type { RequestHandler } from '@sveltejs/kit';
@@ -68,27 +69,4 @@ export const POST: RequestHandler = async (event) => {
 	}
 };
 
-export const GET: RequestHandler = async ({ locals }) => {
-	const requestLogger = getRequestLogger(locals);
-	try {
-		const result = await getQueueStatusUseCase.execute();
-		if (!result.ok) {
-			requestLogger.warn(
-				{
-					event: 'zlibrary.queue.status.use_case_failed',
-					statusCode: result.error.status,
-					reason: result.error.message
-				},
-				'Queue status rejected'
-			);
-			return errorResponse(result.error.message, result.error.status);
-		}
-		return json(result.value);
-	} catch (err: unknown) {
-		requestLogger.error(
-			{ event: 'zlibrary.queue.status.failed', error: toLogError(err) },
-			'Failed to fetch queue status'
-		);
-		return errorResponse('Failed to fetch queue status', 500);
-	}
-};
+export const GET: RequestHandler = async ({ locals }) => getQueueStatusResponse(locals);

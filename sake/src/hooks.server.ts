@@ -1,4 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { sequence } from '@sveltejs/kit/hooks';
 import { resolve as resolvePath } from '$app/paths';
 import { resolveRequestAuthUseCase } from '$lib/server/application/composition';
@@ -14,7 +15,8 @@ import { errorResponse, withResponseHeader } from '$lib/server/http/api';
 import {
 	purgeExpiredTrashUseCase,
 	reportDeviceVersionUseCase,
-	syncKoreaderPluginReleaseUseCase
+	syncKoreaderPluginReleaseUseCase,
+	hardcoverProgressSyncService
 } from '$lib/server/application/composition';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +27,7 @@ const TRASH_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let lastTrashPurgeStartedAt = 0;
 let runningPurgePromise: Promise<void> | null = null;
 let pluginSyncStarted = false;
+let hardcoverProgressSyncStarted = false;
 
 function shouldSkipTrashPurge(): boolean {
 	const raw = process.env.SAKE_SKIP_TRASH_PURGE?.trim().toLowerCase();
@@ -112,6 +115,19 @@ function triggerPluginSyncOnStartup(): void {
 }
 
 triggerPluginSyncOnStartup();
+
+function triggerHardcoverProgressSyncOnStartup(): void {
+	if (hardcoverProgressSyncStarted || !env.HARDCOVER_API_TOKEN?.trim()) return;
+	hardcoverProgressSyncStarted = true;
+	void hardcoverProgressSyncService.reconcile(true).catch((err: unknown) => {
+		createChildLogger({ event: 'hardcover.progress_sync.startup' }).error(
+			{ error: toLogError(err) },
+			'Hardcover progress startup reconciliation failed'
+		);
+	});
+}
+
+triggerHardcoverProgressSyncOnStartup();
 
 async function syncDeviceVersionFromHeader(event: Parameters<Handle>[0]['event']): Promise<void> {
 	if (event.locals.auth?.type !== 'api_key') {

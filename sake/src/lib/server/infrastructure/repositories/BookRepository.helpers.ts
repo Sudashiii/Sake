@@ -22,6 +22,7 @@ export type DbBookRow = {
 	description: string | null;
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
+	hardcoverId: string | null;
 	amazonAsin: string | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
@@ -65,6 +66,7 @@ export const bookSelection = {
 	description: books.description,
 	googleBooksId: books.googleBooksId,
 	openLibraryKey: books.openLibraryKey,
+	hardcoverId: books.hardcoverId,
 	amazonAsin: books.amazonAsin,
 	externalRating: books.externalRating,
 	externalRatingCount: books.externalRatingCount,
@@ -111,6 +113,7 @@ export function mapBookRow(row: DbBookRow): Book {
 		description: row.description,
 		google_books_id: row.googleBooksId,
 		open_library_key: row.openLibraryKey,
+		hardcover_id: row.hardcoverId,
 		amazon_asin: row.amazonAsin,
 		external_rating: row.externalRating,
 		external_rating_count: row.externalRatingCount,
@@ -158,6 +161,7 @@ export function toCreateBookRow(book: CreateBookInput, createdAt: string) {
 		description: book.description,
 		googleBooksId: book.google_books_id,
 		openLibraryKey: book.open_library_key,
+		hardcoverId: book.hardcover_id ?? null,
 		amazonAsin: book.amazon_asin,
 		externalRating: book.external_rating,
 		externalRatingCount: book.external_rating_count,
@@ -187,6 +191,7 @@ export function toUpdateBookMetadataRow(metadata: UpdateBookMetadataInput) {
 		description: metadata.description,
 		googleBooksId: metadata.google_books_id,
 		openLibraryKey: metadata.open_library_key,
+		hardcoverId: metadata.hardcover_id,
 		amazonAsin: metadata.amazon_asin,
 		externalRating: metadata.external_rating,
 		externalRatingCount: metadata.external_rating_count,

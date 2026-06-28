@@ -14,6 +14,7 @@ export interface Book {
 	description: string | null;
 	google_books_id: string | null;
 	open_library_key: string | null;
+	hardcover_id?: string | null;
 	amazon_asin: string | null;
 	external_rating: number | null;
 	external_rating_count: number | null;
@@ -68,6 +69,7 @@ export interface UpdateBookMetadataInput {
 	description: string | null;
 	google_books_id: string | null;
 	open_library_key: string | null;
+	hardcover_id?: string | null;
 	amazon_asin: string | null;
 	external_rating: number | null;
 	external_rating_count: number | null;

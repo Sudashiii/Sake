@@ -5,6 +5,7 @@ import type { MetadataCandidate } from '$lib/server/application/ports/MetadataPr
 export interface ExternalBookMetadata {
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
+	hardcoverId?: string | null;
 	amazonAsin: string | null;
 	cover: string | null;
 	description: string | null;
@@ -70,6 +71,7 @@ export class ExternalBookMetadataService {
 
 		const googleCandidate = candidates.find((c) => c.providerId === 'googlebooks');
 		const olCandidate = candidates.find((c) => c.providerId === 'openlibrary');
+		const hardcoverCandidate = candidates.find((c) => c.providerId === 'hardcover');
 
 		const bestIsbn13 = pickFirst(...candidates.map((c) => c.identifiers.isbn13));
 		const bestIsbn10 = pickFirst(...candidates.map((c) => c.identifiers.isbn10));
@@ -80,6 +82,7 @@ export class ExternalBookMetadataService {
 		return {
 			googleBooksId: googleCandidate?.identifiers.googleBooksId ?? null,
 			openLibraryKey: olCandidate?.identifiers.openLibraryKey ?? null,
+			hardcoverId: hardcoverCandidate?.identifiers.hardcoverId ?? null,
 			amazonAsin: extractAmazonAsin(input.identifier),
 			cover: bestCoverUrl,
 			description: pickFirst(...candidates.map(candidateDescription)),

@@ -104,6 +104,13 @@ import { deviceLogFeed } from '$lib/server/infrastructure/logging/deviceLogFeed'
 import { AppendDeviceLogUseCase } from '$lib/server/application/use-cases/AppendDeviceLogUseCase';
 import { ObserveDeviceLogsUseCase } from '$lib/server/application/use-cases/ObserveDeviceLogsUseCase';
 import { MigrationStatusRepository } from '$lib/server/infrastructure/repositories/MigrationStatusRepository';
+import { HardcoverClient } from '$lib/server/infrastructure/clients/HardcoverClient';
+import { HardcoverProgressSettingsRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSettingsRepository';
+import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
+import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
+import { GetHardcoverProgressSyncStatusUseCase } from '$lib/server/application/use-cases/GetHardcoverProgressSyncStatusUseCase';
+import { UpdateHardcoverProgressSyncSettingUseCase } from '$lib/server/application/use-cases/UpdateHardcoverProgressSyncSettingUseCase';
+import { TriggerHardcoverProgressSyncUseCase } from '$lib/server/application/use-cases/TriggerHardcoverProgressSyncUseCase';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = createLazySingleton(() => new S3Storage());
@@ -120,10 +127,21 @@ export const deviceDownloadRepository = new DeviceDownloadRepository();
 export const deviceProgressDownloadRepository = new DeviceProgressDownloadRepository();
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
 export const managedBookCoverService = new ManagedBookCoverService(storage);
+const hardcoverApiToken = env.HARDCOVER_API_TOKEN?.trim() || null;
+export const hardcoverClient = hardcoverApiToken ? new HardcoverClient(hardcoverApiToken) : null;
+export const hardcoverProgressSettingsRepository = new HardcoverProgressSettingsRepository();
+export const hardcoverProgressSyncJobRepository = new HardcoverProgressSyncJobRepository();
+export const hardcoverProgressSyncService = new HardcoverProgressSyncService(
+	bookRepository,
+	hardcoverProgressSettingsRepository,
+	hardcoverProgressSyncJobRepository,
+	hardcoverClient
+);
 
 export const activatedMetadataProviders = createMetadataProviders(getActivatedMetadataProviders(), {
 	googleBooksApiKey: env.GOOGLE_BOOKS_API_KEY,
-	hardcoverApiToken: env.HARDCOVER_API_TOKEN,
+	hardcoverApiToken,
+	hardcoverClient,
 	isbnDbApiKey: env.ISBNDB_API_KEY
 });
 export const activatedMetadataAggregator = new MetadataAggregatorService(activatedMetadataProviders);
@@ -142,7 +160,10 @@ export const downloadBookUseCase = new DownloadBookUseCase(
 );
 export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
 export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
-export const getQueueStatusUseCase = new GetQueueStatusUseCase(downloadQueue);
+export const getQueueStatusUseCase = new GetQueueStatusUseCase(
+	downloadQueue,
+	hardcoverProgressSyncJobRepository
+);
 export const zlibrarySearchUseCase = new ZLibrarySearchUseCase(zlibraryClient);
 export const lookupSearchBookMetadataUseCase = new LookupSearchBookMetadataUseCase(
 	externalBookMetadataService
@@ -187,7 +208,8 @@ export const putProgressUseCase = new PutProgressUseCase(
 	bookRepository,
 	bookProgressHistoryRepository,
 	storage,
-	deviceProgressDownloadRepository
+	deviceProgressDownloadRepository,
+	hardcoverProgressSyncService
 );
 export const getBookProgressHistoryUseCase = new GetBookProgressHistoryUseCase(
 	bookRepository,
@@ -225,7 +247,8 @@ export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase
 	deviceDownloadRepository,
 	deviceProgressDownloadRepository,
 	storage,
-	putLibraryFileUseCase
+	putLibraryFileUseCase,
+	hardcoverProgressSyncService
 );
 export const deleteLibraryFileUseCase = new DeleteLibraryFileUseCase(storage);
 export const listDavDirectoryUseCase = new ListDavDirectoryUseCase(storage);
@@ -297,7 +320,26 @@ export const appendDeviceLogUseCase = new AppendDeviceLogUseCase(deviceRepositor
 export const observeDeviceLogsUseCase = new ObserveDeviceLogsUseCase(deviceRepository, deviceLogFeed);
 export const updateBookRatingUseCase = new UpdateBookRatingUseCase(bookRepository);
 export const listLibraryRatingsUseCase = new ListLibraryRatingsUseCase(bookRepository);
-export const updateLibraryBookStateUseCase = new UpdateLibraryBookStateUseCase(bookRepository);
+export const updateLibraryBookStateUseCase = new UpdateLibraryBookStateUseCase(
+	bookRepository,
+	hardcoverProgressSyncService
+);
+export const getHardcoverProgressSyncStatusUseCase = new GetHardcoverProgressSyncStatusUseCase(
+	hardcoverProgressSettingsRepository,
+	hardcoverProgressSyncJobRepository,
+	Boolean(hardcoverApiToken)
+);
+export const updateHardcoverProgressSyncSettingUseCase =
+	new UpdateHardcoverProgressSyncSettingUseCase(
+		hardcoverProgressSettingsRepository,
+		hardcoverProgressSyncService,
+		getHardcoverProgressSyncStatusUseCase,
+		Boolean(hardcoverApiToken)
+	);
+export const triggerHardcoverProgressSyncUseCase = new TriggerHardcoverProgressSyncUseCase(
+	hardcoverProgressSyncService,
+	Boolean(hardcoverApiToken)
+);
 export const updateLibraryBookMetadataUseCase = new UpdateLibraryBookMetadataUseCase(
 	bookRepository,
 	managedBookCoverService

@@ -243,6 +243,7 @@ export class DownloadBookUseCase {
 					description: pickText(request.description, externalMetadata?.description),
 					google_books_id: pickText(null, externalMetadata?.googleBooksId),
 					open_library_key: pickText(null, externalMetadata?.openLibraryKey),
+					hardcover_id: pickText(null, externalMetadata?.hardcoverId),
 					amazon_asin: pickText(null, externalMetadata?.amazonAsin),
 					external_rating: pickNumber(null, externalMetadata?.externalRating),
 					external_rating_count:

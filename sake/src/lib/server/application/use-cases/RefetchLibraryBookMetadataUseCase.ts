@@ -138,6 +138,7 @@ export class RefetchLibraryBookMetadataUseCase {
 			),
 			google_books_id: keepOrFillText(existingBook.google_books_id, enriched.googleBooksId),
 			open_library_key: keepOrFillText(existingBook.open_library_key, enriched.openLibraryKey),
+			hardcover_id: keepOrFillText(existingBook.hardcover_id, enriched.hardcoverId),
 			amazon_asin: keepOrFillText(existingBook.amazon_asin, enriched.amazonAsin),
 			external_rating: keepOrFillNumber(existingBook.external_rating, enriched.externalRating),
 			external_rating_count: keepOrFillNumber(

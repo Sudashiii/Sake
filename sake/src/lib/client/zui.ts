@@ -80,6 +80,11 @@ import type {
 	KoreaderPluginReleasesResponse,
 	KoreaderPluginUpstreamVersionResponse
 } from '$lib/types/Plugin/KoreaderPlugin';
+import {
+	getHardcoverProgressSyncStatus,
+	triggerHardcoverProgressSync,
+	updateHardcoverProgressSyncSetting
+} from './routes/hardcoverProgressSync';
 
 /**
  * Facade for all Z-Library UI client operations.
@@ -129,6 +134,10 @@ export const ZUI = {
 	getKoreaderPluginUpstreamVersion: (): Promise<
 		Result<KoreaderPluginUpstreamVersionResponse, ApiError>
 	> => getKoreaderPluginUpstreamVersion(),
+
+	getHardcoverProgressSyncStatus,
+	updateHardcoverProgressSyncSetting,
+	triggerHardcoverProgressSync,
 
 	getQueueStatus: (): Promise<Result<QueueStatusResponse, ApiError>> =>
 		getQueueStatus(),

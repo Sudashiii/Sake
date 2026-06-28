@@ -110,6 +110,7 @@ function applyMetadataToBook(book: Book, metadata: UpdateBookMetadataInput): Boo
 		description: metadata.description,
 		google_books_id: metadata.google_books_id,
 		open_library_key: metadata.open_library_key,
+		hardcover_id: metadata.hardcover_id,
 		amazon_asin: metadata.amazon_asin,
 		external_rating: metadata.external_rating,
 		external_rating_count: metadata.external_rating_count,

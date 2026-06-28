@@ -1,25 +1,14 @@
-export type QueueTab = 'all' | 'queued' | 'processing' | 'completed' | 'failed';
+import type { QueueJob, QueueJobStatus, QueueJobType } from '$lib/types/Queue/QueueStatus';
 
-export interface QueueJob {
-	id: string;
-	bookId: string;
-	title: string;
-	status: 'queued' | 'processing' | 'completed' | 'failed';
-	attempts: number;
-	error?: string;
-	createdAt: string;
-	updatedAt: string;
-	finishedAt?: string;
-	author?: string;
-	progress?: number;
-	maxRetries?: number;
-}
+export type { QueueJob } from '$lib/types/Queue/QueueStatus';
+export type QueueTab = 'all' | QueueJobStatus;
 
 export const QUEUE_TABS: Array<{ key: QueueTab; label: string }> = [
 	{ key: 'all', label: 'All' },
 	{ key: 'queued', label: 'Queued' },
 	{ key: 'processing', label: 'Processing' },
 	{ key: 'completed', label: 'Completed' },
+	{ key: 'skipped', label: 'Skipped' },
 	{ key: 'failed', label: 'Failed' }
 ];
 
@@ -29,6 +18,7 @@ export function buildQueueCounts(queueJobs: QueueJob[]) {
 		queued: queueJobs.filter((job) => job.status === 'queued').length,
 		processing: queueJobs.filter((job) => job.status === 'processing').length,
 		completed: queueJobs.filter((job) => job.status === 'completed').length,
+		skipped: queueJobs.filter((job) => job.status === 'skipped').length,
 		failed: queueJobs.filter((job) => job.status === 'failed').length
 	};
 }
@@ -47,11 +37,16 @@ export function formatQueueDateTime(value: string): string {
 	});
 }
 
-export function statusLabel(status: QueueJob['status']): string {
+export function statusLabel(status: QueueJobStatus): string {
 	if (status === 'queued') return 'Queued';
 	if (status === 'processing') return 'Processing';
 	if (status === 'completed') return 'Completed';
+	if (status === 'skipped') return 'Skipped';
 	return 'Failed';
+}
+
+export function jobTypeLabel(type: QueueJobType): string {
+	return type === 'book-download' ? 'Book download' : 'Hardcover sync';
 }
 
 export function getJobAuthor(job: QueueJob): string {
@@ -60,14 +55,14 @@ export function getJobAuthor(job: QueueJob): string {
 }
 
 export function getProgress(job: QueueJob): number | null {
-	if (typeof job.progress !== 'number') {
+	if (typeof job.targetProgressPercent !== 'number') {
 		return null;
 	}
-	return Math.max(0, Math.min(100, job.progress));
+	return Math.max(0, Math.min(100, job.targetProgressPercent));
 }
 
 export function getRetryLimit(job: QueueJob): number {
-	if (typeof job.maxRetries === 'number' && job.maxRetries > 0) {
+	if (job.maxRetries > 0) {
 		return job.maxRetries;
 	}
 	return 3;

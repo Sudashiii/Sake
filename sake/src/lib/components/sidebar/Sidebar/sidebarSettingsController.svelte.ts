@@ -11,6 +11,7 @@ import type {
 	KoreaderPluginReleasesResponse,
 	KoreaderPluginUpstreamVersionResponse
 } from '$lib/types/Plugin/KoreaderPlugin';
+import type { HardcoverProgressSyncStatus } from '$lib/types/Integrations/HardcoverProgress';
 import { createWebappVersion } from '$lib/webappVersion';
 import { env } from '$env/dynamic/public';
 
@@ -18,6 +19,7 @@ const fallbackAppVersion = createWebappVersion({ version: env.PUBLIC_WEBAPP_VERS
 const SETTINGS_BASE_SECTIONS = [
 	{ id: 'app', label: 'App' },
 	{ id: 'plugin', label: 'Plugin' },
+	{ id: 'integrations', label: 'Integrations' },
 	{ id: 'account', label: 'Account' },
 	{ id: 'devices', label: 'Devices' }
 ] as const;
@@ -50,6 +52,11 @@ export class SidebarSettingsController {
 	pluginUpstreamVersionInfo = $state<KoreaderPluginUpstreamVersionResponse | null>(null);
 	pluginUpstreamVersionError = $state<string | null>(null);
 	isCheckingPluginUpstreamVersion = $state(false);
+	hardcoverProgressStatus = $state<HardcoverProgressSyncStatus | null>(null);
+	hardcoverProgressError = $state<string | null>(null);
+	isLoadingHardcoverProgress = $state(false);
+	isSavingHardcoverProgress = $state(false);
+	isTriggeringHardcoverProgress = $state(false);
 	apiKeys = $state<AuthApiKey[]>([]);
 	apiKeysError = $state<string | null>(null);
 	isLoadingApiKeys = $state(false);
@@ -100,6 +107,7 @@ export class SidebarSettingsController {
 		this.activeSection = 'app';
 		void this.loadAppVersion();
 		void this.loadKoreaderPluginReleases();
+		void this.loadHardcoverProgressStatus();
 		void this.loadCurrentUser();
 		void this.loadAuthApiKeys();
 		void this.loadDevices();
@@ -199,6 +207,45 @@ export class SidebarSettingsController {
 			return;
 		}
 		this.pluginReleasesInfo = result.value;
+	};
+
+	loadHardcoverProgressStatus = async (): Promise<void> => {
+		if (this.isLoadingHardcoverProgress) return;
+		this.isLoadingHardcoverProgress = true;
+		this.hardcoverProgressError = null;
+		const result = await ZUI.getHardcoverProgressSyncStatus();
+		this.isLoadingHardcoverProgress = false;
+		if (!result.ok) {
+			this.hardcoverProgressError = result.error.message;
+			return;
+		}
+		this.hardcoverProgressStatus = result.value;
+	};
+
+	handleHardcoverProgressToggle = async (enabled: boolean): Promise<void> => {
+		if (this.isSavingHardcoverProgress) return;
+		this.isSavingHardcoverProgress = true;
+		const result = await ZUI.updateHardcoverProgressSyncSetting(enabled);
+		this.isSavingHardcoverProgress = false;
+		if (!result.ok) {
+			toastStore.add(`Failed to update Hardcover sync: ${result.error.message}`, 'error');
+			return;
+		}
+		this.hardcoverProgressStatus = result.value;
+		toastStore.add(`Hardcover progress sync ${enabled ? 'enabled' : 'disabled'}`, 'success');
+	};
+
+	handleHardcoverProgressSync = async (): Promise<void> => {
+		if (this.isTriggeringHardcoverProgress) return;
+		this.isTriggeringHardcoverProgress = true;
+		const result = await ZUI.triggerHardcoverProgressSync();
+		this.isTriggeringHardcoverProgress = false;
+		if (!result.ok) {
+			toastStore.add(`Failed to start Hardcover sync: ${result.error.message}`, 'error');
+			return;
+		}
+		toastStore.add(`Queued ${result.value.enqueued} books for Hardcover sync`, 'success');
+		await this.loadHardcoverProgressStatus();
 	};
 
 	loadCurrentUser = async (): Promise<void> => {

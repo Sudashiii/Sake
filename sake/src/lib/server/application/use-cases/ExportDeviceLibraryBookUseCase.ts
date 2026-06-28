@@ -2,6 +2,7 @@ import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepos
 import type { DeviceDownloadRepositoryPort } from '$lib/server/application/ports/DeviceDownloadRepositoryPort';
 import type { DeviceProgressDownloadRepositoryPort } from '$lib/server/application/ports/DeviceProgressDownloadRepositoryPort';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
+import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 import type { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
 import type { Book } from '$lib/server/domain/entities/Book';
 import { isIncomingProgressOlder } from '$lib/server/domain/services/ProgressConflictPolicy';
@@ -86,7 +87,8 @@ export class ExportDeviceLibraryBookUseCase {
 		private readonly deviceDownloadRepository: DeviceDownloadRepositoryPort,
 		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
 		private readonly storage: StoragePort,
-		private readonly libraryFileImporter: LibraryFileImporter
+		private readonly libraryFileImporter: LibraryFileImporter,
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
 	) {}
 
 	async execute(
@@ -196,6 +198,11 @@ export class ExportDeviceLibraryBookUseCase {
 			bookId: book.id,
 			progressUpdatedAt
 		});
+		try {
+			await this.hardcoverProgressSync?.enqueueBook(book.id);
+		} catch {
+			// The imported local progress remains authoritative even when the integration queue is unavailable.
+		}
 
 		return apiOk('imported');
 	}

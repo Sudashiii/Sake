@@ -4,6 +4,7 @@
 	import ClockIcon from '$lib/assets/icons/ClockIcon.svelte';
 	import ListIcon from '$lib/assets/icons/ListIcon.svelte';
 	import LoaderCircleIcon from '$lib/assets/icons/LoaderCircleIcon.svelte';
+	import SearchMinusIcon from '$lib/assets/icons/SearchMinusIcon.svelte';
 	import { QUEUE_TABS, type QueueTab } from '../queueView';
 	import styles from './QueueTabs.module.scss';
 
@@ -34,6 +35,8 @@
 					<LoaderCircleIcon size={14} strokeWidth={2.1} class={styles.spinIcon} />
 				{:else if tab.key === 'completed'}
 					<CheckCircleIcon size={14} strokeWidth={2.1} />
+				{:else if tab.key === 'skipped'}
+					<SearchMinusIcon size={14} strokeWidth={2.1} />
 				{:else}
 					<AlertCircleIcon size={14} strokeWidth={2.1} />
 				{/if}

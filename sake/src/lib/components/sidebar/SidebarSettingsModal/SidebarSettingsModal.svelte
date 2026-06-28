@@ -4,6 +4,7 @@
 	import DownloadIcon from '$lib/assets/icons/DownloadIcon.svelte';
 	import LogInIcon from '$lib/assets/icons/LogInIcon.svelte';
 	import SmartphoneIcon from '$lib/assets/icons/SmartphoneIcon.svelte';
+	import ShareIcon from '$lib/assets/icons/ShareIcon.svelte';
 	import UserCircleIcon from '$lib/assets/icons/UserCircleIcon.svelte';
 	import XIcon from '$lib/assets/icons/XIcon.svelte';
 	import SidebarSettingsAppPane from '../SidebarSettingsAppPane/SidebarSettingsAppPane.svelte';
@@ -11,6 +12,7 @@
 	import SidebarSettingsDevicesPane from '../SidebarSettingsDevicesPane/SidebarSettingsDevicesPane.svelte';
 	import SidebarSettingsLoginsPane from '../SidebarSettingsLoginsPane/SidebarSettingsLoginsPane.svelte';
 	import SidebarSettingsPluginPane from '../SidebarSettingsPluginPane/SidebarSettingsPluginPane.svelte';
+	import SidebarSettingsIntegrationsPane from '../SidebarSettingsIntegrationsPane/SidebarSettingsIntegrationsPane.svelte';
 	import styles from './SidebarSettingsModal.module.scss';
 	import type { AuthApiKey } from '$lib/types/Auth/ApiKey';
 	import type { DatabaseVersionInfo } from '$lib/types/App/AppVersion';
@@ -20,6 +22,7 @@
 		KoreaderPluginReleasesResponse,
 		KoreaderPluginUpstreamVersionResponse
 	} from '$lib/types/Plugin/KoreaderPlugin';
+	import type { HardcoverProgressSyncStatus } from '$lib/types/Integrations/HardcoverProgress';
 
 	interface SettingsSection {
 		id: string;
@@ -54,6 +57,11 @@
 		pluginUpstreamVersionInfo: KoreaderPluginUpstreamVersionResponse | null;
 		pluginUpstreamVersionError: string | null;
 		isCheckingPluginUpstreamVersion?: boolean;
+		hardcoverProgressStatus: HardcoverProgressSyncStatus | null;
+		hardcoverProgressError: string | null;
+		isLoadingHardcoverProgress?: boolean;
+		isSavingHardcoverProgress?: boolean;
+		isTriggeringHardcoverProgress?: boolean;
 		appEnvironment: string;
 		appSourceUrl: string;
 		appSourceLabel: string;
@@ -67,6 +75,8 @@
 		onDeleteDevice: (deviceId: string) => void;
 		onRefreshPluginReleases: () => void;
 		onCheckPluginUpstreamVersion: () => void;
+		onToggleHardcoverProgress: (enabled: boolean) => void;
+		onSyncHardcoverProgress: () => void;
 		onLogout: () => void;
 		onLogoutAll: () => void;
 		onSaveBasicAuthPassword: (password: string) => Promise<boolean>;
@@ -105,6 +115,11 @@
 		pluginUpstreamVersionInfo,
 		pluginUpstreamVersionError,
 		isCheckingPluginUpstreamVersion = false,
+		hardcoverProgressStatus,
+		hardcoverProgressError,
+		isLoadingHardcoverProgress = false,
+		isSavingHardcoverProgress = false,
+		isTriggeringHardcoverProgress = false,
 		appEnvironment,
 		appSourceUrl,
 		appSourceLabel,
@@ -118,6 +133,8 @@
 		onDeleteDevice,
 		onRefreshPluginReleases,
 		onCheckPluginUpstreamVersion,
+		onToggleHardcoverProgress,
+		onSyncHardcoverProgress,
 		onLogout,
 		onLogoutAll,
 		onSaveBasicAuthPassword,
@@ -149,6 +166,9 @@
 		}
 		if (sectionId === 'plugin') {
 			return DownloadIcon;
+		}
+		if (sectionId === 'integrations') {
+			return ShareIcon;
 		}
 		if (sectionId === 'logins') {
 			return LogInIcon;
@@ -203,6 +223,17 @@
 							{formatDateTime}
 							onRefresh={onRefreshPluginReleases}
 							onCheckUpstream={onCheckPluginUpstreamVersion}
+						/>
+					{:else if activeSection === 'integrations'}
+						<SidebarSettingsIntegrationsPane
+							status={hardcoverProgressStatus}
+							error={hardcoverProgressError}
+							isLoading={isLoadingHardcoverProgress}
+							isSaving={isSavingHardcoverProgress}
+							isSyncing={isTriggeringHardcoverProgress}
+							{formatDateTime}
+							onToggle={onToggleHardcoverProgress}
+							onSync={onSyncHardcoverProgress}
 						/>
 					{:else if activeSection === 'logins'}
 						<SidebarSettingsLoginsPane

@@ -16,6 +16,7 @@ export const books = sqliteTable('Books', {
 	description: text('description'),
 	googleBooksId: text('google_books_id'),
 	openLibraryKey: text('open_library_key'),
+	hardcoverId: text('hardcover_id'),
 	amazonAsin: text('amazon_asin'),
 	externalRating: real('external_rating'),
 	externalRatingCount: integer('external_rating_count'),
@@ -175,6 +176,43 @@ export const bookProgressHistory = sqliteTable(
 			table.bookId,
 			table.readerSessionId
 		)
+	]
+);
+
+export const hardcoverProgressSettings = sqliteTable('HardcoverProgressSettings', {
+	id: integer('id').primaryKey(),
+	enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+	lastSuccessfulSyncAt: text('last_successful_sync_at'),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
+export const hardcoverProgressSyncJobs = sqliteTable(
+	'HardcoverProgressSyncJobs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		bookId: integer('book_id')
+			.notNull()
+			.references(() => books.id, { onDelete: 'cascade' }),
+		status: text('status', {
+			enum: ['pending', 'processing', 'completed', 'failed', 'skipped']
+		}).notNull(),
+		sourceProgressPercent: real('source_progress_percent').notNull(),
+		sourceProgressUpdatedAt: text('source_progress_updated_at'),
+		isInitialSync: integer('is_initial_sync', { mode: 'boolean' }).notNull().default(false),
+		hardcoverBookId: text('hardcover_book_id'),
+		hardcoverUserBookId: integer('hardcover_user_book_id'),
+		attempts: integer('attempts').notNull().default(0),
+		nextAttemptAt: text('next_attempt_at'),
+		error: text('error'),
+		outcome: text('outcome'),
+		createdAt: text('created_at').notNull(),
+		updatedAt: text('updated_at').notNull(),
+		completedAt: text('completed_at')
+	},
+	(table) => [
+		uniqueIndex('hardcover_progress_sync_jobs_book_unique').on(table.bookId),
+		index('hardcover_progress_sync_jobs_status_retry_idx').on(table.status, table.nextAttemptAt)
 	]
 );
 

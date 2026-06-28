@@ -189,6 +189,14 @@ export class BookRepository implements BookRepositoryPort {
 		return mapBookRow(updated);
 	}
 
+	async updateHardcoverId(bookId: number, hardcoverId: string): Promise<void> {
+		await drizzleDb.update(books).set({ hardcoverId }).where(eq(books.id, bookId));
+		this.repoLogger.info(
+			{ event: 'book.hardcover_id.updated', bookId, hardcoverId },
+			'Book Hardcover identity updated'
+		);
+	}
+
 	async delete(id: number): Promise<void> {
 		await drizzleDb.delete(books).where(eq(books.id, id));
 		this.repoLogger.info({ event: 'book.deleted', id }, 'Book row deleted');

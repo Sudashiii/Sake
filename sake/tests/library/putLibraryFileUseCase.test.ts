@@ -224,6 +224,7 @@ describe('PutLibraryFileUseCase', () => {
 			description: 'External description',
 			google_books_id: null,
 			open_library_key: 'OL123W',
+			hardcover_id: null,
 			amazon_asin: null,
 			external_rating: null,
 			external_rating_count: null,
