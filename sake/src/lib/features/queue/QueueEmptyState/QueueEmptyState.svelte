@@ -4,5 +4,5 @@
 
 <div class={styles.root}>
 	<h3>Queue is empty</h3>
-	<p>Search for books and add them to your download queue.</p>
+	<p>Book downloads and integration jobs will appear here when they run.</p>
 </div>

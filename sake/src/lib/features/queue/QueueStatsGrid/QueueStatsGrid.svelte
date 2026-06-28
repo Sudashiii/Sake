@@ -6,6 +6,7 @@
 			queued: number;
 			processing: number;
 			completed: number;
+			skipped: number;
 			failed: number;
 		};
 	}
@@ -25,6 +26,10 @@
 	<article class={styles.card}>
 		<p>Completed</p>
 		<h2 class={styles.completed}>{counts.completed}</h2>
+	</article>
+	<article class={styles.card}>
+		<p>Skipped</p>
+		<h2 class={styles.skipped}>{counts.skipped}</h2>
 	</article>
 	<article class={styles.card}>
 		<p>Failed</p>

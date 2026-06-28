@@ -54,7 +54,7 @@
 			}
 
 			error = null;
-			queueJobs = result.value.jobs as QueueJob[];
+			queueJobs = result.value.jobs;
 		} finally {
 			if (showLoader) {
 				isLoading = false;

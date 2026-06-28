@@ -3,11 +3,13 @@
 	import CheckCircleIcon from '$lib/assets/icons/CheckCircleIcon.svelte';
 	import ClockIcon from '$lib/assets/icons/ClockIcon.svelte';
 	import LoaderCircleIcon from '$lib/assets/icons/LoaderCircleIcon.svelte';
+	import SearchMinusIcon from '$lib/assets/icons/SearchMinusIcon.svelte';
 	import {
 		formatQueueDateTime,
 		getJobAuthor,
 		getProgress,
 		getRetryLimit,
+		jobTypeLabel,
 		statusLabel,
 		type QueueJob
 	} from '../queueView';
@@ -33,6 +35,8 @@
 					<LoaderCircleIcon size={16} strokeWidth={2.1} class={styles.spinIcon} />
 				{:else if job.status === 'completed'}
 					<CheckCircleIcon size={16} strokeWidth={2.1} />
+				{:else if job.status === 'skipped'}
+					<SearchMinusIcon size={16} strokeWidth={2.1} />
 				{:else}
 					<AlertCircleIcon size={16} strokeWidth={2.1} />
 				{/if}
@@ -40,6 +44,9 @@
 			<div class={styles.titleBlock}>
 				<div class={styles.titleRow}>
 					<p class={styles.title} title={job.title}>{job.title}</p>
+					<span class={`${styles.typePill} ${styles[job.type === 'book-download' ? 'downloadType' : 'hardcoverType']}`}>
+						{jobTypeLabel(job.type)}
+					</span>
 					<span class={`${styles.statusPill} ${styles[`status${statusLabel(job.status)}`]}`}>
 						{#if job.status === 'processing'}
 							<LoaderCircleIcon size={12} strokeWidth={2.1} class={`${styles.spinIcon} ${styles.statusPillIcon}`} />
@@ -52,7 +59,7 @@
 		</div>
 	</div>
 
-	{#if job.status === 'processing' && progress !== null}
+	{#if progress !== null}
 		<div class={styles.progressWrap}>
 			<div class={styles.progressTrack}>
 				<div
@@ -62,12 +69,16 @@
 					}`}
 				></div>
 			</div>
-			<span>{progress}%</span>
+			<span>{progress}% target</span>
 		</div>
 	{/if}
 
 	{#if job.error}
 		<p class={styles.errorMsg}>{job.error}</p>
+	{/if}
+
+	{#if job.outcomeMessage}
+		<p class={styles.outcomeMsg}>{job.outcomeMessage}</p>
 	{/if}
 
 	<div class={styles.metaGrid}>
@@ -83,6 +94,12 @@
 			<div>
 				<span>Finished</span>
 				<p>{formatQueueDateTime(job.finishedAt)}</p>
+			</div>
+		{/if}
+		{#if job.nextAttemptAt}
+			<div>
+				<span>Next retry</span>
+				<p>{formatQueueDateTime(job.nextAttemptAt)}</p>
 			</div>
 		{/if}
 		<div>

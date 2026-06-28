@@ -248,6 +248,11 @@
 	pluginUpstreamVersionInfo={settingsController.pluginUpstreamVersionInfo}
 	pluginUpstreamVersionError={settingsController.pluginUpstreamVersionError}
 	isCheckingPluginUpstreamVersion={settingsController.isCheckingPluginUpstreamVersion}
+	hardcoverProgressStatus={settingsController.hardcoverProgressStatus}
+	hardcoverProgressError={settingsController.hardcoverProgressError}
+	isLoadingHardcoverProgress={settingsController.isLoadingHardcoverProgress}
+	isSavingHardcoverProgress={settingsController.isSavingHardcoverProgress}
+	isTriggeringHardcoverProgress={settingsController.isTriggeringHardcoverProgress}
 	appEnvironment={settingsController.appEnvironment}
 	appSourceUrl={settingsController.appSourceUrl}
 	appSourceLabel={settingsController.appSourceLabel}
@@ -261,6 +266,8 @@
 	onDeleteDevice={settingsController.requestDeleteDevice}
 	onRefreshPluginReleases={() => void settingsController.loadKoreaderPluginReleases()}
 	onCheckPluginUpstreamVersion={() => void settingsController.handleCheckPluginUpstreamVersion()}
+	onToggleHardcoverProgress={(enabled) => void settingsController.handleHardcoverProgressToggle(enabled)}
+	onSyncHardcoverProgress={() => void settingsController.handleHardcoverProgressSync()}
 	onLogout={() => void handleAppLogout()}
 	onLogoutAll={() => void handleLogoutAllSessions()}
 	onSaveBasicAuthPassword={(password) => settingsController.handleSetBasicAuthPassword(password)}

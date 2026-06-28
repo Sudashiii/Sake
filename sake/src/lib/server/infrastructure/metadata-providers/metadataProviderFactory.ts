@@ -4,10 +4,12 @@ import { GoogleBooksMetadataProvider } from './googleBooksMetadataProvider';
 import { OpenLibraryMetadataProvider } from './openLibraryMetadataProvider';
 import { HardcoverMetadataProvider } from './hardcoverMetadataProvider';
 import { IsbnDbMetadataProvider } from './isbndbMetadataProvider';
+import type { HardcoverClient } from '$lib/server/infrastructure/clients/HardcoverClient';
 
 export interface MetadataProviderRuntimeConfig {
 	googleBooksApiKey?: string | null;
 	hardcoverApiToken?: string | null;
+	hardcoverClient?: HardcoverClient | null;
 	isbnDbApiKey?: string | null;
 }
 
@@ -28,7 +30,7 @@ export function createMetadataProvider(
 		case 'hardcover': {
 			// Only instantiate when token is configured; silently skipped otherwise
 			const token = configuredValue(config.hardcoverApiToken ?? process.env.HARDCOVER_API_TOKEN);
-			return token ? new HardcoverMetadataProvider(token) : null;
+			return token ? new HardcoverMetadataProvider(token, config.hardcoverClient) : null;
 		}
 		case 'isbndb': {
 			// Only instantiate when key is configured; silently skipped otherwise

@@ -1,6 +1,6 @@
 .root {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 0.75rem;
 }
 
@@ -30,6 +30,7 @@
 .queued { color: #a0aec0; }
 .processing { color: #60a5fa; }
 .completed { color: #4ade80; }
+.skipped { color: #a0aec0; }
 .failed { color: #f87171; }
 
 @media (max-width: 900px) {

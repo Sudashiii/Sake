@@ -96,6 +96,7 @@ export class UpdateLibraryBookMetadataUseCase {
 				input.metadata.openLibraryKey === undefined
 					? existing.open_library_key
 					: input.metadata.openLibraryKey,
+			hardcover_id: existing.hardcover_id ?? null,
 			amazon_asin:
 				input.metadata.amazonAsin === undefined
 					? existing.amazon_asin

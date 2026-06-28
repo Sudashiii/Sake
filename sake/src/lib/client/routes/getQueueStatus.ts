@@ -1,30 +1,12 @@
 import { type Result, ok, err } from '$lib/types/Result';
 import { ApiErrors, type ApiError } from '$lib/types/ApiError';
 import { get } from '../base/get';
+import type { QueueStatusResponse } from '$lib/types/Queue/QueueStatus';
 
-export interface QueueJob {
-	id: string;
-	bookId: string;
-	title: string;
-	status: 'queued' | 'processing' | 'completed' | 'failed';
-	attempts: number;
-	error?: string;
-	createdAt: string;
-	updatedAt: string;
-	finishedAt?: string;
-}
-
-export interface QueueStatusResponse {
-	success: true;
-	queueStatus: {
-		pending: number;
-		processing: number;
-	};
-	jobs: QueueJob[];
-}
+export type { QueueStatusResponse } from '$lib/types/Queue/QueueStatus';
 
 export async function getQueueStatus(): Promise<Result<QueueStatusResponse, ApiError>> {
-	const result = await get('/zlibrary/queue');
+	const result = await get('/queue');
 	if (!result.ok) {
 		return err(result.error);
 	}

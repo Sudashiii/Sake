@@ -200,6 +200,7 @@ export class PutLibraryFileUseCase {
 			description: pickText(extractedMetadata?.description, metadata?.description),
 			google_books_id: metadata?.googleBooksId ?? null,
 			open_library_key: metadata?.openLibraryKey ?? null,
+			hardcover_id: metadata?.hardcoverId ?? null,
 			amazon_asin: metadata?.amazonAsin ?? null,
 			external_rating: metadata?.externalRating ?? null,
 			external_rating_count: metadata?.externalRatingCount ?? null,

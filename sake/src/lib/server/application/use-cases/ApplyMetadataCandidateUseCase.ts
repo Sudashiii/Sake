@@ -55,6 +55,7 @@ interface AppliedMetadataBook {
 	description: string | null;
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
+	hardcoverId: string | null;
 	amazonAsin: string | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
@@ -88,6 +89,7 @@ type MetadataPatch = Partial<{
 	day: number | null;
 	googleBooksId: string | null;
 	openLibraryKey: string | null;
+	hardcoverId: string | null;
 	amazonAsin: string | null;
 	externalRating: number | null;
 	externalRatingCount: number | null;
@@ -126,6 +128,9 @@ function buildPatch(
 	fieldSelections: ApplyMetadataFieldSelection[]
 ): MetadataPatch {
 	const patch: MetadataPatch = {};
+	if (candidate.providerId === 'hardcover') {
+		patch.hardcoverId = trimToNull(candidate.identifiers.hardcoverId);
+	}
 
 	for (const field of fieldSelections) {
 		switch (field) {
@@ -231,6 +236,7 @@ function buildUpdateMetadataInput(existing: Book, patch: MetadataPatch): UpdateB
 			patch.googleBooksId === undefined ? existing.google_books_id : patch.googleBooksId,
 		open_library_key:
 			patch.openLibraryKey === undefined ? existing.open_library_key : patch.openLibraryKey,
+		hardcover_id: patch.hardcoverId === undefined ? existing.hardcover_id ?? null : patch.hardcoverId,
 		amazon_asin: patch.amazonAsin === undefined ? existing.amazon_asin : patch.amazonAsin,
 		external_rating:
 			patch.externalRating === undefined ? existing.external_rating : patch.externalRating,
@@ -265,6 +271,7 @@ function toAppliedMetadataBook(book: Book): AppliedMetadataBook {
 		description: book.description,
 		googleBooksId: book.google_books_id,
 		openLibraryKey: book.open_library_key,
+		hardcoverId: book.hardcover_id ?? null,
 		amazonAsin: book.amazon_asin,
 		externalRating: book.external_rating,
 		externalRatingCount: book.external_rating_count,

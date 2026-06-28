@@ -30,6 +30,7 @@ function createDbBookRow(overrides: Partial<DbBookRow> = {}): DbBookRow {
 		description: 'Desc',
 		googleBooksId: 'google-1',
 		openLibraryKey: 'ol-1',
+		hardcoverId: 'hardcover-1',
 		amazonAsin: 'asin-1',
 		externalRating: 4.2,
 		externalRatingCount: 10,

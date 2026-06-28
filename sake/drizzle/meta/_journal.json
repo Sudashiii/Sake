@@ -148,6 +148,13 @@
       "when": 1778900004000,
       "tag": "0020_users_basic_auth_password",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781443015013,
+      "tag": "0021_hardcover_progress_sync",
+      "breakpoints": true
     }
   ]
 }
