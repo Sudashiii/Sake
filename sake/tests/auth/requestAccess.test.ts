@@ -28,6 +28,11 @@ describe('requestAccess', () => {
 		assert.equal(isApiKeyAllowedRoute('/api/logs/webapp/stream', 'GET'), false);
 	});
 
+	test('keeps book-id web reader content session-only', () => {
+		assert.equal(isPublicApiRoute('/api/library/1/content', 'GET'), false);
+		assert.equal(isApiKeyAllowedRoute('/api/library/1/content', 'GET'), false);
+	});
+
 	test('keeps the device logs stream session-only', () => {
 		assert.equal(isPublicApiRoute('/api/devices/device-a/logs/stream', 'GET'), false);
 		assert.equal(isApiKeyAllowedRoute('/api/devices/device-a/logs/stream', 'GET'), false);

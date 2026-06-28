@@ -33,6 +33,7 @@
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@types/cookie": "^0.6.0",
 		"@types/estree": "^1.0.8",
+		"@types/luaparse": "^0.2.13",
 		"@types/node": "^24.10.0",
 		"@types/resolve": "^1.20.6",
 		"sass-embedded": "^1.97.3",
@@ -46,7 +47,9 @@
 		"@libsql/client": "^0.15.15",
 		"drizzle-kit": "^0.31.4",
 		"drizzle-orm": "^0.44.6",
+		"epubjs": "^0.3.93",
 		"jszip": "^3.10.1",
+		"luaparse": "^0.3.1",
 		"pino": "^9.9.2",
 		"pino-pretty": "^13.1.2"
 	}

@@ -152,8 +152,15 @@
     {
       "idx": 21,
       "version": "6",
-      "when": 1781443015013,
-      "tag": "0021_hardcover_progress_sync",
+      "when": 1781968045088,
+      "tag": "0021_reader_progress_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1782627929457,
+      "tag": "0022_hardcover_progress_sync",
       "breakpoints": true
     }
   ]
