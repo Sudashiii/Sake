@@ -52,6 +52,7 @@
 	} from '$lib/features/reader/readerRuntime';
 	import { ReaderSaveQueue } from '$lib/features/reader/readerSaveQueue';
 	import { createReaderSessionId } from '$lib/features/reader/readerSessionId';
+	import { startReaderWakeLock } from '$lib/features/reader/readerWakeLock';
 	import {
 		ReaderTapNavigation,
 		type ReaderTapDiagnostic
@@ -306,6 +307,7 @@
 	onMount(() => {
 		let isDestroyed = false;
 		let clockTimer: ReturnType<typeof setTimeout> | null = null;
+		const stopWakeLock = startReaderWakeLock();
 
 		const updateClock = (): void => {
 			currentTime = new Date();
@@ -387,6 +389,7 @@
 
 		return () => {
 			isDestroyed = true;
+			stopWakeLock();
 			if (clockTimer) clearTimeout(clockTimer);
 			saveQueue.destroy();
 			unbindTapNavigation?.();
