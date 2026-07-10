@@ -1,15 +1,15 @@
 import {
 	S3Client,
 	S3ServiceException,
-	ListObjectsV2Command,
 	PutObjectCommand,
 	GetObjectCommand,
 	DeleteObjectCommand,
-	HeadObjectCommand
+	HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import { Readable } from 'stream';
 import { getS3Config } from '$lib/server/config/infrastructure';
+import { listAllS3Objects } from './S3ListPagination';
 
 export class S3Storage implements StoragePort {
 	private readonly s3: S3Client;
@@ -98,15 +98,10 @@ export class S3Storage implements StoragePort {
 	}
 
 	async list(prefix: string): Promise<{ key: string; size: number; lastModified?: Date }[]> {
-		const res = await this.s3.send(
-			new ListObjectsV2Command({
-				Bucket: this.bucket,
-				Prefix: prefix
-			})
-		);
+		const contents = await listAllS3Objects((command) => this.s3.send(command), this.bucket, prefix);
 
 		return (
-			res.Contents?.map((obj) => ({
+			contents?.map((obj) => ({
 				key: obj.Key!,
 				size: obj.Size ?? 0,
 				lastModified: obj.LastModified
