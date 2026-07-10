@@ -153,7 +153,7 @@ describe('HardcoverProgressSyncService', () => {
 		);
 		assert.match(
 			describeHardcoverSyncFailure(
-				new HardcoverClientError('Hardcover API returned HTTP 429', 429, true, 'rate-limit')
+				new HardcoverClientError('Hardcover API returned HTTP 429', 429, true, 'rate_limit')
 			),
 			/retry.*automatically/i
 		);

@@ -3,25 +3,23 @@ const UPSTREAM_TIMEOUT_MS = 30_000;
 const USER_AGENT = 'Sake/1.0 (+https://github.com/Sudashiii/Sake)';
 const RATE_LIMIT_INTERVAL_MS = 1_000;
 
-export type HardcoverClientErrorKind =
-	| 'authentication'
-	| 'rate-limit'
-	| 'upstream'
-	| 'graphql'
-	| 'timeout'
-	| 'network'
-	| 'invalid-response'
-	| 'mutation'
-	| 'configuration';
+import {
+	ExternalClientError,
+	parseExternalJson,
+	requestExternal,
+	type ExternalClientErrorKind
+} from './externalClientPolicy';
 
-export class HardcoverClientError extends Error {
+export type HardcoverClientErrorKind = ExternalClientErrorKind;
+
+export class HardcoverClientError extends ExternalClientError {
 	constructor(
 		message: string,
 		readonly status: number,
 		readonly isRetryable: boolean,
 		readonly kind: HardcoverClientErrorKind = 'upstream'
 	) {
-		super(message);
+		super(message, status, isRetryable, kind);
 		this.name = 'HardcoverClientError';
 	}
 }
@@ -41,12 +39,10 @@ export class HardcoverClient {
 		}
 		this.nextAllowedAt = Date.now() + RATE_LIMIT_INTERVAL_MS;
 
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 		try {
-			const response = await this.fetchFn(HARDCOVER_API_URL, {
+			const response = await requestExternal(this.fetchFn, HARDCOVER_API_URL, {
 				method: 'POST',
-				signal: controller.signal,
+				timeoutMs: UPSTREAM_TIMEOUT_MS,
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${this.apiToken}`,
@@ -55,25 +51,11 @@ export class HardcoverClient {
 				body: JSON.stringify({ query, variables })
 			});
 
-			if (!response.ok) {
-				const kind: HardcoverClientErrorKind =
-					response.status === 401 || response.status === 403
-						? 'authentication'
-						: response.status === 429
-							? 'rate-limit'
-							: 'upstream';
-				throw new HardcoverClientError(
-					`Hardcover API returned HTTP ${response.status}`,
-					response.status,
-					response.status === 429 || response.status >= 500,
-					kind
-				);
-			}
-
-			const payload = (await response.json()) as {
+			const payload = await parseExternalJson(response, (value): value is {
 				data?: T;
 				errors?: Array<{ message?: string }>;
-			};
+			} => typeof value === 'object' && value !== null &&
+				('data' in value || 'errors' in value));
 			if (payload.errors?.length) {
 				const message = payload.errors.map((error) => error.message ?? 'Unknown GraphQL error').join('; ');
 				throw new HardcoverClientError(
@@ -84,19 +66,17 @@ export class HardcoverClient {
 				);
 			}
 			if (payload.data === undefined) {
-				throw new HardcoverClientError('Hardcover API returned no data', 502, true, 'invalid-response');
+				throw new HardcoverClientError('Hardcover API returned no data', 502, true, 'invalid_response');
 			}
 			return payload.data;
 		} catch (cause: unknown) {
 			if (cause instanceof HardcoverClientError) {
 				throw cause;
 			}
-			if (cause instanceof Error && cause.name === 'AbortError') {
-				throw new HardcoverClientError('Hardcover request timed out', 504, true, 'timeout');
+			if (cause instanceof ExternalClientError) {
+				throw new HardcoverClientError(cause.message, cause.status, cause.isRetryable, cause.kind);
 			}
 			throw new HardcoverClientError('Hardcover request failed', 502, true, 'network');
-		} finally {
-			clearTimeout(timer);
 		}
 	}
 }

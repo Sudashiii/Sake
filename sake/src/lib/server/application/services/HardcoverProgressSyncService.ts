@@ -174,7 +174,7 @@ export function describeHardcoverSyncFailure(cause: unknown): string {
 	if (cause.kind === 'authentication') {
 		return 'Hardcover rejected the configured API token. Update HARDCOVER_API_TOKEN, restart Sake, and retry.';
 	}
-	if (cause.kind === 'rate-limit') {
+	if (cause.kind === 'rate_limit') {
 		return 'Hardcover rate limit reached. Sake will retry this job automatically.';
 	}
 	if (cause.kind === 'timeout') {
@@ -183,7 +183,7 @@ export function describeHardcoverSyncFailure(cause: unknown): string {
 	if (cause.kind === 'network') {
 		return 'Sake could not reach Hardcover. Check the server network connection; Sake will retry automatically.';
 	}
-	if (cause.kind === 'invalid-response') {
+	if (cause.kind === 'invalid_response') {
 		return 'Hardcover returned an incomplete response. Sake will retry this job automatically.';
 	}
 	if (cause.kind === 'configuration') {

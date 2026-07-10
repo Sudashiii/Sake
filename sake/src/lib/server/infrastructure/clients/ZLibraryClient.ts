@@ -5,11 +5,16 @@ import type { ZLibraryCredentials, ZLibraryPort, ZLibrarySearchRequest } from '$
 import { toUrlEncoded } from '$lib/server/infrastructure/clients/toUrlEncode';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
+import {
+	ExternalClientError,
+	parseExternalJson,
+	requestExternal
+} from '$lib/server/infrastructure/clients/externalClientPolicy';
 
 export class ZLibraryClient implements ZLibraryPort {
 	private readonly baseUrl: string;
 
-	constructor(baseUrl: string) {
+	constructor(baseUrl: string, private readonly fetchFn: typeof fetch = fetch) {
 		this.baseUrl = baseUrl;
 	}
 
@@ -40,7 +45,7 @@ export class ZLibraryClient implements ZLibraryPort {
 
 		let fileInfo: ZBookFileResponse;
 		try {
-			fileInfo = (await fileInfoResponse.value.json()) as ZBookFileResponse;
+			fileInfo = await parseExternalJson(fileInfoResponse.value, isZBookFileResponse);
 		} catch (cause) {
 			return apiError('Failed to parse download file info', 502, cause);
 		}
@@ -101,8 +106,9 @@ export class ZLibraryClient implements ZLibraryPort {
 
 	private async get(path: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
 		try {
-			const response = await fetch(this.baseUrl + path, {
+			const response = await requestExternal(this.fetchFn, this.baseUrl + path, {
 				method: 'GET',
+				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials)
 			});
 
@@ -112,14 +118,15 @@ export class ZLibraryClient implements ZLibraryPort {
 
 			return apiOk(response);
 		} catch (cause) {
-			return apiError('Failed to execute GET request', 502, cause);
+			return apiError('Failed to execute GET request', getExternalStatus(cause), cause);
 		}
 	}
 
 	private async getAbsolute(url: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
 		try {
-			const response = await fetch(url, {
+			const response = await requestExternal(this.fetchFn, url, {
 				method: 'GET',
+				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials)
 			});
 
@@ -129,7 +136,7 @@ export class ZLibraryClient implements ZLibraryPort {
 
 			return apiOk(response);
 		} catch (cause) {
-			return apiError('Failed to execute GET request', 502, cause);
+			return apiError('Failed to execute GET request', getExternalStatus(cause), cause);
 		}
 	}
 
@@ -139,22 +146,44 @@ export class ZLibraryClient implements ZLibraryPort {
 		credentials?: ZLibraryCredentials
 	): Promise<ApiResult<T>> {
 		try {
-			const response = await fetch(this.baseUrl + path, {
+			const response = await requestExternal(this.fetchFn, this.baseUrl + path, {
 				method: 'POST',
+				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials),
 				body: toUrlEncoded(data)
 			});
 
-			if (!response.ok) {
-				return apiError(`Request failed with status ${response.status}`, response.status);
-			}
-
-			const parsed = (await response.json()) as T;
+			const parsed = await parseExternalJson(response, (value): value is T => {
+				if (path === ZLibraryRoutes.search) return isZSearchBookResponse(value);
+				if (path === ZLibraryRoutes.passwordLogin) return isZLoginResponse(value);
+				return typeof value === 'object' && value !== null;
+			});
 			return apiOk(parsed);
 		} catch (cause) {
-			return apiError('Failed to execute POST request', 502, cause);
+			return apiError('Failed to execute POST request', getExternalStatus(cause), cause);
 		}
 	}
+}
+
+function getExternalStatus(cause: unknown): number {
+	return cause instanceof ExternalClientError ? cause.status : 502;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isZBookFileResponse(value: unknown): value is ZBookFileResponse {
+	if (!isRecord(value) || !isRecord(value.file)) return false;
+	return typeof value.success === 'number' && typeof value.file.downloadLink === 'string';
+}
+
+function isZSearchBookResponse(value: unknown): value is ZSearchBookResponse {
+	return isRecord(value) && typeof value.success === 'number' && Array.isArray(value.books);
+}
+
+function isZLoginResponse(value: unknown): value is ZLoginResponse {
+	return isRecord(value) && (value.success === 0 || value.success === 1) && isRecord(value.user);
 }
 
 const ZLibraryRoutes: Record<string, string> = {
