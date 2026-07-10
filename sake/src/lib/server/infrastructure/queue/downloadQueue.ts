@@ -15,6 +15,7 @@ import type {
 	ZLibraryQueueTaskInput
 } from '$lib/server/application/ports/DownloadQueuePort';
 import { randomUUID } from 'node:crypto';
+import { ExternalClientError } from '$lib/server/infrastructure/clients/externalClientPolicy';
 
 interface BaseQueuedDownload {
 	id: string;
@@ -274,9 +275,9 @@ export class DownloadQueue {
 				return;
 			}
 
-			const canRetry = this.isRetryableFailure(
+			const canRetry = isRetryableExternalFailure(
 				useCaseResult.error.status,
-				useCaseResult.error.message
+				useCaseResult.error.cause
 			);
 			const isLastAttempt = attempt === task.maxAttempts;
 			if (!canRetry || isLastAttempt) {
@@ -367,22 +368,6 @@ export class DownloadQueue {
 		const match = downloadedFileName.match(/\.([A-Za-z0-9]+)$/);
 		const extension = match?.[1]?.toLowerCase() || fallbackExtension.toLowerCase() || 'epub';
 		return `${normalizedTitle}.${extension}`;
-	}
-
-	private isRetryableFailure(statusCode: number, message: string): boolean {
-		if (statusCode === 429 || statusCode >= 500) {
-			return true;
-		}
-
-		const normalized = message.toLowerCase();
-		return (
-			normalized.includes('terminated') ||
-			normalized.includes('timeout') ||
-			normalized.includes('econnreset') ||
-			normalized.includes('network') ||
-			normalized.includes('failed to execute get request') ||
-			normalized.includes('failed to execute post request')
-		);
 	}
 
 	private getRetryDelayMs(attempt: number): number {
@@ -477,4 +462,11 @@ export class DownloadQueue {
 		copy.set(data);
 		return copy.buffer;
 	}
+}
+
+export function isRetryableExternalFailure(statusCode: number, cause: unknown): boolean {
+	if (cause instanceof ExternalClientError) {
+		return cause.isRetryable;
+	}
+	return statusCode === 429 || statusCode >= 500;
 }

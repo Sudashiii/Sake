@@ -24,7 +24,7 @@ describe('HardcoverClient', () => {
 			(error: unknown) =>
 				error instanceof HardcoverClientError &&
 				error.status === 429 &&
-				error.kind === 'rate-limit' &&
+				error.kind === 'rate_limit' &&
 				error.isRetryable
 		);
 	});
