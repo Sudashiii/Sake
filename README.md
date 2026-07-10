@@ -255,6 +255,17 @@ BODY_SIZE_LIMIT=Infinity
 
 If the database is empty, Sake exposes the normal bootstrap flow in the UI so you can create the first account there. You do not need to predefine a user in the environment.
 
+## Reader interoperability tests
+
+The TypeScript test suite runs with `bun test`. The KOReader reader interoperability test runs separately because it needs KOReader's Linux LuaJIT runtime:
+
+```bash
+cd sake
+bun run test:reader:interop
+```
+
+The command downloads and verifies the pinned KOReader `v2026.03` Linux release, generates the deterministic EPUB and sidecar fixtures, and runs `tests/reader/koreader-xpointer-interop-spec.lua` headlessly. It runs natively on Linux x86_64 or arm64; on macOS it uses Docker when available. GitHub Actions runs it in the `koreader-reader-interop` job.
+
 ## KOReader plugin
 
 The KOReader plugin lives in `koreaderPlugins/sake.koplugin`.
