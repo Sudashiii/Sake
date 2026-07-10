@@ -5,7 +5,7 @@ import {
 	parseReaderTheme,
 	registerReaderAppearance,
 	type ReaderTheme
-} from '../../src/lib/features/reader/readerAppearance';
+} from '$lib/features/reader/readerAppearance';
 
 function createThemeController() {
 	const registered: object[] = [];

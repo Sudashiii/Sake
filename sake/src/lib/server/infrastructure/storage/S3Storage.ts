@@ -15,7 +15,13 @@ export class S3Storage implements StoragePort {
 	private readonly s3: S3Client;
 	private readonly bucket: string;
 
-	constructor() {
+	constructor(s3Client?: S3Client, bucket?: string) {
+		if (s3Client) {
+			this.s3 = s3Client;
+			this.bucket = bucket ?? '';
+			return;
+		}
+
 		const config = getS3Config();
 		this.bucket = config.bucket;
 
