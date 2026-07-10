@@ -1,7 +1,11 @@
 <script lang="ts">
-	export let size = 32;
-	export let decorative = false;
-	export let title = 'sake logo';
+	interface Props {
+		size?: number;
+		decorative?: boolean;
+		title?: string;
+	}
+
+	let { size = 32, decorative = false, title = 'sake logo' }: Props = $props();
 
 	const aspectRatio = 80 / 200;
 </script>

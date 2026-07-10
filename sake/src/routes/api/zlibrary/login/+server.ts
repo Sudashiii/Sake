@@ -2,7 +2,7 @@ import { zlibraryTokenLoginUseCase } from '$lib/server/application/composition';
 import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
-import type { ZTokenLoginRequest } from '$lib/types/ZLibrary/Requests/ZTokenLoginRequest';
+import { parseZTokenLoginRequest } from '$lib/server/http/zlibraryRequests';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // -------------------------------
@@ -10,12 +10,12 @@ import type { RequestHandler } from '@sveltejs/kit';
 // -------------------------------
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const requestLogger = getRequestLogger(locals);
-	let body: ZTokenLoginRequest;
+	let body: ReturnType<typeof parseZTokenLoginRequest>;
 	try {
-		body = (await request.json()) as ZTokenLoginRequest;
+		body = parseZTokenLoginRequest(await request.json());
 	} catch (err: unknown) {
-		requestLogger.warn({ event: 'zlibrary.login.invalid_json', error: toLogError(err) }, 'Invalid JSON body');
-		return errorResponse('Invalid JSON body', 400);
+		requestLogger.warn({ event: 'zlibrary.login.invalid_payload', error: toLogError(err) }, 'Invalid login payload');
+		return errorResponse(err instanceof Error ? err.message : 'Invalid JSON body', 400);
 	}
 
 		try {

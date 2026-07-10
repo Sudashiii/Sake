@@ -2,7 +2,10 @@ import type {
 	SearchProviderContext,
 	SearchProviderPort
 } from '$lib/server/application/ports/SearchProviderPort';
-import type { ZLibraryPort } from '$lib/server/application/ports/ZLibraryPort';
+import type {
+	ZLibraryPort,
+	ZLibrarySearchRequest
+} from '$lib/server/application/ports/ZLibraryPort';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
@@ -27,7 +30,7 @@ function normalizeBookUrl(href: string): string | null {
 	return `https://1lib.sk${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
-function mapSort(sort: SearchBooksRequest['sort']): string | undefined {
+function mapSort(sort: SearchBooksRequest['sort']): ZLibrarySearchRequest['order'] {
 	if (sort === 'year_desc') {
 		return 'desc';
 	}

@@ -3,7 +3,7 @@ import { errorResponse } from '$lib/server/http/api';
 import { zlibraryAuthFailureResponse } from '$lib/server/auth/responseSignals';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
-import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
+import { parseZSearchRequest } from '$lib/server/http/zlibraryRequests';
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
@@ -20,12 +20,12 @@ export const POST: RequestHandler = async (event) => {
 		},
 		'Deprecated endpoint /api/zlibrary/search called; use /api/search'
 	);
-	let body: ZSearchBookRequest;
+	let body: ReturnType<typeof parseZSearchRequest>;
 	try {
-		body = (await request.json()) as ZSearchBookRequest;
+		body = parseZSearchRequest(await request.json());
 	} catch (err: unknown) {
-		requestLogger.warn({ event: 'zlibrary.search.invalid_json', error: toLogError(err) }, 'Invalid JSON body');
-		return errorResponse('Invalid JSON body', 400);
+		requestLogger.warn({ event: 'zlibrary.search.invalid_payload', error: toLogError(err) }, 'Invalid search payload');
+		return errorResponse(err instanceof Error ? err.message : 'Invalid JSON body', 400);
 	}
 	if (!locals.zuser) {
 		requestLogger.warn({ event: 'zlibrary.search.auth_missing' }, 'Z-Library login is not valid');
