@@ -4,6 +4,6 @@ export interface ZSearchBookRequest {
     yearTo?: string;
     languages?: string[];
     extensions?: string[];
-    order?: string;
+    order?: 'asc' | 'desc';
     limit?: number;
 }
