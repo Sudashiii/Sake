@@ -1,8 +1,7 @@
-import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
 import type { ZBookFileResponse } from '$lib/types/ZLibrary/Responses/ZBookFileResponse';
 import type { ZSearchBookResponse } from '$lib/types/ZLibrary/Responses/ZSearchBookResponse';
 import type { ZLoginResponse } from '$lib/types/ZLibrary/Responses/ZLoginResponse';
-import type { ZLibraryCredentials, ZLibraryPort } from '$lib/server/application/ports/ZLibraryPort';
+import type { ZLibraryCredentials, ZLibraryPort, ZLibrarySearchRequest } from '$lib/server/application/ports/ZLibraryPort';
 import { toUrlEncoded } from '$lib/server/infrastructure/clients/toUrlEncode';
 import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
@@ -14,7 +13,7 @@ export class ZLibraryClient implements ZLibraryPort {
 		this.baseUrl = baseUrl;
 	}
 
-	async search(searchBookRequest: ZSearchBookRequest): Promise<ApiResult<ZSearchBookResponse>> {
+	async search(searchBookRequest: ZLibrarySearchRequest): Promise<ApiResult<ZSearchBookResponse>> {
 		const body: Record<string, unknown> = {};
 		const { searchText, yearFrom, yearTo, languages, extensions, order, limit } = searchBookRequest;
 

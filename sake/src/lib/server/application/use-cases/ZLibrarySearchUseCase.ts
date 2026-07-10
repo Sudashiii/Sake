@@ -1,10 +1,9 @@
-import type { ZLibraryCredentials, ZLibraryPort } from '$lib/server/application/ports/ZLibraryPort';
+import type { ZLibraryCredentials, ZLibraryPort, ZLibrarySearchRequest } from '$lib/server/application/ports/ZLibraryPort';
 import type { ApiResult } from '$lib/server/http/api';
-import type { ZSearchBookRequest } from '$lib/types/ZLibrary/Requests/ZSearchBookRequest';
 import type { ZSearchBookResponse } from '$lib/types/ZLibrary/Responses/ZSearchBookResponse';
 
 interface ZLibrarySearchInput {
-	request: ZSearchBookRequest;
+	request: ZLibrarySearchRequest;
 	credentials: ZLibraryCredentials;
 }
 

@@ -2,7 +2,7 @@ import { zlibraryPasswordLoginUseCase } from '$lib/server/application/compositio
 import { errorResponse } from '$lib/server/http/api';
 import { getRequestLogger } from '$lib/server/http/requestLogger';
 import { toLogError } from '$lib/server/infrastructure/logging/logger';
-import type { ZLoginRequest } from '$lib/types/ZLibrary/Requests/ZLoginRequest';
+import { parseZPasswordLoginRequest } from '$lib/server/http/zlibraryRequests';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // -------------------------------
@@ -10,15 +10,15 @@ import type { RequestHandler } from '@sveltejs/kit';
 // -------------------------------
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const requestLogger = getRequestLogger(locals);
-	let body: ZLoginRequest;
+	let body: ReturnType<typeof parseZPasswordLoginRequest>;
 	try {
-		body = (await request.json()) as ZLoginRequest;
+		body = parseZPasswordLoginRequest(await request.json());
 	} catch (err: unknown) {
 		requestLogger.warn(
-			{ event: 'zlibrary.passwordLogin.invalid_json', error: toLogError(err) },
-			'Invalid JSON body'
+			{ event: 'zlibrary.passwordLogin.invalid_payload', error: toLogError(err) },
+			'Invalid login payload'
 		);
-		return errorResponse('Invalid JSON body', 400);
+		return errorResponse(err instanceof Error ? err.message : 'Invalid JSON body', 400);
 	}
 
 	try {
