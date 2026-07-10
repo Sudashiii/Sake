@@ -14,6 +14,15 @@ import { mock } from 'bun:test';
 const databasePath = join(tmpdir(), `sake-repository-${process.pid}-${randomUUID()}.db`);
 process.env.LIBSQL_URL = `file:${databasePath}`;
 process.env.LIBSQL_AUTH_TOKEN = '';
+// BookRepository creates the shared database client through the full infrastructure
+// configuration. These values keep the database-only test independent from pipeline
+// secrets; no S3 request is made by this suite.
+process.env.S3_ENDPOINT = 'http://s3.integration.test';
+process.env.S3_REGION = 'us-east-1';
+process.env.S3_BUCKET = 'integration-test';
+process.env.S3_ACCESS_KEY_ID = 'integration-test';
+process.env.S3_SECRET_ACCESS_KEY = 'integration-test';
+process.env.S3_FORCE_PATH_STYLE = 'true';
 
 mock.module('$env/dynamic/private', () => ({ env: process.env }));
 const { BookRepository } = await import('$lib/server/infrastructure/repositories/BookRepository');
