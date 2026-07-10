@@ -1,5 +1,6 @@
 import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
-import { downloadQueue } from '$lib/server/infrastructure/queue/downloadQueue';
+import { DownloadQueue } from '$lib/server/infrastructure/queue/downloadQueue';
+import { QueueJobRepository } from '$lib/server/infrastructure/repositories/QueueJobRepository';
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
 import { QueueDownloadUseCase } from '$lib/server/application/use-cases/QueueDownloadUseCase';
 import { QueueSearchBookUseCase } from '$lib/server/application/use-cases/QueueSearchBookUseCase';
@@ -31,6 +32,7 @@ import {
 	zlibraryClient
 } from './foundation';
 import { externalBookMetadataService } from './providers';
+import { downloadSearchBookUseCase } from './search';
 
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
@@ -40,12 +42,6 @@ export const downloadBookUseCase = new DownloadBookUseCase(
 	managedBookCoverService,
 	undefined,
 	externalBookMetadataService
-);
-export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
-export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
-export const getQueueStatusUseCase = new GetQueueStatusUseCase(
-	downloadQueue,
-	hardcoverProgressSyncJobRepository
 );
 export const getNewBooksForDeviceUseCase = new GetNewBooksForDeviceUseCase(bookRepository);
 export const confirmDownloadUseCase = new ConfirmDownloadUseCase(deviceDownloadRepository);
@@ -79,6 +75,18 @@ export const putLibraryFileUseCase = new PutLibraryFileUseCase(
 	managedBookCoverService,
 	undefined,
 	externalBookMetadataService
+);
+export const downloadQueue = new DownloadQueue(
+	new QueueJobRepository(),
+	downloadBookUseCase,
+	downloadSearchBookUseCase,
+	putLibraryFileUseCase
+);
+export const queueDownloadUseCase = new QueueDownloadUseCase(downloadQueue);
+export const queueSearchBookUseCase = new QueueSearchBookUseCase(downloadQueue);
+export const getQueueStatusUseCase = new GetQueueStatusUseCase(
+	downloadQueue,
+	hardcoverProgressSyncJobRepository
 );
 export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase(
 	bookRepository,

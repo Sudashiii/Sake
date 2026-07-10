@@ -1,25 +1,19 @@
 import { DownloadBookUseCase } from '$lib/server/application/use-cases/DownloadBookUseCase';
 import { DownloadSearchBookUseCase } from '$lib/server/application/use-cases/DownloadSearchBookUseCase';
 import { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
-import { ManagedBookCoverService } from '$lib/server/application/services/ManagedBookCoverService';
-import { ZLibraryClient } from '$lib/server/infrastructure/clients/ZLibraryClient';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import { QueueJobRepository } from '$lib/server/infrastructure/repositories/QueueJobRepository';
 import type { QueueJobRecord } from '$lib/server/infrastructure/repositories/QueueJobRepository';
-import { BookRepository } from '$lib/server/infrastructure/repositories/BookRepository';
-import { S3Storage } from '$lib/server/infrastructure/storage/S3Storage';
-import { DavUploadServiceFactory } from '$lib/server/infrastructure/factories/DavUploadServiceFactory';
 import {
 	RECOVERY_REQUEUE_REQUIRED_ERROR,
-	PERSISTED_QUEUE_USER_KEY
+	parseQueueTask,
+	serializeQueueTask
 } from '$lib/server/infrastructure/queue/persistence';
-import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 import type {
+	DownloadQueueTaskInput,
 	SearchImportQueueTaskInput,
 	ZLibraryQueueTaskInput
 } from '$lib/server/application/ports/DownloadQueuePort';
-import { createSearchProviders } from '$lib/server/infrastructure/search-providers/searchProviderFactory';
-import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import { randomUUID } from 'node:crypto';
 
 interface BaseQueuedDownload {
@@ -78,48 +72,24 @@ export interface QueuedDownloadSnapshot {
 	finishedAt?: string;
 }
 
-class DownloadQueue {
-	private queue: QueuedDownload[] = [];
+export class DownloadQueue {
 	private isProcessing = false;
 	private readonly defaultMaxAttempts = 3;
 	private readonly terminalRetentionMs = 90 * 24 * 60 * 60 * 1000;
 	private readonly queueLogger = createChildLogger({ component: 'downloadQueue' });
-	private readonly queueJobRepository = new QueueJobRepository();
 	private isInitialized = false;
 	private initializePromise: Promise<void> | null = null;
-	private readonly storage = new S3Storage();
-	private readonly bookRepository = new BookRepository();
-	private readonly managedBookCoverService = new ManagedBookCoverService(this.storage);
-	private readonly zlibraryClient = new ZLibraryClient('https://1lib.sk');
+	private readonly volatileZLibraryCredentials = new Map<string, { userId: string; userKey: string }>();
 
-	private readonly downloadBookUseCase = new DownloadBookUseCase(
-		this.zlibraryClient,
-		this.bookRepository,
-		this.storage,
-		() => DavUploadServiceFactory.createS3(),
-		this.managedBookCoverService
-	);
-	private readonly downloadSearchBookUseCase = new DownloadSearchBookUseCase(
-		createSearchProviders([...SEARCH_PROVIDER_IDS], {
-			zlibrary: this.zlibraryClient
-		})
-	);
-	private readonly putLibraryFileUseCase = new PutLibraryFileUseCase(
-		this.storage,
-		this.bookRepository,
-		this.managedBookCoverService
-	);
+	constructor(
+		private readonly queueJobRepository: QueueJobRepository,
+		private readonly downloadBookUseCase: DownloadBookUseCase,
+		private readonly downloadSearchBookUseCase: DownloadSearchBookUseCase,
+		private readonly putLibraryFileUseCase: PutLibraryFileUseCase
+	) {}
 
 	async enqueue(
-		task:
-			| Omit<
-					QueuedZLibraryDownload,
-					'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
-			  >
-			| Omit<
-					QueuedSearchImportDownload,
-					'id' | 'status' | 'attempts' | 'maxAttempts' | 'createdAt' | 'updatedAt' | 'finishedAt'
-			  >
+		task: DownloadQueueTaskInput
 	): Promise<string> {
 		await this.ensureInitialized();
 
@@ -136,7 +106,9 @@ class DownloadQueue {
 			updatedAt: now
 		};
 
-		this.queue.push(queuedTask);
+		if (task.source === 'zlibrary') {
+			this.volatileZLibraryCredentials.set(id, { userId: task.userId, userKey: task.userKey });
+		}
 		await this.queueJobRepository.create(this.toQueueJobRecord(queuedTask));
 		this.queueLogger.info(
 			{ event: 'queue.task.enqueued', taskId: id, bookId: task.bookId, title: task.title },
@@ -185,21 +157,17 @@ class DownloadQueue {
 	private async initialize(): Promise<void> {
 		try {
 			const nowIso = new Date().toISOString();
-			const failedRecoveredJobs = await this.queueJobRepository.failActiveJobsAfterRestart(
-				RECOVERY_REQUEUE_REQUIRED_ERROR,
-				nowIso,
-				nowIso
-			);
+			const failedRecoveredJobs = await this.queueJobRepository.recoverActiveJobsAfterRestart(nowIso, nowIso);
 			await this.cleanupOldTerminalJobs();
 			this.isInitialized = true;
 
 			if (failedRecoveredJobs > 0) {
 				this.queueLogger.warn(
 					{
-						event: 'queue.recovery.credentials_missing',
+						event: 'queue.recovery.non_resumable',
 						failedRecoveredJobs
 					},
-					'Marked queued jobs as failed because queue state cannot resume after restart'
+					'Marked queue jobs without resumable payloads as failed after restart'
 				);
 			}
 		} catch (error: unknown) {
@@ -216,13 +184,17 @@ class DownloadQueue {
 		this.isProcessing = true;
 		try {
 			while (true) {
-					const task = this.queue.find((candidate) => candidate.status === 'queued');
-					if (!task) {
-						break;
-					}
+				const record = await this.queueJobRepository.claimNextQueued();
+				if (!record) break;
+				const task = this.toQueuedDownload(record);
+				if (!task) {
+					const now = new Date().toISOString();
+					await this.queueJobRepository.updateFailed(record.id, record.attempts, RECOVERY_REQUEUE_REQUIRED_ERROR, now, now);
+					continue;
+				}
 
-					task.status = 'processing';
-					task.updatedAt = new Date();
+				task.status = 'processing';
+				task.updatedAt = new Date();
 					this.queueLogger.info(
 						{ event: 'queue.task.processing', taskId: task.id, bookId: task.bookId, title: task.title },
 						'Processing queue task'
@@ -270,9 +242,7 @@ class DownloadQueue {
 						},
 						'Queue task failed'
 					);
-					} finally {
-						this.queue = this.queue.filter((candidate) => candidate.id !== task.id);
-					}
+				}
 				}
 				await this.cleanupOldTerminalJobs();
 			} finally {
@@ -356,7 +326,7 @@ class DownloadQueue {
 				year: task.year ?? undefined,
 				downloadToDevice: false
 			},
-			credentials: {
+			credentials: this.volatileZLibraryCredentials.get(task.id) ?? {
 				userId: task.userId,
 				userKey: task.userKey
 			}
@@ -458,7 +428,9 @@ class DownloadQueue {
 			language: task.language,
 			year: task.year,
 			userId: task.userId,
-			userKey: PERSISTED_QUEUE_USER_KEY,
+			userKey: '',
+			taskType: task.source,
+			taskPayload: serializeQueueTask(task),
 			status: task.status,
 			attempts: task.attempts,
 			maxAttempts: task.maxAttempts,
@@ -469,11 +441,40 @@ class DownloadQueue {
 		};
 	}
 
+	private toQueuedDownload(record: QueueJobRecord): QueuedDownload | null {
+		const task = parseQueueTask<DownloadQueueTaskInput>(record.taskPayload);
+		if (!task || task.source !== record.taskType || task.bookId !== record.bookId) {
+			return null;
+		}
+
+		if (task.source === 'zlibrary') {
+			const credentials = this.volatileZLibraryCredentials.get(record.id);
+			if (!credentials) return null;
+			return {
+				...task,
+				...record,
+				source: 'zlibrary',
+				...credentials,
+				createdAt: new Date(record.createdAt),
+				updatedAt: new Date(record.updatedAt),
+				finishedAt: record.finishedAt ? new Date(record.finishedAt) : undefined
+			};
+		}
+
+		return {
+			...task,
+			...record,
+			source: 'provider-import',
+			userKey: '',
+			createdAt: new Date(record.createdAt),
+			updatedAt: new Date(record.updatedAt),
+			finishedAt: record.finishedAt ? new Date(record.finishedAt) : undefined
+		};
+	}
+
 	private toArrayBuffer(data: Uint8Array): ArrayBuffer {
 		const copy = new Uint8Array(data.byteLength);
 		copy.set(data);
 		return copy.buffer;
 	}
 }
-
-export const downloadQueue = createLazySingleton(() => new DownloadQueue());

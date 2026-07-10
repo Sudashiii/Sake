@@ -239,6 +239,8 @@ export const queueJobs = sqliteTable(
 		year: integer('year'),
 		userId: text('user_id').notNull(),
 		userKey: text('user_key').notNull(),
+		taskType: text('task_type', { enum: ['zlibrary', 'provider-import'] }),
+		taskPayload: text('task_payload'),
 		status: text('status', {
 			enum: ['queued', 'processing', 'completed', 'failed']
 		}).notNull(),
