@@ -39,7 +39,7 @@ export class S3Storage implements StoragePort {
 			new PutObjectCommand({
 				Bucket: this.bucket,
 				Key: key,
-				// @ts-ignore AWS SDK Body union is wider at runtime than TS infers here
+				// @ts-expect-error AWS SDK's Node stream type is narrower than the port's runtime-compatible stream contract.
 				Body: body,
 				ContentType: contentType ?? 'application/octet-stream'
 			})
