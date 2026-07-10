@@ -1,6 +1,7 @@
 require("dbg"):turnOff()
 local logger = require("logger")
 logger:setLevel(logger.levels.warn)
+require("ffi/loadlib")
 
 local DataStorage = require("datastorage")
 require("libs/libkoreader-lfs").mkdir(DataStorage:getHistoryDir())
