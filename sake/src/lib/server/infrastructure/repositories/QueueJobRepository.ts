@@ -3,7 +3,9 @@ import { queueJobs } from '$lib/server/infrastructure/db/schema';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
 import {
 	PERSISTED_QUEUE_USER_KEY,
-	sanitizePersistedQueueJob
+	sanitizePersistedQueueJob,
+	RECOVERY_REQUEUE_REQUIRED_ERROR,
+	RECOVERY_ZLIBRARY_CREDENTIALS_MISSING_ERROR
 } from '$lib/server/infrastructure/queue/persistence';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
@@ -30,6 +32,8 @@ export interface QueueJobRecord {
 	year: number | null;
 	userId: string;
 	userKey: string;
+	taskType: 'zlibrary' | 'provider-import' | null;
+	taskPayload: string | null;
 	status: QueueJobStatus;
 	attempts: number;
 	maxAttempts: number;
@@ -61,6 +65,8 @@ function mapQueueJobRow(row: typeof queueJobs.$inferSelect): QueueJobRecord {
 		year: row.year ?? null,
 		userId: row.userId,
 		userKey: row.userKey,
+		taskType: row.taskType ?? null,
+		taskPayload: row.taskPayload ?? null,
 		status: row.status,
 		attempts: row.attempts,
 		maxAttempts: row.maxAttempts,
@@ -97,6 +103,8 @@ export class QueueJobRepository {
 			year: persistedJob.year,
 			userId: persistedJob.userId,
 			userKey: persistedJob.userKey,
+			taskType: persistedJob.taskType,
+			taskPayload: persistedJob.taskPayload,
 			status: persistedJob.status,
 			attempts: persistedJob.attempts,
 			maxAttempts: persistedJob.maxAttempts,
@@ -122,7 +130,27 @@ export class QueueJobRepository {
 				updatedAt,
 				finishedAt: null
 			})
-			.where(eq(queueJobs.id, id));
+		.where(eq(queueJobs.id, id));
+	}
+
+	async claimNextQueued(): Promise<QueueJobRecord | null> {
+		const [candidate] = await drizzleDb
+			.select()
+			.from(queueJobs)
+			.where(eq(queueJobs.status, 'queued'))
+			.orderBy(queueJobs.createdAt)
+			.limit(1);
+		if (!candidate) {
+			return null;
+		}
+
+		const now = new Date().toISOString();
+		const [claimed] = await drizzleDb
+			.update(queueJobs)
+			.set({ status: 'processing', updatedAt: now, error: null, finishedAt: null })
+			.where(and(eq(queueJobs.id, candidate.id), eq(queueJobs.status, 'queued')))
+			.returning();
+		return claimed ? mapQueueJobRow(claimed) : null;
 	}
 
 	async updateCompleted(id: string, attempts: number, updatedAt: string, finishedAt: string): Promise<void> {
@@ -159,37 +187,42 @@ export class QueueJobRepository {
 			.where(eq(queueJobs.id, id));
 	}
 
-	async failActiveJobsAfterRestart(
-		error: string,
-		updatedAt: string,
-		finishedAt: string
-	): Promise<number> {
-		const activeStatuses: QueueJobStatus[] = ['queued', 'processing'];
-		const condition = inArray(queueJobs.status, activeStatuses);
+	async recoverActiveJobsAfterRestart(updatedAt: string, finishedAt: string): Promise<number> {
+		const resumableCondition = and(
+			inArray(queueJobs.status, ['queued', 'processing']),
+			sql`${queueJobs.taskPayload} is not null`,
+			sql`${queueJobs.taskType} = 'provider-import'`
+		);
+		await drizzleDb
+			.update(queueJobs)
+			.set({ status: 'queued', updatedAt, error: null, finishedAt: null })
+			.where(resumableCondition);
+
+		const nonResumableCondition = and(
+			inArray(queueJobs.status, ['queued', 'processing']),
+			sql`(${queueJobs.taskPayload} is null or ${queueJobs.taskType} = 'zlibrary')`
+		);
 		const [countRow] = await drizzleDb
 			.select({ count: sql<number>`count(*)` })
 			.from(queueJobs)
-			.where(condition);
+			.where(nonResumableCondition);
 		const count = Number(countRow?.count ?? 0);
-		if (count === 0) {
-			return 0;
+		if (count > 0) {
+			await drizzleDb
+				.update(queueJobs)
+				.set({
+					status: 'failed',
+					error: sql`case when ${queueJobs.taskType} = 'zlibrary' then ${RECOVERY_ZLIBRARY_CREDENTIALS_MISSING_ERROR} else ${RECOVERY_REQUEUE_REQUIRED_ERROR} end`,
+					userKey: PERSISTED_QUEUE_USER_KEY,
+					updatedAt,
+					finishedAt
+				})
+				.where(nonResumableCondition);
+			this.repoLogger.warn(
+				{ event: 'queue_job.recovery.failed', count, updatedAt },
+				'Marked queue jobs without resumable payloads as failed'
+			);
 		}
-
-		await drizzleDb
-			.update(queueJobs)
-			.set({
-				status: 'failed',
-				error,
-				userKey: PERSISTED_QUEUE_USER_KEY,
-				updatedAt,
-				finishedAt
-			})
-			.where(condition);
-
-		this.repoLogger.warn(
-			{ event: 'queue_job.recovery.failed', count, updatedAt },
-			'Marked queued jobs as failed because queue state cannot resume after restart'
-		);
 		return count;
 	}
 
