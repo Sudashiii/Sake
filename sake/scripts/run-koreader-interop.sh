@@ -55,11 +55,11 @@ bun run "$ROOT_DIR/scripts/create-reader-interop-sidecar.ts" "$TEMP_DIR/metadata
 KO_DIR="$TEMP_DIR/koreader/lib/koreader"
 export KO_HOME="$TEMP_DIR/ko-home"
 mkdir -p "$KO_HOME"
-export LUA_PATH="$ROOT_DIR/tests/reader/?.lua;common/?.lua;frontend/?.lua;;"
+export LUA_PATH="$ROOT_DIR/tests/interop/reader/?.lua;common/?.lua;frontend/?.lua;;"
 export LUA_CPATH='common/?.so;;'
 export SAKE_READER_TEST_EPUB="$TEMP_DIR/interop.epub"
 export SAKE_READER_TEST_SIDECAR="$TEMP_DIR/metadata.epub.lua"
 
 cd "$KO_DIR"
 exec ./luajit "$ROOT_DIR/scripts/koreader-interop-runner.lua" \
-    "$ROOT_DIR/tests/reader/koreader-xpointer-interop-spec.lua"
+    "$ROOT_DIR/tests/interop/reader/koreader-xpointer-interop-spec.lua"

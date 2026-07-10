@@ -28,8 +28,17 @@ jobs:
       - name: Check types
         run: bun run check
 
-      - name: Run tests
-        run: bun test
+      - name: Run unit tests
+        run: bun run test:unit
+
+      - name: Run contract tests
+        run: bun run test:contract
+
+      - name: Run integration tests
+        run: bun run test:integration
+
+      - name: Run complete test suite
+        run: bun run test:all
 
   koreader-reader-interop:
     runs-on: ubuntu-latest

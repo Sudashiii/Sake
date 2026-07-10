@@ -5,8 +5,8 @@ import { mock } from 'bun:test';
 
 mock.module('$env/dynamic/private', () => ({ env: process.env }));
 
-const { GET: getQueue } = await import('../../src/routes/api/queue/+server');
-const { GET: getLegacyQueue } = await import('../../src/routes/api/zlibrary/queue/+server');
+const { GET: getQueue } = await import('../../../../src/routes/api/queue/+server');
+const { GET: getLegacyQueue } = await import('../../../../src/routes/api/zlibrary/queue/+server');
 
 const unauthenticatedEvent = {
 	locals: {
