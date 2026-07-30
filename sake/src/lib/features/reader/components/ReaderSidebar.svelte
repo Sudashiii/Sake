@@ -9,6 +9,7 @@
 		activeTab: 'contents' | 'annotations' | 'settings';
 		toc: NavItem[];
 		annotations: ReaderAnnotation[];
+		canEditHighlights: boolean;
 		theme: ReaderTheme;
 		fontSize: number;
 		isTapNavigationEnabled: boolean;
@@ -33,6 +34,7 @@
 		activeTab,
 		toc,
 		annotations,
+		canEditHighlights,
 		theme,
 		fontSize,
 		isTapNavigationEnabled,
@@ -91,7 +93,9 @@
 								<strong>{annotation.text || annotation.note || annotation.chapter || 'Saved location'}</strong>
 								{#if annotation.note}<small>{annotation.note}</small>{/if}
 							</button>
-							<button class={styles.delete} onclick={() => onDeleteAnnotation(annotation)}>Delete</button>
+							{#if annotation.kind === 'bookmark' || canEditHighlights}
+								<button class={styles.delete} onclick={() => onDeleteAnnotation(annotation)}>Delete</button>
+							{/if}
 						</article>
 					{/each}
 				</div>
