@@ -57,10 +57,12 @@
 	import { RsvpEpubSession } from '$lib/features/reader/rsvpEpub';
 	import { RsvpPlaybackController } from '$lib/features/reader/rsvpPlayback';
 	import {
+		DEFAULT_RSVP_TEXT_SCALE,
 		DEFAULT_RSVP_WPM,
+		clampRsvpTextScale,
+		clampRsvpWpm,
 		loadRsvpPreferences,
-		saveRsvpPreferences,
-		clampRsvpWpm
+		saveRsvpPreferences
 	} from '$lib/features/reader/rsvpPreferences';
 	import type { RsvpToken } from '$lib/features/reader/rsvpText';
 	import {
@@ -104,6 +106,7 @@
 	let tapNavigationDelayMs = $state(DEFAULT_TAP_NAVIGATION_DELAY_MS);
 	let tapDiagnostic = $state('Waiting for a tap');
 	let rsvpWpm = $state(DEFAULT_RSVP_WPM);
+	let rsvpTextScale = $state(DEFAULT_RSVP_TEXT_SCALE);
 	let rsvpToken = $state<RsvpToken | null>(null);
 	let rsvpChapterTitle = $state('');
 	let rsvpIsPlaying = $state(false);
@@ -317,8 +320,13 @@
 
 	function updateRsvpWpm(value: number): void {
 		rsvpWpm = clampRsvpWpm(value);
-		saveRsvpPreferences(localStorage, { wpm: rsvpWpm });
+		saveRsvpPreferences(localStorage, { wpm: rsvpWpm, textScale: rsvpTextScale });
 		rsvpPlayback?.setWpm(rsvpWpm);
+	}
+
+	function updateRsvpTextScale(value: number): void {
+		rsvpTextScale = clampRsvpTextScale(value);
+		saveRsvpPreferences(localStorage, { wpm: rsvpWpm, textScale: rsvpTextScale });
 	}
 
 	function openSidebar(): void {
@@ -571,7 +579,7 @@
 			try {
 				theme = parseReaderTheme(localStorage.getItem('readerTheme'));
 				fontSize = Number.parseInt(localStorage.getItem('readerFontSize') ?? '100', 10);
-				rsvpWpm = loadRsvpPreferences(localStorage).wpm;
+				({ wpm: rsvpWpm, textScale: rsvpTextScale } = loadRsvpPreferences(localStorage));
 				footerStatusMode = loadReaderFooterStatusMode(localStorage);
 				({
 					isTapNavigationEnabled,
@@ -690,15 +698,16 @@
 				isCompleted={rsvpIsCompleted}
 				isLoading={rsvpIsLoading}
 				wpm={rsvpWpm}
+				textScale={rsvpTextScale}
 				percentFinished={percentFinished}
 				chapterTitle={rsvpChapterTitle}
 				{theme}
-				{fontSize}
 				error={rsvpError}
 				onTogglePlay={() => void toggleRsvpPlayback()}
 				onJumpWords={(delta) => void jumpRsvpWords(delta)}
 				onJumpSentence={(direction) => void jumpRsvpSentence(direction)}
 				onWpmChange={updateRsvpWpm}
+				onTextScaleChange={updateRsvpTextScale}
 				onExit={() => void exitRsvp()}
 			/>
 		{/if}

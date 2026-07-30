@@ -2,10 +2,18 @@
 	position: absolute;
 	inset: 0;
 	z-index: 3;
+	isolation: isolate;
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr) auto;
+	--rsvp-background: #fbfaf7;
+	--rsvp-text: #252422;
+	--rsvp-muted: #766f64;
+	--rsvp-accent: #8b681f;
+	--rsvp-control: rgb(37 36 34 / 0.08);
+	--rsvp-border: rgb(37 36 34 / 0.18);
 	padding: clamp(18px, 4vw, 52px) clamp(16px, 5vw, 72px) 24px;
-	background: var(--rsvp-background);
+	overflow: auto;
+	background: var(--rsvp-background, #fbfaf7);
 	color: var(--rsvp-text);
 }
 
@@ -16,11 +24,11 @@
 .context { display: flex; align-items: center; justify-content: space-between; gap: 18px; color: var(--rsvp-muted); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
 .context span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage { position: relative; display: grid; place-items: center; min-height: 0; }
-.guides { position: absolute; inset: 12% 50% 12%; border-top: 1px solid var(--rsvp-border); border-bottom: 1px solid var(--rsvp-border); pointer-events: none; }
-.guides span { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--rsvp-accent); transform: translateX(-50%); }
-.word { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: baseline; width: min(100%, 18ch); border: 0; padding: 18px 0; background: transparent; color: var(--rsvp-text); font-family: Georgia, 'Times New Roman', serif; line-height: 1.1; cursor: pointer; }
+.guides { position: absolute; inset: 12% 0; border-top: 1px solid var(--rsvp-border); border-bottom: 1px solid var(--rsvp-border); pointer-events: none; }
+.guides span { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: var(--rsvp-accent); transform: translateX(-50%); }
+.word { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: baseline; width: min(100%, 28ch); max-width: 100%; border: 0; padding: 24px 0; background: transparent; color: var(--rsvp-text); font-family: Georgia, 'Times New Roman', serif; line-height: 1.1; white-space: nowrap; cursor: pointer; }
 .word span:first-child { text-align: right; }
-.word strong { color: var(--rsvp-accent); font-weight: 700; }
+.word .focus { display: inline-block; min-width: 0.7ch; color: var(--rsvp-accent); font-weight: 800; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.12em; }
 .word span:last-child { text-align: left; }
 .message { max-width: 34ch; color: var(--rsvp-muted); font-size: 16px; line-height: 1.5; text-align: center; }
 .controls { display: grid; gap: 14px; }

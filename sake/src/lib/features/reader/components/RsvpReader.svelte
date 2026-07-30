@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { ReaderTheme } from '../readerAppearance';
-	import { MAX_RSVP_WPM, MIN_RSVP_WPM, RSVP_WPM_STEP } from '../rsvpPreferences';
+	import {
+		MAX_RSVP_TEXT_SCALE,
+		MAX_RSVP_WPM,
+		MIN_RSVP_TEXT_SCALE,
+		MIN_RSVP_WPM,
+		RSVP_TEXT_SCALE_STEP,
+		RSVP_WPM_STEP
+	} from '../rsvpPreferences';
 	import { splitRsvpWord, type RsvpToken } from '../rsvpText';
 	import styles from './RsvpReader.module.scss';
 
@@ -11,15 +18,16 @@
 		isCompleted: boolean;
 		isLoading: boolean;
 		wpm: number;
+		textScale: number;
 		percentFinished: number;
 		chapterTitle: string;
 		theme: ReaderTheme;
-		fontSize: number;
 		error: string | null;
 		onTogglePlay: () => void;
 		onJumpWords: (delta: number) => void;
 		onJumpSentence: (direction: 'previous' | 'next') => void;
 		onWpmChange: (wpm: number) => void;
+		onTextScaleChange: (scale: number) => void;
 		onExit: () => void;
 	}
 
@@ -29,23 +37,28 @@
 		isCompleted,
 		isLoading,
 		wpm,
+		textScale,
 		percentFinished,
 		chapterTitle,
 		theme,
-		fontSize,
 		error,
 		onTogglePlay,
 		onJumpWords,
 		onJumpSentence,
 		onWpmChange,
+		onTextScaleChange,
 		onExit
 	}: Props = $props();
 
 	let word = $derived(token ? splitRsvpWord(token) : null);
-	let displayFontSize = $derived(Math.max(30, Math.min(120, Math.round(fontSize * 0.72))));
+	let displayFontSize = $derived(Math.max(48, Math.min(180, Math.round(72 * textScale / 100))));
 
 	function updateWpm(event: Event): void {
 		onWpmChange(Number((event.currentTarget as HTMLInputElement).value));
+	}
+
+	function updateTextScale(event: Event): void {
+		onTextScaleChange(Number((event.currentTarget as HTMLInputElement).value));
 	}
 
 	function isEditableTarget(target: EventTarget | null): boolean {
@@ -87,10 +100,7 @@
 </script>
 
 <section
-	class={styles.root}
-	class:paper={theme === 'paper'}
-	class:night={theme === 'night'}
-	class:sepia={theme === 'sepia'}
+	class={`${styles.root} ${theme === 'paper' ? styles.paper : theme === 'night' ? styles.night : styles.sepia}`}
 	aria-label="RSVP reader"
 >
 	<div class={styles.context}>
@@ -109,11 +119,11 @@
 		{:else if word}
 			<button
 				class={styles.word}
-				style={`font-size: ${displayFontSize}%`}
+				style={`font-size: ${displayFontSize}px`}
 				aria-label={isPlaying ? 'Pause RSVP playback' : 'Play RSVP playback'}
 				onclick={onTogglePlay}
 			>
-				<span class={styles.prefix}>{word.prefix}</span><strong>{word.focus}</strong><span class={styles.suffix}>{word.suffix}</span>
+				<span class={styles.prefix}>{word.prefix}</span><strong class={styles.focus}>{word.focus}</strong><span class={styles.suffix}>{word.suffix}</span>
 			</button>
 		{:else}
 			<p class={styles.message}>No readable text in this book section.</p>
@@ -133,6 +143,18 @@
 		<label class={styles.speed}>
 			<span>Speed <strong>{wpm} WPM</strong></span>
 			<input type="range" min={MIN_RSVP_WPM} max={MAX_RSVP_WPM} step={RSVP_WPM_STEP} value={wpm} oninput={updateWpm} />
+		</label>
+		<label class={styles.speed}>
+			<span>Text size <strong>{textScale}%</strong></span>
+			<input
+				type="range"
+				min={MIN_RSVP_TEXT_SCALE}
+				max={MAX_RSVP_TEXT_SCALE}
+				step={RSVP_TEXT_SCALE_STEP}
+				value={textScale}
+				oninput={updateTextScale}
+				aria-label="RSVP text size"
+			/>
 		</label>
 		<p class={styles.hint}>Space play/pause · ←/→ ten words · Shift+←/→ sentence · ↑/↓ speed</p>
 	</div>
