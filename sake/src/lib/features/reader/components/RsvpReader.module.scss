@@ -24,8 +24,11 @@
 .context { display: flex; align-items: center; justify-content: space-between; gap: 18px; color: var(--rsvp-muted); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
 .context span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage { position: relative; display: grid; place-items: center; min-height: 0; }
-.guides { position: absolute; inset: 12% 0; border-top: 1px solid var(--rsvp-border); border-bottom: 1px solid var(--rsvp-border); pointer-events: none; }
-.guides span { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: var(--rsvp-accent); transform: translateX(-50%); }
+.guides { position: absolute; inset: 0; pointer-events: none; }
+.guides::before { position: absolute; inset: 50% 0 auto; height: 1px; background: var(--rsvp-border); content: ''; transform: translateY(-50%); }
+.guides span { position: absolute; left: 50%; width: 1px; background: var(--rsvp-border); transform: translateX(-50%); }
+.guides span:first-child { top: 8%; bottom: calc(50% + var(--rsvp-guide-gap)); }
+.guides span:last-child { top: calc(50% + var(--rsvp-guide-gap)); bottom: 8%; }
 .word { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: baseline; width: min(100%, 28ch); max-width: 100%; border: 0; padding: 24px 0; background: transparent; color: var(--rsvp-text); font-family: Georgia, 'Times New Roman', serif; line-height: 1.1; white-space: nowrap; cursor: pointer; }
 .word span:first-child { text-align: right; }
 .word .focus { display: inline-block; min-width: 0.7ch; color: var(--rsvp-accent); font-weight: 800; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.12em; }

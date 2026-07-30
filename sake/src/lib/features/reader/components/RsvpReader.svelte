@@ -101,6 +101,7 @@
 
 <section
 	class={`${styles.root} ${theme === 'paper' ? styles.paper : theme === 'night' ? styles.night : styles.sepia}`}
+	style={`--rsvp-guide-gap: ${Math.round(displayFontSize / 2 + 18)}px`}
 	aria-label="RSVP reader"
 >
 	<div class={styles.context}>
