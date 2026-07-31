@@ -360,20 +360,29 @@
 	}
 
 	function annotateRsvpLastWord(): boolean {
-		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !rsvpToken) return false;
-		const page = rsvpToken.startXPointer || currentXPointer;
+		const token = rsvpToken;
+		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !token) return false;
+		const page = token.startXPointer || currentXPointer;
 		if (!page) return false;
-		const annotationKey = `${page}\u001f${rsvpToken.text}`;
+		const annotationKey = `${page}\u001f${token.text}`;
 		if (lastRsvpAnnotationKey === annotationKey) return false;
 
 		const datetime = koreaderDateTime();
+		const note = `RSVP last word: ${token.text}`;
+		const legacyBookmark = annotations.find(
+			(item) =>
+				item.kind === 'bookmark' &&
+				item.page === page &&
+				item.text === token.text &&
+				item.note === note
+		);
 		const base = {
 			kind: 'highlight' as const,
 			page,
 			pos0: page,
-			pos1: rsvpToken.endXPointer,
-			text: rsvpToken.text,
-			note: `RSVP last word: ${rsvpToken.text}`,
+			pos1: token.endXPointer,
+			text: token.text,
+			note,
 			chapter: rsvpChapterTitle || undefined,
 			drawer: 'lighten',
 			color: 'yellow',
@@ -381,7 +390,13 @@
 			datetimeUpdated: datetime
 		};
 		const annotation: ReaderAnnotation = { ...base, id: createAnnotationId(base) };
-		annotations = [...annotations.filter((item) => item.id !== annotation.id), annotation];
+		annotations = [
+			...annotations.filter(
+				(item) => item.id !== annotation.id && item.id !== legacyBookmark?.id
+			),
+			annotation
+		];
+		if (legacyBookmark) saveQueue.delete(legacyBookmark.id);
 		saveQueue.upsert(annotation);
 		lastRsvpAnnotationKey = annotationKey;
 		return true;
