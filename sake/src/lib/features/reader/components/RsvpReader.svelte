@@ -19,6 +19,8 @@
 		isLoading: boolean;
 		wpm: number;
 		textScale: number;
+		showGuideLine: boolean;
+		autoAnnotateLastWord: boolean;
 		percentFinished: number;
 		chapterTitle: string;
 		theme: ReaderTheme;
@@ -28,6 +30,8 @@
 		onJumpSentence: (direction: 'previous' | 'next') => void;
 		onWpmChange: (wpm: number) => void;
 		onTextScaleChange: (scale: number) => void;
+		onShowGuideLineChange: (show: boolean) => void;
+		onAutoAnnotateLastWordChange: (enabled: boolean) => void;
 		onExit: () => void;
 	}
 
@@ -38,6 +42,8 @@
 		isLoading,
 		wpm,
 		textScale,
+		showGuideLine,
+		autoAnnotateLastWord,
 		percentFinished,
 		chapterTitle,
 		theme,
@@ -47,6 +53,8 @@
 		onJumpSentence,
 		onWpmChange,
 		onTextScaleChange,
+		onShowGuideLineChange,
+		onAutoAnnotateLastWordChange,
 		onExit
 	}: Props = $props();
 
@@ -59,6 +67,14 @@
 
 	function updateTextScale(event: Event): void {
 		onTextScaleChange(Number((event.currentTarget as HTMLInputElement).value));
+	}
+
+	function updateGuideLine(event: Event): void {
+		onShowGuideLineChange((event.currentTarget as HTMLInputElement).checked);
+	}
+
+	function updateAutoAnnotateLastWord(event: Event): void {
+		onAutoAnnotateLastWordChange((event.currentTarget as HTMLInputElement).checked);
 	}
 
 	function isEditableTarget(target: EventTarget | null): boolean {
@@ -110,7 +126,7 @@
 	</div>
 
 	<div class={styles.stage}>
-		<div class={styles.guides} aria-hidden="true"><span></span><span></span></div>
+		<div class={`${styles.guides} ${showGuideLine ? '' : styles.guidesWithoutLine}`} aria-hidden="true"><span></span><span></span></div>
 		{#if isLoading}
 			<p class={styles.message}>Preparing RSVP…</p>
 		{:else if error}
@@ -157,6 +173,16 @@
 				aria-label="RSVP text size"
 			/>
 		</label>
+		<div class={styles.options}>
+			<label class={styles.toggle}>
+				<input type="checkbox" checked={showGuideLine} onchange={updateGuideLine} />
+				<span>Horizontal guide</span>
+			</label>
+			<label class={styles.toggle}>
+				<input type="checkbox" checked={autoAnnotateLastWord} onchange={updateAutoAnnotateLastWord} />
+				<span>Save last word as note</span>
+			</label>
+		</div>
 		<p class={styles.hint}>Space play/pause · ←/→ ten words · Shift+←/→ sentence · ↑/↓ speed</p>
 	</div>
 </section>

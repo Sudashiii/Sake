@@ -26,6 +26,7 @@
 .stage { position: relative; display: grid; place-items: center; min-height: 0; }
 .guides { position: absolute; inset: 0; pointer-events: none; }
 .guides::before { position: absolute; inset: 50% 0 auto; height: 1px; background: var(--rsvp-border); content: ''; transform: translateY(-50%); }
+.guidesWithoutLine::before { display: none; }
 .guides span { position: absolute; left: 50%; width: 1px; background: var(--rsvp-border); transform: translateX(-50%); }
 .guides span:first-child { top: 8%; bottom: calc(50% + var(--rsvp-guide-gap)); }
 .guides span:last-child { top: calc(50% + var(--rsvp-guide-gap)); bottom: 8%; }
@@ -45,6 +46,9 @@
 .speed span { display: flex; justify-content: space-between; gap: 12px; }
 .speed strong { color: var(--rsvp-text); }
 .speed input { width: 100%; accent-color: var(--rsvp-accent); }
+.options { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; color: var(--rsvp-muted); font-size: 12px; }
+.toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.toggle input { width: 15px; height: 15px; margin: 0; accent-color: var(--rsvp-accent); }
 .hint { margin: 0; color: var(--rsvp-muted); font-size: 11px; text-align: center; }
 
 @media (max-width: 700px) {

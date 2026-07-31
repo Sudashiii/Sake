@@ -57,6 +57,8 @@
 	import { RsvpEpubSession } from '$lib/features/reader/rsvpEpub';
 	import { RsvpPlaybackController } from '$lib/features/reader/rsvpPlayback';
 	import {
+		DEFAULT_RSVP_AUTO_ANNOTATE_LAST_WORD,
+		DEFAULT_RSVP_SHOW_GUIDE_LINE,
 		DEFAULT_RSVP_TEXT_SCALE,
 		DEFAULT_RSVP_WPM,
 		clampRsvpTextScale,
@@ -107,6 +109,8 @@
 	let tapDiagnostic = $state('Waiting for a tap');
 	let rsvpWpm = $state(DEFAULT_RSVP_WPM);
 	let rsvpTextScale = $state(DEFAULT_RSVP_TEXT_SCALE);
+	let rsvpShowGuideLine = $state(DEFAULT_RSVP_SHOW_GUIDE_LINE);
+	let rsvpAutoAnnotateLastWord = $state(DEFAULT_RSVP_AUTO_ANNOTATE_LAST_WORD);
 	let rsvpToken = $state<RsvpToken | null>(null);
 	let rsvpChapterTitle = $state('');
 	let rsvpIsPlaying = $state(false);
@@ -126,6 +130,7 @@
 	let noteDraft = $state('');
 	let highlightColor = $state('yellow');
 	let unbindTapNavigation: (() => void) | null = null;
+	let lastRsvpAnnotationKey: string | null = null;
 	let footerStatus = $derived(
 		formatReaderFooterStatus(footerStatusMode, {
 			percentFinished,
@@ -268,6 +273,7 @@
 			percentFinished,
 			spineIndex: currentSpineIndex
 		};
+		annotateRsvpLastWord();
 		rsvpPlayback?.pause();
 		await saveQueue.flush();
 		readerMode = 'paged';
@@ -318,15 +324,57 @@
 		await saveQueue.flush();
 	}
 
+	function persistRsvpPreferences(): void {
+		saveRsvpPreferences(localStorage, {
+			wpm: rsvpWpm,
+			textScale: rsvpTextScale,
+			showGuideLine: rsvpShowGuideLine,
+			autoAnnotateLastWord: rsvpAutoAnnotateLastWord
+		});
+	}
+
 	function updateRsvpWpm(value: number): void {
 		rsvpWpm = clampRsvpWpm(value);
-		saveRsvpPreferences(localStorage, { wpm: rsvpWpm, textScale: rsvpTextScale });
+		persistRsvpPreferences();
 		rsvpPlayback?.setWpm(rsvpWpm);
 	}
 
 	function updateRsvpTextScale(value: number): void {
 		rsvpTextScale = clampRsvpTextScale(value);
-		saveRsvpPreferences(localStorage, { wpm: rsvpWpm, textScale: rsvpTextScale });
+		persistRsvpPreferences();
+	}
+
+	function updateRsvpShowGuideLine(show: boolean): void {
+		rsvpShowGuideLine = show;
+		persistRsvpPreferences();
+	}
+
+	function updateRsvpAutoAnnotateLastWord(enabled: boolean): void {
+		rsvpAutoAnnotateLastWord = enabled;
+		persistRsvpPreferences();
+	}
+
+	function annotateRsvpLastWord(): void {
+		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !rsvpToken) return;
+		const page = rsvpToken.startXPointer || currentXPointer;
+		if (!page) return;
+		const annotationKey = `${page}\u001f${rsvpToken.text}`;
+		if (lastRsvpAnnotationKey === annotationKey) return;
+
+		const datetime = koreaderDateTime();
+		const base = {
+			kind: 'bookmark' as const,
+			page,
+			text: rsvpToken.text,
+			note: `RSVP last word: ${rsvpToken.text}`,
+			chapter: rsvpChapterTitle || undefined,
+			datetime,
+			datetimeUpdated: datetime
+		};
+		const annotation: ReaderAnnotation = { ...base, id: createAnnotationId(base) };
+		annotations = [...annotations.filter((item) => item.id !== annotation.id), annotation];
+		saveQueue.upsert(annotation);
+		lastRsvpAnnotationKey = annotationKey;
 	}
 
 	function openSidebar(): void {
@@ -557,11 +605,13 @@
 		const stopWakeLock = startReaderWakeLock();
 		const handleVisibilityChange = (): void => {
 			if (document.visibilityState === 'hidden') {
+				annotateRsvpLastWord();
 				rsvpPlayback?.pause();
 				void saveQueue.flush();
 			}
 		};
 		const handlePageHide = (): void => {
+			annotateRsvpLastWord();
 			rsvpPlayback?.pause();
 			void saveQueue.flush();
 		};
@@ -579,7 +629,12 @@
 			try {
 				theme = parseReaderTheme(localStorage.getItem('readerTheme'));
 				fontSize = Number.parseInt(localStorage.getItem('readerFontSize') ?? '100', 10);
-				({ wpm: rsvpWpm, textScale: rsvpTextScale } = loadRsvpPreferences(localStorage));
+				({
+					wpm: rsvpWpm,
+					textScale: rsvpTextScale,
+					showGuideLine: rsvpShowGuideLine,
+					autoAnnotateLastWord: rsvpAutoAnnotateLastWord
+				} = loadRsvpPreferences(localStorage));
 				footerStatusMode = loadReaderFooterStatusMode(localStorage);
 				({
 					isTapNavigationEnabled,
@@ -650,6 +705,7 @@
 
 		return () => {
 			isDestroyed = true;
+			annotateRsvpLastWord();
 			stopWakeLock();
 			if (clockTimer) clearTimeout(clockTimer);
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -699,6 +755,8 @@
 				isLoading={rsvpIsLoading}
 				wpm={rsvpWpm}
 				textScale={rsvpTextScale}
+				showGuideLine={rsvpShowGuideLine}
+				autoAnnotateLastWord={rsvpAutoAnnotateLastWord}
 				percentFinished={percentFinished}
 				chapterTitle={rsvpChapterTitle}
 				{theme}
@@ -708,6 +766,8 @@
 				onJumpSentence={(direction) => void jumpRsvpSentence(direction)}
 				onWpmChange={updateRsvpWpm}
 				onTextScaleChange={updateRsvpTextScale}
+				onShowGuideLineChange={updateRsvpShowGuideLine}
+				onAutoAnnotateLastWordChange={updateRsvpAutoAnnotateLastWord}
 				onExit={() => void exitRsvp()}
 			/>
 		{/if}
