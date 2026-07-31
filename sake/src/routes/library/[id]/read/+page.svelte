@@ -129,6 +129,7 @@
 	let selectionDraft = $state<SelectionDraft | null>(null);
 	let noteDraft = $state('');
 	let highlightColor = $state('yellow');
+	let rsvpEntryOverride = $state<{ xpointer: string; spineIndex: number } | null>(null);
 	let unbindTapNavigation: (() => void) | null = null;
 	let lastRsvpAnnotationKey: string | null = null;
 	let footerStatus = $derived(
@@ -247,13 +248,15 @@
 		rsvpError = null;
 		rsvpIsLoading = true;
 		try {
+			const entry = rsvpEntryOverride;
 			const token = await rsvpSession.seek({
-				xpointer: currentXPointer,
-				cfi: currentCfi,
+				xpointer: entry?.xpointer ?? currentXPointer,
+				cfi: entry ? null : currentCfi,
 				percentFinished,
-				spineIndex: currentSpineIndex
+				spineIndex: entry?.spineIndex ?? currentSpineIndex
 			});
 			if (!token) throw new Error('No readable text was found for RSVP mode');
+			rsvpEntryOverride = null;
 			readerMode = 'rsvp';
 			rsvpIsCompleted = false;
 			rsvpPlayback.setToken(token);
@@ -530,6 +533,9 @@
 			currentSpineIndex = exactPosition.spineIndex;
 			percentFinished = exactPosition.percentFinished;
 		}
+		if (rsvpEntryOverride && currentXPointer !== rsvpEntryOverride.xpointer && !exactPosition) {
+			rsvpEntryOverride = null;
+		}
 		renderVisibleAnnotations();
 		if (!exactPosition) saveQueue.schedule();
 	}
@@ -568,6 +574,10 @@
 		};
 		const annotation: ReaderAnnotation = { ...base, id: createAnnotationId(base) };
 		annotations = [...annotations.filter((item) => item.id !== annotation.id), annotation];
+		rsvpEntryOverride = {
+			xpointer: annotation.pos0 ?? annotation.page,
+			spineIndex: xpointerSpineIndex(annotation.pos0 ?? annotation.page)
+		};
 		saveQueue.upsert(annotation);
 		selectionDraft = null;
 		renderVisibleAnnotations();
@@ -598,6 +608,9 @@
 			rendition.annotations.remove(cfi, 'highlight');
 		}
 		renderedAnnotationCfis.delete(annotation.id);
+		if (rsvpEntryOverride?.xpointer === (annotation.pos0 ?? annotation.page)) {
+			rsvpEntryOverride = null;
+		}
 		saveQueue.delete(annotation.id);
 		annotations = annotations.filter((item) => item.id !== annotation.id);
 		saveQueue.schedule(0);
