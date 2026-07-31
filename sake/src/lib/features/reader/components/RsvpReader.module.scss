@@ -1,0 +1,60 @@
+.root {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	isolation: isolate;
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	--rsvp-background: #fbfaf7;
+	--rsvp-text: #252422;
+	--rsvp-muted: #766f64;
+	--rsvp-accent: #8b681f;
+	--rsvp-control: rgb(37 36 34 / 0.08);
+	--rsvp-border: rgb(37 36 34 / 0.18);
+	padding: clamp(18px, 4vw, 52px) clamp(16px, 5vw, 72px) 24px;
+	overflow: auto;
+	background: var(--rsvp-background, #fbfaf7);
+	color: var(--rsvp-text);
+}
+
+.paper { --rsvp-background: #fbfaf7; --rsvp-text: #252422; --rsvp-muted: #766f64; --rsvp-accent: #8b681f; --rsvp-control: rgb(37 36 34 / 0.08); --rsvp-border: rgb(37 36 34 / 0.18); }
+.night { --rsvp-background: #111318; --rsvp-text: #d8dbe1; --rsvp-muted: #9299a4; --rsvp-accent: #d0b56b; --rsvp-control: rgb(216 219 225 / 0.09); --rsvp-border: rgb(216 219 225 / 0.2); }
+.sepia { --rsvp-background: #ead8b5; --rsvp-text: #43311f; --rsvp-muted: #765d3d; --rsvp-accent: #87501d; --rsvp-control: rgb(67 49 31 / 0.1); --rsvp-border: rgb(67 49 31 / 0.2); }
+
+.context { display: flex; align-items: center; justify-content: space-between; gap: 18px; color: var(--rsvp-muted); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
+.context span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage { position: relative; display: grid; place-items: center; min-height: 0; }
+.guides { position: absolute; inset: 0; pointer-events: none; }
+.guides::before { position: absolute; inset: 50% 0 auto; height: 1px; background: var(--rsvp-border); content: ''; transform: translateY(-50%); }
+.guidesWithoutLine::before { display: none; }
+.guides span { position: absolute; left: 50%; width: 1px; background: var(--rsvp-border); transform: translateX(-50%); }
+.guides span:first-child { top: 8%; bottom: calc(50% + var(--rsvp-guide-gap)); }
+.guides span:last-child { top: calc(50% + var(--rsvp-guide-gap)); bottom: 8%; }
+.word { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: baseline; width: min(100%, 28ch); max-width: 100%; border: 0; padding: 24px 0; background: transparent; color: var(--rsvp-text); font-family: Georgia, 'Times New Roman', serif; line-height: 1.1; white-space: nowrap; cursor: pointer; }
+.word span:first-child { text-align: right; }
+.word .focus { display: inline-block; min-width: 0.7ch; color: var(--rsvp-accent); font-weight: 800; text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.12em; }
+.word span:last-child { text-align: left; }
+.message { max-width: 34ch; color: var(--rsvp-muted); font-size: 16px; line-height: 1.5; text-align: center; }
+.controls { display: grid; gap: 14px; }
+.transport { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.transport button { min-height: 36px; border: 1px solid var(--rsvp-border); border-radius: 8px; padding: 7px 11px; background: var(--rsvp-control); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.transport button:hover, .transport button:focus-visible { border-color: var(--rsvp-accent); }
+.transport button:disabled { opacity: 0.45; cursor: not-allowed; }
+.transport .play { min-width: 76px; border-color: var(--rsvp-accent); background: var(--rsvp-accent); color: var(--rsvp-background); font-weight: 700; }
+.transport .pageMode { margin-left: 8px; }
+.speed { display: grid; gap: 6px; width: min(420px, 100%); margin: 0 auto; color: var(--rsvp-muted); font-size: 12px; }
+.speed span { display: flex; justify-content: space-between; gap: 12px; }
+.speed strong { color: var(--rsvp-text); }
+.speed input { width: 100%; accent-color: var(--rsvp-accent); }
+.options { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; color: var(--rsvp-muted); font-size: 12px; }
+.toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.toggle input { width: 15px; height: 15px; margin: 0; accent-color: var(--rsvp-accent); }
+.hint { margin: 0; color: var(--rsvp-muted); font-size: 11px; text-align: center; }
+
+@media (max-width: 700px) {
+	.root { padding: 16px 10px 18px; }
+	.transport { gap: 6px; }
+	.transport button { padding-inline: 8px; }
+	.transport .pageMode { margin-left: 0; }
+	.hint { display: none; }
+}

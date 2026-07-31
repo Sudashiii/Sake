@@ -19,6 +19,7 @@ export class ReaderSaveQueue {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private isSaving = false;
 	private saveAgain = false;
+	private readonly pendingFlushes: Array<() => void> = [];
 	private isDestroyed = false;
 
 	constructor(
@@ -48,12 +49,17 @@ export class ReaderSaveQueue {
 
 	async flush(isFinalAttempt = false): Promise<void> {
 		if (this.isDestroyed && !isFinalAttempt) return;
-		const position = this.getPosition();
+		if (this.timer) {
+			clearTimeout(this.timer);
+			this.timer = null;
+		}
 		if (this.isSaving) {
 			this.saveAgain = true;
+			await new Promise<void>((resolve) => this.pendingFlushes.push(resolve));
 			return;
 		}
 
+		const position = this.getPosition();
 		this.isSaving = true;
 		if (!this.isDestroyed) this.onStatus({ isSaving: true, error: null });
 		const capturedUpserts = [...this.upserts.values()];
@@ -86,9 +92,13 @@ export class ReaderSaveQueue {
 			}
 		} finally {
 			this.isSaving = false;
-			if (this.saveAgain) {
-				this.saveAgain = false;
-				void this.flush(this.isDestroyed);
+			const shouldRetry = this.saveAgain;
+			this.saveAgain = false;
+			if (shouldRetry) {
+				await this.flush(this.isDestroyed);
+			}
+			for (const resolve of this.pendingFlushes.splice(0)) {
+				resolve();
 			}
 		}
 	}

@@ -77,6 +77,15 @@ describe("Sake web reader normalized EPUB XPointers", function()
         assert.are.same("preserved", sidecar.unknown_fixture_setting)
         assert.are.same(20240114, sidecar.cre_dom_version)
         assert.are.same(1, #sidecar.annotations)
+        assert.are.same(
+            "/body/DocFragment[2]/body/section/p/text().2",
+            sidecar.last_xpointer
+        )
+        assert.is_true(document:isXPointerInDocument(sidecar.last_xpointer))
+        assert.are.same(
+            sidecar.last_xpointer,
+            document:getNormalizedXPointer(sidecar.last_xpointer)
+        )
 
         local annotation = sidecar.annotations[1]
         assert.are.same("nested markup", annotation.text)

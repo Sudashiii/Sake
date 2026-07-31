@@ -10,6 +10,7 @@
 	import ChevronLeftIcon from '$lib/assets/icons/ChevronLeftIcon.svelte';
 	import ChevronRightIcon from '$lib/assets/icons/ChevronRightIcon.svelte';
 	import MenuIcon from '$lib/assets/icons/MenuIcon.svelte';
+	import RsvpReader from '$lib/features/reader/components/RsvpReader.svelte';
 	import ReaderSidebar from '$lib/features/reader/components/ReaderSidebar.svelte';
 	import {
 		applyReaderAppearance,
@@ -53,6 +54,19 @@
 	import { ReaderSaveQueue } from '$lib/features/reader/readerSaveQueue';
 	import { createReaderSessionId } from '$lib/features/reader/readerSessionId';
 	import { startReaderWakeLock } from '$lib/features/reader/readerWakeLock';
+	import { RsvpEpubSession } from '$lib/features/reader/rsvpEpub';
+	import { RsvpPlaybackController } from '$lib/features/reader/rsvpPlayback';
+	import {
+		DEFAULT_RSVP_AUTO_ANNOTATE_LAST_WORD,
+		DEFAULT_RSVP_SHOW_GUIDE_LINE,
+		DEFAULT_RSVP_TEXT_SCALE,
+		DEFAULT_RSVP_WPM,
+		clampRsvpTextScale,
+		clampRsvpWpm,
+		loadRsvpPreferences,
+		saveRsvpPreferences
+	} from '$lib/features/reader/rsvpPreferences';
+	import type { RsvpToken } from '$lib/features/reader/rsvpText';
 	import {
 		ReaderTapNavigation,
 		type ReaderTapDiagnostic
@@ -66,10 +80,13 @@
 	let viewport = $state<HTMLDivElement | null>(null);
 	let book: Book | null = null;
 	let rendition: Rendition | null = null;
+	let readerMode = $state<'paged' | 'rsvp'>('paged');
 	let spineCount = 1;
 	let toc = $state<NavItem[]>([]);
 	let annotations = $state<ReaderAnnotation[]>([]);
 	let currentXPointer = $state<string | null>(null);
+	let currentCfi = $state<string | null>(null);
+	let currentSpineIndex = $state(0);
 	let percentFinished = $state(0);
 	let bookPaginationStatus = $state<ReaderBookPaginationStatus>('pending');
 	let bookPage = $state<number | null>(null);
@@ -90,10 +107,31 @@
 	let isTapNavigationDebugEnabled = $state(false);
 	let tapNavigationDelayMs = $state(DEFAULT_TAP_NAVIGATION_DELAY_MS);
 	let tapDiagnostic = $state('Waiting for a tap');
+	let rsvpWpm = $state(DEFAULT_RSVP_WPM);
+	let rsvpTextScale = $state(DEFAULT_RSVP_TEXT_SCALE);
+	let rsvpShowGuideLine = $state(DEFAULT_RSVP_SHOW_GUIDE_LINE);
+	let rsvpAutoAnnotateLastWord = $state(DEFAULT_RSVP_AUTO_ANNOTATE_LAST_WORD);
+	let rsvpToken = $state<RsvpToken | null>(null);
+	let rsvpChapterTitle = $state('');
+	let rsvpIsPlaying = $state(false);
+	let rsvpIsLoading = $state(false);
+	let rsvpIsCompleted = $state(false);
+	let rsvpError = $state<string | null>(null);
+	let rsvpSession: RsvpEpubSession | null = null;
+	let rsvpPlayback: RsvpPlaybackController | null = null;
+	let rsvpCheckpointTimer: ReturnType<typeof setInterval> | null = null;
+	let restoringRsvpPosition: {
+		xpointer: string | null;
+		cfi: string | null;
+		percentFinished: number;
+		spineIndex: number;
+	} | null = null;
 	let selectionDraft = $state<SelectionDraft | null>(null);
 	let noteDraft = $state('');
 	let highlightColor = $state('yellow');
+	let rsvpEntryOverride = $state<{ xpointer: string; spineIndex: number } | null>(null);
 	let unbindTapNavigation: (() => void) | null = null;
+	let lastRsvpAnnotationKey: string | null = null;
 	let footerStatus = $derived(
 		formatReaderFooterStatus(footerStatusMode, {
 			percentFinished,
@@ -127,6 +165,274 @@
 			saveError = status.error;
 		}
 	);
+
+	function stopRsvpCheckpointTimer(): void {
+		if (rsvpCheckpointTimer) {
+			clearInterval(rsvpCheckpointTimer);
+			rsvpCheckpointTimer = null;
+		}
+	}
+
+	function startRsvpCheckpointTimer(): void {
+		stopRsvpCheckpointTimer();
+		rsvpCheckpointTimer = setInterval(() => void saveQueue.flush(), 10_000);
+	}
+
+	function handleRsvpToken(token: RsvpToken): void {
+		rsvpToken = token;
+		rsvpChapterTitle = rsvpSession?.currentChapterTitle ?? '';
+		currentXPointer = token.startXPointer;
+		currentCfi = token.startCfi;
+		currentSpineIndex = token.sectionIndex;
+		percentFinished = Math.max(0, Math.min(1, token.percentFinished));
+		chapterPage = null;
+		chapterTotalPages = null;
+		const fallbackLocation = Math.floor(percentFinished * Math.max(0, (bookTotalPages ?? 1) - 1));
+		bookPage = bookPageFromLocation(bookTotalPages ?? 0, fallbackLocation);
+		rsvpIsCompleted = false;
+		rsvpError = null;
+	}
+
+	function handleRsvpPlayingChange(isPlaying: boolean): void {
+		rsvpIsPlaying = isPlaying;
+		if (isPlaying) {
+			startRsvpCheckpointTimer();
+		} else {
+			stopRsvpCheckpointTimer();
+			void saveQueue.flush();
+		}
+	}
+
+	function handleRsvpCompleted(): void {
+		rsvpIsCompleted = true;
+		percentFinished = 1;
+		stopRsvpCheckpointTimer();
+		void saveQueue.flush();
+	}
+
+	function handleRsvpError(error: unknown): void {
+		rsvpError = error instanceof Error ? error.message : 'RSVP playback failed';
+		rsvpIsPlaying = false;
+		stopRsvpCheckpointTimer();
+		void saveQueue.flush();
+	}
+
+	function initializeRsvpSession(): void {
+		if (!book) return;
+		const session = new RsvpEpubSession({
+			book,
+			spineCount,
+			language: document.documentElement.lang || navigator.language
+		});
+		rsvpSession = session;
+		rsvpPlayback = new RsvpPlaybackController(
+			{
+				moveWords: (delta) => session.moveWords(delta),
+				moveSentence: (direction) => session.moveSentence(direction)
+			},
+			{
+				onToken: handleRsvpToken,
+				onPlayingChange: handleRsvpPlayingChange,
+				onCompleted: handleRsvpCompleted,
+				onError: handleRsvpError
+			},
+			undefined,
+			rsvpWpm
+		);
+	}
+
+	async function enterRsvp(explicitEntry?: { xpointer: string; spineIndex: number }): Promise<void> {
+		if (!book || !rsvpSession || !rsvpPlayback || readerMode === 'rsvp' || isLoading) return;
+		tapNavigation.cancel();
+		sidebarOpen = false;
+		rsvpError = null;
+		rsvpIsLoading = true;
+		try {
+			const entry = explicitEntry ?? rsvpEntryOverride;
+			const token = await rsvpSession.seek({
+				xpointer: entry?.xpointer ?? currentXPointer,
+				cfi: entry ? null : currentCfi,
+				percentFinished,
+				spineIndex: entry?.spineIndex ?? currentSpineIndex
+			});
+			if (!token) throw new Error('No readable text was found for RSVP mode');
+			rsvpEntryOverride = null;
+			readerMode = 'rsvp';
+			rsvpIsCompleted = false;
+			rsvpPlayback.setToken(token);
+			await saveQueue.flush();
+		} catch (error: unknown) {
+			rsvpError = error instanceof Error ? error.message : 'Failed to prepare RSVP mode';
+		} finally {
+			rsvpIsLoading = false;
+		}
+	}
+
+	async function startRsvpFromSelection(): Promise<void> {
+		const selection = selectionDraft;
+		if (!selection) return;
+		await enterRsvp({
+			xpointer: selection.pos0,
+			spineIndex: xpointerSpineIndex(selection.pos0)
+		});
+		if (readerMode === 'rsvp') selectionDraft = null;
+	}
+
+	async function exitRsvp(): Promise<void> {
+		if (readerMode !== 'rsvp') return;
+		const target = {
+			xpointer: currentXPointer,
+			cfi: currentCfi,
+			percentFinished,
+			spineIndex: currentSpineIndex
+		};
+		annotateRsvpLastWord();
+		rsvpPlayback?.pause();
+		await saveQueue.flush();
+		readerMode = 'paged';
+		rsvpError = null;
+		restoringRsvpPosition = target;
+		try {
+			if (target.xpointer) {
+				await restoreXPointer(target.xpointer);
+			} else if (target.cfi && rendition) {
+				await rendition.display(target.cfi);
+			}
+			renderVisibleAnnotations();
+		} finally {
+			if (restoringRsvpPosition === target) restoringRsvpPosition = null;
+		}
+	}
+
+	async function toggleRsvpPlayback(): Promise<void> {
+		if (!rsvpPlayback || rsvpError) return;
+		if (rsvpIsCompleted && rsvpSession) {
+			const first = await rsvpSession.seek({
+				xpointer: null,
+				cfi: null,
+				percentFinished: 0,
+				spineIndex: 0
+			});
+			if (first) {
+				rsvpIsCompleted = false;
+				rsvpPlayback.setToken(first);
+			}
+		}
+		if (rsvpPlayback.isPlaying) {
+			rsvpPlayback.pause();
+		} else {
+			rsvpPlayback.play();
+		}
+	}
+
+	async function jumpRsvpWords(delta: number): Promise<void> {
+		if (!rsvpPlayback) return;
+		rsvpIsCompleted = false;
+		await rsvpPlayback.moveWords(delta);
+		await saveQueue.flush();
+	}
+
+	async function jumpRsvpSentence(direction: 'previous' | 'next'): Promise<void> {
+		if (!rsvpPlayback) return;
+		rsvpIsCompleted = false;
+		await rsvpPlayback.moveSentence(direction);
+		await saveQueue.flush();
+	}
+
+	function persistRsvpPreferences(): void {
+		saveRsvpPreferences(localStorage, {
+			wpm: rsvpWpm,
+			textScale: rsvpTextScale,
+			showGuideLine: rsvpShowGuideLine,
+			autoAnnotateLastWord: rsvpAutoAnnotateLastWord
+		});
+	}
+
+	function updateRsvpWpm(value: number): void {
+		rsvpWpm = clampRsvpWpm(value);
+		persistRsvpPreferences();
+		rsvpPlayback?.setWpm(rsvpWpm);
+	}
+
+	function updateRsvpTextScale(value: number): void {
+		rsvpTextScale = clampRsvpTextScale(value);
+		persistRsvpPreferences();
+	}
+
+	function updateRsvpShowGuideLine(show: boolean): void {
+		rsvpShowGuideLine = show;
+		persistRsvpPreferences();
+	}
+
+	function updateRsvpAutoAnnotateLastWord(enabled: boolean): void {
+		rsvpAutoAnnotateLastWord = enabled;
+		persistRsvpPreferences();
+	}
+
+	function annotateRsvpLastWord(): boolean {
+		const token = rsvpToken;
+		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !token) return false;
+		const page = token.startXPointer || currentXPointer;
+		if (!page) return false;
+		const annotationKey = `${page}\u001f${token.text}`;
+		if (lastRsvpAnnotationKey === annotationKey) return false;
+
+		const datetime = koreaderDateTime();
+		const note = `RSVP last word: ${token.text}`;
+		const legacyBookmark = annotations.find(
+			(item) =>
+				item.kind === 'bookmark' &&
+				item.page === page &&
+				item.text === token.text &&
+				item.note === note
+		);
+		const base = {
+			kind: 'highlight' as const,
+			page,
+			pos0: page,
+			pos1: token.endXPointer,
+			text: token.text,
+			note,
+			chapter: rsvpChapterTitle || undefined,
+			drawer: 'lighten',
+			color: 'yellow',
+			datetime,
+			datetimeUpdated: datetime
+		};
+		const annotation: ReaderAnnotation = { ...base, id: createAnnotationId(base) };
+		annotations = [
+			...annotations.filter(
+				(item) => item.id !== annotation.id && item.id !== legacyBookmark?.id
+			),
+			annotation
+		];
+		if (legacyBookmark) saveQueue.delete(legacyBookmark.id);
+		saveQueue.upsert(annotation);
+		lastRsvpAnnotationKey = annotationKey;
+		return true;
+	}
+
+	function openSidebar(): void {
+		if (readerMode === 'rsvp') rsvpPlayback?.pause();
+		sidebarOpen = true;
+	}
+
+	async function navigateToc(href: string): Promise<void> {
+		sidebarOpen = false;
+		if (readerMode === 'rsvp' && rsvpSession && rsvpPlayback) {
+			rsvpPlayback.pause();
+			rsvpError = null;
+			const token = await rsvpSession.seekHref(href);
+			if (!token) {
+				rsvpError = 'This section has no readable text for RSVP mode';
+				return;
+			}
+			rsvpPlayback.setToken(token);
+			await saveQueue.flush();
+			return;
+		}
+		await rendition?.display(href);
+	}
 
 	function applyAppearance(): void {
 		if (!rendition) {
@@ -214,7 +520,12 @@
 		if (!book || !rendition) {
 			return;
 		}
+		if (readerMode === 'rsvp' && !restoringRsvpPosition) {
+			return;
+		}
 		currentXPointer = cfiToKoreaderXPointer(rendition, location.start.cfi, spineCount);
+		currentCfi = location.start.cfi;
+		currentSpineIndex = location.start.index;
 		const calculated = book.locations.percentageFromCfi(location.start.cfi);
 		percentFinished = Number.isFinite(calculated)
 			? calculated
@@ -226,8 +537,18 @@
 			bookTotalPages ?? 0,
 			location.start.location >= 0 ? location.start.location : fallbackLocation
 		);
+		const exactPosition = restoringRsvpPosition;
+		if (exactPosition) {
+			currentXPointer = exactPosition.xpointer;
+			currentCfi = exactPosition.cfi;
+			currentSpineIndex = exactPosition.spineIndex;
+			percentFinished = exactPosition.percentFinished;
+		}
+		if (rsvpEntryOverride && currentXPointer !== rsvpEntryOverride.xpointer && !exactPosition) {
+			rsvpEntryOverride = null;
+		}
 		renderVisibleAnnotations();
-		saveQueue.schedule();
+		if (!exactPosition) saveQueue.schedule();
 	}
 
 	function cycleFooterStatus(): void {
@@ -264,6 +585,10 @@
 		};
 		const annotation: ReaderAnnotation = { ...base, id: createAnnotationId(base) };
 		annotations = [...annotations.filter((item) => item.id !== annotation.id), annotation];
+		rsvpEntryOverride = {
+			xpointer: annotation.pos0 ?? annotation.page,
+			spineIndex: xpointerSpineIndex(annotation.pos0 ?? annotation.page)
+		};
 		saveQueue.upsert(annotation);
 		selectionDraft = null;
 		renderVisibleAnnotations();
@@ -294,6 +619,9 @@
 			rendition.annotations.remove(cfi, 'highlight');
 		}
 		renderedAnnotationCfis.delete(annotation.id);
+		if (rsvpEntryOverride?.xpointer === (annotation.pos0 ?? annotation.page)) {
+			rsvpEntryOverride = null;
+		}
 		saveQueue.delete(annotation.id);
 		annotations = annotations.filter((item) => item.id !== annotation.id);
 		saveQueue.schedule(0);
@@ -301,6 +629,18 @@
 
 	async function navigateAnnotation(annotation: ReaderAnnotation): Promise<void> {
 		sidebarOpen = false;
+		if (readerMode === 'rsvp' && rsvpSession && rsvpPlayback) {
+			rsvpPlayback.pause();
+			rsvpError = null;
+			const token = await rsvpSession.seekXPointer(annotation.pos0 ?? annotation.page);
+			if (!token) {
+				rsvpError = 'This annotation cannot be located in RSVP mode';
+				return;
+			}
+			rsvpPlayback.setToken(token);
+			await saveQueue.flush();
+			return;
+		}
 		await restoreXPointer(annotation.pos0 ?? annotation.page);
 	}
 
@@ -308,6 +648,20 @@
 		let isDestroyed = false;
 		let clockTimer: ReturnType<typeof setTimeout> | null = null;
 		const stopWakeLock = startReaderWakeLock();
+		const handleVisibilityChange = (): void => {
+			if (document.visibilityState === 'hidden') {
+				annotateRsvpLastWord();
+				rsvpPlayback?.pause();
+				void saveQueue.flush();
+			}
+		};
+		const handlePageHide = (): void => {
+			annotateRsvpLastWord();
+			rsvpPlayback?.pause();
+			void saveQueue.flush();
+		};
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('pagehide', handlePageHide);
 
 		const updateClock = (): void => {
 			currentTime = new Date();
@@ -320,6 +674,12 @@
 			try {
 				theme = parseReaderTheme(localStorage.getItem('readerTheme'));
 				fontSize = Number.parseInt(localStorage.getItem('readerFontSize') ?? '100', 10);
+				({
+					wpm: rsvpWpm,
+					textScale: rsvpTextScale,
+					showGuideLine: rsvpShowGuideLine,
+					autoAnnotateLastWord: rsvpAutoAnnotateLastWord
+				} = loadRsvpPreferences(localStorage));
 				footerStatusMode = loadReaderFooterStatusMode(localStorage);
 				({
 					isTapNavigationEnabled,
@@ -350,6 +710,7 @@
 				await book.locations.generate(1200);
 				bookTotalPages = book.locations.length();
 				bookPaginationStatus = bookTotalPages > 0 ? 'ready' : 'unavailable';
+				initializeRsvpSession();
 				bookPage = bookPageFromLocation(
 					bookTotalPages,
 					Math.floor(percentFinished * Math.max(0, bookTotalPages - 1))
@@ -389,8 +750,14 @@
 
 		return () => {
 			isDestroyed = true;
+			annotateRsvpLastWord();
 			stopWakeLock();
 			if (clockTimer) clearTimeout(clockTimer);
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('pagehide', handlePageHide);
+			stopRsvpCheckpointTimer();
+			rsvpPlayback?.destroy();
+			rsvpSession?.destroy();
 			saveQueue.destroy();
 			unbindTapNavigation?.();
 			rendition?.destroy();
@@ -404,7 +771,7 @@
 <div class={styles.reader}>
 	<header class={styles.toolbar}>
 		<div class={styles.toolbarGroup}>
-			<button aria-label="Open reader tools" onclick={() => (sidebarOpen = true)}><MenuIcon size={20} decorative={true} /></button>
+			<button aria-label="Open reader tools" onclick={openSidebar}><MenuIcon size={20} decorative={true} /></button>
 			<a href="/library" aria-label="Back to library"><ChevronLeftIcon size={20} decorative={true} /></a>
 		</div>
 		<div class={styles.title}>
@@ -412,6 +779,9 @@
 			<span>{data.book.author || 'Unknown author'}</span>
 		</div>
 		<div class={styles.toolbarGroup}>
+			<button class={styles.modeButton} aria-label={readerMode === 'rsvp' ? 'Switch to Page View' : 'Switch to RSVP mode'} onclick={() => void (readerMode === 'rsvp' ? exitRsvp() : enterRsvp())} disabled={isLoading || rsvpIsLoading}>
+				{readerMode === 'rsvp' ? 'Page' : 'RSVP'}
+			</button>
 			<span class={styles.saveStatus}>{saveError ? 'Not saved' : isSaving ? 'Saving…' : 'Saved'}</span>
 			<button aria-label="Add bookmark" onclick={addBookmark}><BookmarkPlusIcon size={20} decorative={true} /></button>
 		</div>
@@ -421,8 +791,32 @@
 		{#if isLoading}
 			<div class={styles.loading}><BookOpenIcon size={30} decorative={true} /><span>Opening book…</span></div>
 		{/if}
-		<div bind:this={viewport} class={styles.viewport}></div>
-		{#if isTapNavigationDebugEnabled}
+		<div bind:this={viewport} class={`${styles.viewport} ${readerMode === 'rsvp' ? styles.hiddenViewport : ''}`}></div>
+		{#if readerMode === 'rsvp'}
+			<RsvpReader
+				token={rsvpToken}
+				isPlaying={rsvpIsPlaying}
+				isCompleted={rsvpIsCompleted}
+				isLoading={rsvpIsLoading}
+				wpm={rsvpWpm}
+				textScale={rsvpTextScale}
+				showGuideLine={rsvpShowGuideLine}
+				autoAnnotateLastWord={rsvpAutoAnnotateLastWord}
+				percentFinished={percentFinished}
+				chapterTitle={rsvpChapterTitle}
+				{theme}
+				error={rsvpError}
+				onTogglePlay={() => void toggleRsvpPlayback()}
+				onJumpWords={(delta) => void jumpRsvpWords(delta)}
+				onJumpSentence={(direction) => void jumpRsvpSentence(direction)}
+				onWpmChange={updateRsvpWpm}
+				onTextScaleChange={updateRsvpTextScale}
+				onShowGuideLineChange={updateRsvpShowGuideLine}
+				onAutoAnnotateLastWordChange={updateRsvpAutoAnnotateLastWord}
+				onExit={() => void exitRsvp()}
+			/>
+		{/if}
+		{#if readerMode === 'paged' && isTapNavigationDebugEnabled}
 			<div class={styles.tapZones} aria-hidden="true">
 				<div class={styles.previousZone}><span>Previous</span></div>
 				<div class={styles.centerZone}><span>No navigation</span></div>
@@ -430,7 +824,7 @@
 				<output>{tapDiagnostic}</output>
 			</div>
 		{/if}
-		{#if !arePageControlsHidden}
+		{#if readerMode === 'paged' && !arePageControlsHidden}
 			<button class={`${styles.pageButton} ${styles.previous}`} aria-label="Previous page" onclick={() => rendition?.prev()}>
 				<ChevronLeftIcon size={24} decorative={true} />
 			</button>
@@ -440,8 +834,8 @@
 		{/if}
 	</div>
 
-	<footer class={`${styles.footer} ${!arePageControlsHidden ? styles.withControls : ''}`}>
-		{#if !arePageControlsHidden}
+	<footer class={`${styles.footer} ${readerMode === 'paged' && !arePageControlsHidden ? styles.withControls : ''}`}>
+		{#if readerMode === 'paged' && !arePageControlsHidden}
 			<button class={styles.mobilePageButton} aria-label="Previous page" onclick={() => rendition?.prev()}>
 				<ChevronLeftIcon size={20} decorative={true} />
 			</button>
@@ -455,7 +849,7 @@
 		>
 			{footerStatus}
 		</button>
-		{#if !arePageControlsHidden}
+		{#if readerMode === 'paged' && !arePageControlsHidden}
 			<button class={styles.mobilePageButton} aria-label="Next page" onclick={() => rendition?.next()}>
 				<ChevronRightIcon size={20} decorative={true} />
 			</button>
@@ -467,6 +861,7 @@
 		activeTab={sidebarTab}
 		{toc}
 		{annotations}
+		canEditHighlights={readerMode === 'paged'}
 		{theme}
 		{fontSize}
 		{isTapNavigationEnabled}
@@ -475,10 +870,7 @@
 		{tapNavigationDelayMs}
 		onClose={() => (sidebarOpen = false)}
 		onSelectTab={(tab) => (sidebarTab = tab)}
-		onNavigateToc={(href) => {
-			sidebarOpen = false;
-			void rendition?.display(href);
-		}}
+		onNavigateToc={(href) => void navigateToc(href)}
 		onNavigateAnnotation={(annotation) => void navigateAnnotation(annotation)}
 		onDeleteAnnotation={deleteAnnotation}
 		onThemeChange={(value) => {
@@ -509,7 +901,7 @@
 	/>
 	{#if sidebarOpen}<button class={styles.backdrop} aria-label="Close reader tools" onclick={() => (sidebarOpen = false)}></button>{/if}
 
-	{#if selectionDraft}
+	{#if selectionDraft && readerMode === 'paged'}
 		<div class={styles.selectionCard} role="dialog" aria-label="Save highlight">
 			<p>{selectionDraft.text}</p>
 			<textarea bind:value={noteDraft} rows="2" placeholder="Add a note (optional)"></textarea>
@@ -529,10 +921,18 @@
 			</label>
 			<div>
 				<button onclick={() => (selectionDraft = null)}>Cancel</button>
+				<button
+					class={styles.rsvpAction}
+					onclick={() => void startRsvpFromSelection()}
+					disabled={isLoading || rsvpIsLoading}
+				>
+					Start RSVP here
+				</button>
 				<button class={styles.primary} onclick={saveSelection}>Save highlight</button>
 			</div>
 		</div>
 	{/if}
 
 	{#if saveError}<div class={styles.error} role="alert">{saveError}</div>{/if}
+	{#if readerMode === 'paged' && rsvpError}<div class={styles.error} role="alert" aria-live="polite">{rsvpError}</div>{/if}
 </div>
