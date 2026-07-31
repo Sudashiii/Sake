@@ -175,7 +175,12 @@ export class RsvpEpubSession {
 			}
 
 			const next = await this.loadTextSection(index + direction, direction);
-			if (!next) return direction > 0 ? null : this.currentToken;
+			if (!next) {
+				if (Math.abs(delta) === 1) return direction > 0 ? null : this.currentToken;
+				const clampedSection = this.cache.get(index);
+				const clamped = clampedSection?.data.tokens[tokenIndex - direction] ?? null;
+				return clampedSection && clamped ? this.setCurrent(clampedSection, clamped) : this.currentToken;
+			}
 			index = next.data.sectionIndex;
 			tokenIndex = direction > 0 ? 0 : next.data.tokens.length - 1;
 			remaining -= 1;
@@ -206,6 +211,7 @@ export class RsvpEpubSession {
 	}
 
 	destroy(): void {
+		for (const loaded of this.cache.values()) loaded.section.unload();
 		this.cache.clear();
 		this.failedSections.clear();
 		this.currentSectionIndex = null;
@@ -235,8 +241,13 @@ export class RsvpEpubSession {
 		const indexes = Array.from({ length: this.options.spineCount }, (_, index) => index);
 		let last: LoadedSection | null = null;
 		for (const index of indexes) {
-			if (this.failedSections.has(index)) continue;
+			if (this.failedSections.has(index)) {
+				throw new Error('Unable to extract an EPUB section for RSVP mode');
+			}
 			const loaded = await this.loadSection(index);
+			if (this.failedSections.has(index)) {
+				throw new Error('Unable to extract an EPUB section for RSVP mode');
+			}
 			if (!loaded || loaded.data.tokens.length === 0) continue;
 			last = loaded;
 			const token = loaded.data.tokens.find((candidate) => candidate.percentFinished >= percent);
@@ -292,6 +303,9 @@ export class RsvpEpubSession {
 				throw new Error('Unable to extract an EPUB section for RSVP mode');
 			}
 			const loaded = await this.loadSection(index);
+			if (this.failedSections.has(index)) {
+				throw new Error('Unable to extract an EPUB section for RSVP mode');
+			}
 			if (loaded && loaded.data.tokens.length > 0) return loaded;
 		}
 		return null;
@@ -353,7 +367,9 @@ export class RsvpEpubSession {
 				}
 				continue;
 			}
+			const evicted = this.cache.get(oldest);
 			this.cache.delete(oldest);
+			evicted?.section.unload();
 		}
 	}
 }

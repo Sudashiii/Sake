@@ -85,11 +85,11 @@ export class RsvpPlaybackController {
 		this.isAdvancing = true;
 		try {
 			const token = await loader();
-			if (generation !== this.generation || this.disposed) return;
+			if (this.disposed) return;
 			if (token) {
 				this.currentToken = token;
 				this.callbacks.onToken(token);
-				if (shouldResume && this.playing) this.schedule();
+				if (this.playing && (shouldResume || generation !== this.generation)) this.schedule();
 			}
 		} catch (error: unknown) {
 			this.pause();
@@ -115,7 +115,7 @@ export class RsvpPlaybackController {
 		this.isAdvancing = true;
 		try {
 			const token = await this.source.moveWords(1);
-			if (generation !== this.generation || this.disposed) return;
+			if (this.disposed) return;
 			if (!token) {
 				this.playing = false;
 				this.callbacks.onPlayingChange?.(false);
@@ -124,7 +124,7 @@ export class RsvpPlaybackController {
 			}
 			this.currentToken = token;
 			this.callbacks.onToken(token);
-			this.schedule();
+			if (this.playing) this.schedule();
 		} catch (error: unknown) {
 			this.pause();
 			this.callbacks.onError?.(error);

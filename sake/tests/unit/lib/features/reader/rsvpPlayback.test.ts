@@ -99,4 +99,48 @@ describe('RSVP playback', () => {
 		controller.pause();
 		assert.equal(timer.callback, null);
 	});
+
+	test('keeps the displayed token aligned when an async advance resolves after pause', async () => {
+		const timer = new FakeTimer();
+		const first = token('one');
+		const second = token('two');
+		const third = token('three');
+		let releaseFirstMove: (() => void) | undefined;
+		let moveCalls = 0;
+		const controller = new RsvpPlaybackController(
+			{
+				async moveWords() {
+					moveCalls += 1;
+					if (moveCalls === 1) {
+						await new Promise<void>((resolve) => {
+							releaseFirstMove = resolve;
+						});
+						return second;
+					}
+					return third;
+				},
+				async moveSentence() {
+					return null;
+				}
+			},
+			{ onToken: () => undefined },
+			timer
+		);
+
+		controller.setToken(first);
+		controller.play();
+		timer.fire();
+		await Promise.resolve();
+		controller.pause();
+		releaseFirstMove?.();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.equal(controller.token?.text, 'two');
+
+		controller.play();
+		timer.fire();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.equal(controller.token?.text, 'three');
+	});
 });

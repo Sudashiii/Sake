@@ -290,6 +290,7 @@
 		rsvpPlayback?.pause();
 		await saveQueue.flush();
 		readerMode = 'paged';
+		rsvpError = null;
 		restoringRsvpPosition = target;
 		try {
 			if (target.xpointer) {
@@ -933,4 +934,5 @@
 	{/if}
 
 	{#if saveError}<div class={styles.error} role="alert">{saveError}</div>{/if}
+	{#if readerMode === 'paged' && rsvpError}<div class={styles.error} role="alert" aria-live="polite">{rsvpError}</div>{/if}
 </div>

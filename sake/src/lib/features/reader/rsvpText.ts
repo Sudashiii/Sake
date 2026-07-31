@@ -95,17 +95,6 @@ function isVisibleTextNode(node: Text, body: Element): boolean {
 	return current === body;
 }
 
-function needsInlineSeparator(previous: string, next: string): boolean {
-	const previousGrapheme = Array.from(previous).at(-1);
-	const nextGrapheme = Array.from(next.trimStart()).at(0);
-	return Boolean(
-		previousGrapheme &&
-		nextGrapheme &&
-		WORD_CHARACTER.test(previousGrapheme) &&
-		WORD_CHARACTER.test(nextGrapheme)
-	);
-}
-
 function paragraphElement(node: Text, body: Element): Element {
 	let current: Element | null = node.parentElement;
 	while (current && current !== body) {
@@ -133,17 +122,6 @@ function collectParagraphs(body: Element): ParagraphText[] {
 				paragraphs.push(paragraph);
 			}
 
-			if (
-				paragraph.text.length > 0 &&
-				!/\s$/u.test(paragraph.text) &&
-				!/^\s/u.test(value) &&
-				needsInlineSeparator(paragraph.text, value)
-			) {
-				const separatorOffset = paragraph.text.length;
-				paragraph.text += ' ';
-				paragraph.points[separatorOffset] = { node: textNode, offset: 0 };
-				paragraph.points[separatorOffset + 1] = { node: textNode, offset: 0 };
-			}
 			const startOffset = paragraph.text.length;
 			for (let offset = 0; offset < value.length; offset += 1) {
 				paragraph.points[startOffset + offset] = { node: textNode, offset };
