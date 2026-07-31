@@ -334,6 +334,17 @@
 	font-weight: 700;
 }
 
+.rsvpAction {
+	border-color: #8ac7b0 !important;
+	color: #bdebd7 !important;
+	font-weight: 700;
+
+	&:hover,
+	&:focus-visible {
+		background: #23483d !important;
+	}
+}
+
 .error {
 	position: fixed;
 	z-index: 50;

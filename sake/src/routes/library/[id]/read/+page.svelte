@@ -241,14 +241,14 @@
 		);
 	}
 
-	async function enterRsvp(): Promise<void> {
+	async function enterRsvp(explicitEntry?: { xpointer: string; spineIndex: number }): Promise<void> {
 		if (!book || !rsvpSession || !rsvpPlayback || readerMode === 'rsvp' || isLoading) return;
 		tapNavigation.cancel();
 		sidebarOpen = false;
 		rsvpError = null;
 		rsvpIsLoading = true;
 		try {
-			const entry = rsvpEntryOverride;
+			const entry = explicitEntry ?? rsvpEntryOverride;
 			const token = await rsvpSession.seek({
 				xpointer: entry?.xpointer ?? currentXPointer,
 				cfi: entry ? null : currentCfi,
@@ -266,6 +266,16 @@
 		} finally {
 			rsvpIsLoading = false;
 		}
+	}
+
+	async function startRsvpFromSelection(): Promise<void> {
+		const selection = selectionDraft;
+		if (!selection) return;
+		await enterRsvp({
+			xpointer: selection.pos0,
+			spineIndex: xpointerSpineIndex(selection.pos0)
+		});
+		if (readerMode === 'rsvp') selectionDraft = null;
 	}
 
 	async function exitRsvp(): Promise<void> {
@@ -910,6 +920,13 @@
 			</label>
 			<div>
 				<button onclick={() => (selectionDraft = null)}>Cancel</button>
+				<button
+					class={styles.rsvpAction}
+					onclick={() => void startRsvpFromSelection()}
+					disabled={isLoading || rsvpIsLoading}
+				>
+					Start RSVP here
+				</button>
 				<button class={styles.primary} onclick={saveSelection}>Save highlight</button>
 			</div>
 		</div>
