@@ -273,14 +273,10 @@
 			percentFinished,
 			spineIndex: currentSpineIndex
 		};
-		const didAnnotateLastWord = annotateRsvpLastWord();
+		annotateRsvpLastWord();
 		rsvpPlayback?.pause();
 		await saveQueue.flush();
 		readerMode = 'paged';
-		if (didAnnotateLastWord) {
-			sidebarTab = 'annotations';
-			sidebarOpen = true;
-		}
 		restoringRsvpPosition = target;
 		try {
 			if (target.xpointer) {
