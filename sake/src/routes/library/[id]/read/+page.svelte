@@ -273,10 +273,14 @@
 			percentFinished,
 			spineIndex: currentSpineIndex
 		};
-		annotateRsvpLastWord();
+		const didAnnotateLastWord = annotateRsvpLastWord();
 		rsvpPlayback?.pause();
 		await saveQueue.flush();
 		readerMode = 'paged';
+		if (didAnnotateLastWord) {
+			sidebarTab = 'annotations';
+			sidebarOpen = true;
+		}
 		restoringRsvpPosition = target;
 		try {
 			if (target.xpointer) {
@@ -354,12 +358,12 @@
 		persistRsvpPreferences();
 	}
 
-	function annotateRsvpLastWord(): void {
-		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !rsvpToken) return;
+	function annotateRsvpLastWord(): boolean {
+		if (readerMode !== 'rsvp' || !rsvpAutoAnnotateLastWord || !rsvpToken) return false;
 		const page = rsvpToken.startXPointer || currentXPointer;
-		if (!page) return;
+		if (!page) return false;
 		const annotationKey = `${page}\u001f${rsvpToken.text}`;
-		if (lastRsvpAnnotationKey === annotationKey) return;
+		if (lastRsvpAnnotationKey === annotationKey) return false;
 
 		const datetime = koreaderDateTime();
 		const base = {
@@ -375,6 +379,7 @@
 		annotations = [...annotations.filter((item) => item.id !== annotation.id), annotation];
 		saveQueue.upsert(annotation);
 		lastRsvpAnnotationKey = annotationKey;
+		return true;
 	}
 
 	function openSidebar(): void {
