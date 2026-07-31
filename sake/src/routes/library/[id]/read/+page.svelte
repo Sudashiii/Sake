@@ -288,6 +288,7 @@
 			} else if (target.cfi && rendition) {
 				await rendition.display(target.cfi);
 			}
+			renderVisibleAnnotations();
 		} finally {
 			if (restoringRsvpPosition === target) restoringRsvpPosition = null;
 		}
@@ -367,11 +368,15 @@
 
 		const datetime = koreaderDateTime();
 		const base = {
-			kind: 'bookmark' as const,
+			kind: 'highlight' as const,
 			page,
+			pos0: page,
+			pos1: rsvpToken.endXPointer,
 			text: rsvpToken.text,
 			note: `RSVP last word: ${rsvpToken.text}`,
 			chapter: rsvpChapterTitle || undefined,
+			drawer: 'lighten',
+			color: 'yellow',
 			datetime,
 			datetimeUpdated: datetime
 		};

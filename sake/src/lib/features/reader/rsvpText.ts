@@ -14,6 +14,7 @@ export interface RsvpToken {
 	paragraphIndex: number;
 	sentenceIndex: number;
 	startXPointer: string;
+	endXPointer: string;
 	startCfi: string;
 	percentFinished: number;
 	delayMultiplier: number;
@@ -335,6 +336,11 @@ export function tokenizeRsvpSection(input: RsvpSectionInput): RsvpSectionTokens 
 				{ spineIndex: input.sectionIndex, spineCount: input.spineCount } satisfies SpineLocation,
 				'forward'
 			);
+			const endXPointer = toKoreaderXPointer(
+				endPoint,
+				{ spineIndex: input.sectionIndex, spineCount: input.spineCount } satisfies SpineLocation,
+				'backward'
+			);
 			const sentenceIndex = sentenceOffset + sentenceIndexFor(paragraph.text, segment.start, input.language);
 			const isSentenceEnd = SENTENCE_END.test(segment.text);
 			const isParagraphEnd = segment === segments.at(-1);
@@ -346,6 +352,7 @@ export function tokenizeRsvpSection(input: RsvpSectionInput): RsvpSectionTokens 
 				paragraphIndex: paragraph.paragraphIndex,
 				sentenceIndex,
 				startXPointer: xpointer,
+				endXPointer,
 				startCfi,
 				percentFinished: Number.isFinite(percentFinished)
 					? Math.max(0, Math.min(1, percentFinished))

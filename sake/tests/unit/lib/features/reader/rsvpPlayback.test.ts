@@ -11,6 +11,7 @@ function token(text: string, multiplier = 1): RsvpToken {
 		paragraphIndex: 0,
 		sentenceIndex: 0,
 		startXPointer: `/body/DocFragment/body/p/text().0`,
+		endXPointer: `/body/DocFragment/body/p/text().${text.length}`,
 		startCfi: `epubcfi(/6/2!/4/2:0)`,
 		percentFinished: 0,
 		delayMultiplier: multiplier,
