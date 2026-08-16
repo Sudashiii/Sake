@@ -67,6 +67,7 @@
 			}
 			return shelfStore.shelves.find((shelf) => shelf.id === shelfId)?.name ?? 'Library';
 		}
+		if (path === '/annotations') return 'Annotations';
 		if (path === '/queue') return 'Queue';
 		if (path === '/search') return 'Search';
 		if (path === '/stats') return 'Stats';

@@ -9,6 +9,7 @@ import {
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
 import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
+import type { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
 
 interface PutProgressInput {
 	fileName: string;
@@ -39,7 +40,8 @@ export class PutProgressUseCase {
 		private readonly bookProgressHistoryRepository: BookProgressHistoryRepositoryPort,
 		private readonly storage: StoragePort,
 		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
-		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort,
+		private readonly annotationIndexService?: AnnotationIndexService
 	) {}
 
 	async execute(input: PutProgressInput): Promise<ApiResult<PutProgressResult>> {
@@ -97,6 +99,15 @@ export class PutProgressUseCase {
 		const normalizedPercent = Math.max(0, Math.min(1, input.percentFinished));
 		const previousPercent = typeof book.progress_percent === 'number' ? book.progress_percent : null;
 		await this.bookRepository.updateProgress(book.id, progressKey, normalizedPercent);
+		const needsUpdatedBook = Boolean(this.annotationIndexService || (input.deviceId && input.deviceId.trim() !== ''));
+		const updatedBook = needsUpdatedBook ? await this.bookRepository.getById(book.id) : undefined;
+		if (this.annotationIndexService) {
+			await this.annotationIndexService.tryIndexSource({
+				bookId: book.id,
+				source: Buffer.from(input.fileData).toString('utf8'),
+				progressUpdatedAt: updatedBook?.progress_updated_at ?? null
+			});
+		}
 		if (input.readerSessionId) {
 			try {
 				await this.bookProgressHistoryRepository.upsertReaderSessionSnapshot({
@@ -159,7 +170,6 @@ export class PutProgressUseCase {
 		);
 
 		if (input.deviceId && input.deviceId.trim() !== '') {
-			const updatedBook = await this.bookRepository.getById(book.id);
 			if (updatedBook?.progress_updated_at) {
 				await this.deviceProgressDownloadRepository.upsertByDeviceAndBook({
 					deviceId: input.deviceId.trim(),

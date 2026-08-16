@@ -1,23 +1,13 @@
 import {
 	mergeKoreaderSidecar,
 	parseKoreaderSidecar,
+	koreaderDateTime,
+	koreaderLocalDate,
 	type SidecarChanges,
 	type SidecarSnapshot
-} from './koreaderSidecar';
+} from '$lib/koreader/koreaderSidecar';
 
-function localDate(date = new Date()): string {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
-	return `${year}-${month}-${day}`;
-}
-
-export function koreaderDateTime(date = new Date()): string {
-	const hours = String(date.getHours()).padStart(2, '0');
-	const minutes = String(date.getMinutes()).padStart(2, '0');
-	const seconds = String(date.getSeconds()).padStart(2, '0');
-	return `${localDate(date)} ${hours}:${minutes}:${seconds}`;
-}
+export { koreaderDateTime };
 
 async function responseError(response: Response, fallback: string): Promise<Error> {
 	try {
@@ -51,7 +41,7 @@ export async function saveKoreaderSidecar(
 	readerSessionId?: string
 ): Promise<SidecarSnapshot> {
 	const latest = await fetchKoreaderSidecar(fileName);
-	const merged = mergeKoreaderSidecar(latest?.source ?? null, changes, localDate());
+	const merged = mergeKoreaderSidecar(latest?.source ?? null, changes, koreaderLocalDate());
 	const formData = new FormData();
 	formData.set('fileName', fileName);
 	formData.set(

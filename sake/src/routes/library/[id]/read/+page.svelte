@@ -36,7 +36,7 @@
 	import {
 		createAnnotationId,
 		type ReaderAnnotation
-	} from '$lib/features/reader/koreaderSidecar';
+	} from '$lib/koreader/koreaderSidecar';
 	import {
 		fetchKoreaderSidecar,
 		koreaderDateTime
@@ -72,6 +72,8 @@
 		type ReaderTapDiagnostic
 	} from '$lib/features/reader/readerTapNavigation';
 	import { bindRenditionTapNavigation } from '$lib/features/reader/readerTapNavigationBinding';
+	import { getAnnotation } from '$lib/client/routes/annotations';
+	import type { AnnotationHubItem } from '$lib/types/Annotations/Annotation';
 	import styles from './page.module.scss';
 
 	const { data } = $props();
@@ -117,7 +119,24 @@
 	let rsvpIsLoading = $state(false);
 	let rsvpIsCompleted = $state(false);
 	let rsvpError = $state<string | null>(null);
+	let deepLinkWarning = $state<string | null>(null);
 	let rsvpSession: RsvpEpubSession | null = null;
+
+	async function loadDeepLinkedAnnotation(): Promise<AnnotationHubItem | null> {
+		const rawId = new URLSearchParams(window.location.search).get('annotationId');
+		if (rawId === null) return null;
+		const id = Number(rawId);
+		if (!Number.isInteger(id) || id <= 0) {
+			deepLinkWarning = 'This annotation link is invalid. Your saved reading position was opened instead.';
+			return null;
+		}
+		const result = await getAnnotation(id);
+		if (!result.ok || result.value.book.id !== data.book.bookId) {
+			deepLinkWarning = 'This annotation is no longer available. Your saved reading position was opened instead.';
+			return null;
+		}
+		return result.value;
+	}
 	let rsvpPlayback: RsvpPlaybackController | null = null;
 	let rsvpCheckpointTimer: ReturnType<typeof setInterval> | null = null;
 	let restoringRsvpPosition: {
@@ -691,10 +710,11 @@
 				tapNavigation.setEnabled(isTapNavigationEnabled);
 				tapNavigation.setDebugEnabled(isTapNavigationDebugEnabled);
 				tapNavigation.setNavigationDelay(tapNavigationDelayMs);
-				const [contentResponse, sidecar, epubModule] = await Promise.all([
+				const [contentResponse, sidecar, epubModule, deepLinkedAnnotation] = await Promise.all([
 					fetch(`/api/library/${data.book.bookId}/content`),
 					fetchKoreaderSidecar(data.book.fileName),
-					import('epubjs')
+					import('epubjs'),
+					loadDeepLinkedAnnotation()
 				]);
 				if (!contentResponse.ok) {
 					throw new Error('Failed to load EPUB content');
@@ -734,7 +754,9 @@
 					getReaderRect: () => viewportShell?.getBoundingClientRect() ?? null
 				});
 				applyAppearance();
-				if (sidecar?.lastXPointer) {
+				if (deepLinkedAnnotation) {
+					await restoreXPointer(deepLinkedAnnotation.pos0 ?? deepLinkedAnnotation.page);
+				} else if (sidecar?.lastXPointer) {
 					await restoreXPointer(sidecar.lastXPointer);
 				} else if (sidecar && percentFinished > 0) {
 					await rendition.display(book.locations.cfiFromPercentage(percentFinished));
@@ -934,5 +956,6 @@
 	{/if}
 
 	{#if saveError}<div class={styles.error} role="alert">{saveError}</div>{/if}
+	{#if deepLinkWarning}<div class={styles.warning} role="status">{deepLinkWarning}</div>{/if}
 	{#if readerMode === 'paged' && rsvpError}<div class={styles.error} role="alert" aria-live="polite">{rsvpError}</div>{/if}
 </div>

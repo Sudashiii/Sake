@@ -7,7 +7,7 @@ import {
 	toKoreaderXPointer,
 	type SpineLocation
 } from './koreaderXPointer';
-import type { ReaderAnnotation } from './koreaderSidecar';
+import type { ReaderAnnotation } from '$lib/koreader/koreaderSidecar';
 import { recoverUniqueTextRange } from './quoteRecovery';
 
 export interface SelectionDraft {

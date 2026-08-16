@@ -1,4 +1,4 @@
-import { mergeKoreaderSidecar, createAnnotationId } from '$lib/features/reader/koreaderSidecar';
+import { mergeKoreaderSidecar, createAnnotationId } from '$lib/koreader/koreaderSidecar';
 
 const outputPath = process.argv[2];
 if (!outputPath) {

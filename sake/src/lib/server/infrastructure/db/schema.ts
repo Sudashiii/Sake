@@ -179,6 +179,52 @@ export const bookProgressHistory = sqliteTable(
 	]
 );
 
+export const bookAnnotations = sqliteTable(
+	'BookAnnotations',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		bookId: integer('book_id')
+			.notNull()
+			.references(() => books.id, { onDelete: 'cascade' }),
+		sourceId: text('source_id').notNull(),
+		kind: text('kind', { enum: ['bookmark', 'highlight'] }).notNull(),
+		page: text('page').notNull(),
+		pos0: text('pos0'),
+		pos1: text('pos1'),
+		text: text('text'),
+		note: text('note'),
+		chapter: text('chapter'),
+		drawer: text('drawer'),
+		color: text('color'),
+		recordedAt: text('recorded_at').notNull(),
+		updatedAt: text('updated_at'),
+		version: text('version').notNull()
+	},
+	(table) => [
+		uniqueIndex('book_annotations_book_source_unique').on(table.bookId, table.sourceId),
+		index('book_annotations_book_idx').on(table.bookId),
+		index('book_annotations_recency_idx').on(table.updatedAt, table.recordedAt, table.id),
+		index('book_annotations_kind_idx').on(table.kind),
+		index('book_annotations_color_idx').on(table.color)
+	]
+);
+
+export const bookAnnotationIndexes = sqliteTable(
+	'BookAnnotationIndexes',
+	{
+		bookId: integer('book_id')
+			.primaryKey()
+			.references(() => books.id, { onDelete: 'cascade' }),
+		sourceProgressUpdatedAt: text('source_progress_updated_at'),
+		parserVersion: integer('parser_version').notNull(),
+		status: text('status', { enum: ['indexed', 'failed'] }).notNull(),
+		indexedAt: text('indexed_at'),
+		attemptedAt: text('attempted_at').notNull(),
+		error: text('error')
+	},
+	(table) => [index('book_annotation_indexes_status_idx').on(table.status)]
+);
+
 export const hardcoverProgressSettings = sqliteTable('HardcoverProgressSettings', {
 	id: integer('id').primaryKey(),
 	enabled: integer('enabled', { mode: 'boolean' }).notNull(),

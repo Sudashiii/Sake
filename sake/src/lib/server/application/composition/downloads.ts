@@ -21,6 +21,7 @@ import { DeleteLibraryFileUseCase } from '$lib/server/application/use-cases/Dele
 import { ListDavDirectoryUseCase } from '$lib/server/application/use-cases/ListDavDirectoryUseCase';
 import { ExportDeviceLibraryBookUseCase } from '$lib/server/application/use-cases/ExportDeviceLibraryBookUseCase';
 import {
+	annotationIndexService,
 	bookProgressHistoryRepository,
 	bookRepository,
 	deviceDownloadRepository,
@@ -53,7 +54,8 @@ export const putProgressUseCase = new PutProgressUseCase(
 	bookProgressHistoryRepository,
 	storage,
 	deviceProgressDownloadRepository,
-	hardcoverProgressSyncService
+	hardcoverProgressSyncService,
+	annotationIndexService
 );
 export const getBookProgressHistoryUseCase = new GetBookProgressHistoryUseCase(
 	bookRepository,
@@ -94,7 +96,8 @@ export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase
 	deviceProgressDownloadRepository,
 	storage,
 	putLibraryFileUseCase,
-	hardcoverProgressSyncService
+	hardcoverProgressSyncService,
+	annotationIndexService
 );
 export const deleteLibraryFileUseCase = new DeleteLibraryFileUseCase(storage);
 export const listDavDirectoryUseCase = new ListDavDirectoryUseCase(storage);

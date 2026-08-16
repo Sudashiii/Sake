@@ -4,6 +4,7 @@ import type { DeviceProgressDownloadRepositoryPort } from '$lib/server/applicati
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 import type { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
+import type { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
 import type { Book } from '$lib/server/domain/entities/Book';
 import { isIncomingProgressOlder } from '$lib/server/domain/services/ProgressConflictPolicy';
 import {
@@ -88,7 +89,8 @@ export class ExportDeviceLibraryBookUseCase {
 		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
 		private readonly storage: StoragePort,
 		private readonly libraryFileImporter: LibraryFileImporter,
-		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort,
+		private readonly annotationIndexService?: AnnotationIndexService
 	) {}
 
 	async execute(
@@ -193,6 +195,11 @@ export class ExportDeviceLibraryBookUseCase {
 			progressPercent,
 			progressUpdatedAt
 		);
+		await this.annotationIndexService?.tryIndexSource({
+			bookId: book.id,
+			source: incomingContent,
+			progressUpdatedAt
+		});
 		await this.deviceProgressDownloadRepository.upsertByDeviceAndBook({
 			deviceId: input.deviceId,
 			bookId: book.id,

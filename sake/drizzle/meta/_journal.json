@@ -169,6 +169,13 @@
       "when": 1782627929458,
       "tag": "0023_queue_task_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1786881991558,
+		"tag": "0024_annotation_hub_index",
+      "breakpoints": true
     }
   ]
 }
