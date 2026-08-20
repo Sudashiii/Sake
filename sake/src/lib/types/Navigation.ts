@@ -13,6 +13,12 @@ export const menuItems: MenuItem[] = [
 		icon: 'library'
 	},
 	{
+		id: 'annotations',
+		label: 'Annotations',
+		href: '/annotations',
+		icon: 'annotations'
+	},
+	{
 		id: 'zlib-search',
 		label: 'Search',
 		href: '/search',

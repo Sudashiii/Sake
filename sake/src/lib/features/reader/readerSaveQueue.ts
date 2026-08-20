@@ -1,4 +1,4 @@
-import type { ReaderAnnotation, SidecarSnapshot } from './koreaderSidecar';
+import type { ReaderAnnotation, SidecarSnapshot } from '$lib/koreader/koreaderSidecar';
 import { saveKoreaderSidecar } from './koreaderSidecarClient';
 
 type SaveKoreaderSidecar = typeof saveKoreaderSidecar;

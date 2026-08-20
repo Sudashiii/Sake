@@ -3,11 +3,40 @@ import {
 	asLuaTable,
 	luaTable,
 	luaTableGet,
+	luaTableSet,
 	type LuaTable,
 	type LuaValue
 } from './luaData';
 
 export const KOREADER_NORMALIZED_DOM_VERSION = 20200223;
+export const KOREADER_ANNOTATION_PARSER_VERSION = 1;
+export const HIGHLIGHT_COLORS = [
+	'red',
+	'orange',
+	'yellow',
+	'green',
+	'olive',
+	'cyan',
+	'blue',
+	'purple',
+	'gray'
+] as const;
+
+export type ReaderHighlightColor = (typeof HIGHLIGHT_COLORS)[number];
+
+export function koreaderLocalDate(date = new Date()): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+export function koreaderDateTime(date = new Date()): string {
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
+	const seconds = String(date.getSeconds()).padStart(2, '0');
+	return `${koreaderLocalDate(date)} ${hours}:${minutes}:${seconds}`;
+}
 
 export type ReaderAnnotationKind = 'bookmark' | 'highlight';
 
@@ -55,6 +84,29 @@ export function createAnnotationId(annotation: Omit<ReaderAnnotation, 'id'>): st
 	].join('\u001f');
 }
 
+export function createAnnotationVersion(annotation: ReaderAnnotation): string {
+	const source = [
+		annotation.id,
+		annotation.kind,
+		annotation.page,
+		annotation.pos0 ?? '',
+		annotation.pos1 ?? '',
+		annotation.text ?? '',
+		annotation.note ?? '',
+		annotation.chapter ?? '',
+		annotation.drawer ?? '',
+		annotation.color ?? '',
+		annotation.datetime,
+		annotation.datetimeUpdated ?? ''
+	].join('\u001e');
+	let hash = 0xcbf29ce484222325n;
+	for (const byte of new TextEncoder().encode(source)) {
+		hash ^= BigInt(byte);
+		hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+	}
+	return `v1-${hash.toString(16).padStart(16, '0')}`;
+}
+
 function parseAnnotation(value: LuaValue): ReaderAnnotation | null {
 	const table = asLuaTable(value);
 	if (!table) {
@@ -83,7 +135,7 @@ function parseAnnotation(value: LuaValue): ReaderAnnotation | null {
 	return { ...parsed, id: createAnnotationId(parsed) };
 }
 
-function annotationToLua(annotation: ReaderAnnotation): LuaTable {
+function annotationToLua(annotation: ReaderAnnotation, existing?: LuaTable): LuaTable {
 	const entries: LuaTable['entries'] = [
 		{ key: 'datetime', value: annotation.datetime },
 		{ key: 'datetime_updated', value: annotation.datetimeUpdated ?? null },
@@ -96,7 +148,10 @@ function annotationToLua(annotation: ReaderAnnotation): LuaTable {
 		{ key: 'pos0', value: annotation.pos0 ?? null },
 		{ key: 'pos1', value: annotation.pos1 ?? null }
 	];
-	return luaTable(entries);
+	return entries.reduce(
+		(table, entry) => luaTableSet(table, entry.key, entry.value),
+		existing ?? luaTable()
+	);
 }
 
 function compareModified(left: ReaderAnnotation, right: ReaderAnnotation): number {
@@ -150,6 +205,13 @@ export function mergeKoreaderSidecar(
 ): SidecarSnapshot {
 	const source = latestSource ?? createMinimalKoreaderSidecar(modifiedDate);
 	const latest = parseKoreaderSidecar(source);
+	const rawAnnotations = asLuaTable(LuaDataDocument.parse(source).get(['annotations']));
+	const rawAnnotationsById = new Map<string, LuaTable>();
+	for (const entry of rawAnnotations?.entries ?? []) {
+		const rawAnnotation = asLuaTable(entry.value);
+		const parsed = parseAnnotation(entry.value);
+		if (rawAnnotation && parsed) rawAnnotationsById.set(parsed.id, rawAnnotation);
+	}
 	const deleted = new Set(changes.deletedAnnotationIds);
 	const annotations = new Map(
 		latest.annotations
@@ -171,7 +233,7 @@ export function mergeKoreaderSidecar(
 	const annotationTable = luaTable(
 		mergedAnnotations.map((annotation, index) => ({
 			key: index + 1,
-			value: annotationToLua(annotation)
+			value: annotationToLua(annotation, rawAnnotationsById.get(annotation.id))
 		}))
 	);
 	const percentFinished = Math.max(0, Math.min(1, changes.percentFinished));

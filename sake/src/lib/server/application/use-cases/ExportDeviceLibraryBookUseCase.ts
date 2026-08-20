@@ -4,6 +4,8 @@ import type { DeviceProgressDownloadRepositoryPort } from '$lib/server/applicati
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 import type { PutLibraryFileUseCase } from '$lib/server/application/use-cases/PutLibraryFileUseCase';
+import type { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
+import type { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
 import type { Book } from '$lib/server/domain/entities/Book';
 import { isIncomingProgressOlder } from '$lib/server/domain/services/ProgressConflictPolicy';
 import {
@@ -88,7 +90,9 @@ export class ExportDeviceLibraryBookUseCase {
 		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
 		private readonly storage: StoragePort,
 		private readonly libraryFileImporter: LibraryFileImporter,
-		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort
+		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort,
+		private readonly annotationIndexService?: AnnotationIndexService,
+		private readonly sidecarWriteCoordinator?: SidecarWriteCoordinator
 	) {}
 
 	async execute(
@@ -157,6 +161,18 @@ export class ExportDeviceLibraryBookUseCase {
 		if (input.sidecarData.byteLength === 0) {
 			return apiError('Uploaded sidecar file is empty', 400);
 		}
+		const importSidecar = () => this.importSidecarLocked(book, input);
+		return this.sidecarWriteCoordinator
+			? this.sidecarWriteCoordinator.run(book.id, importSidecar)
+			: importSidecar();
+	}
+
+	private async importSidecarLocked(
+		book: Book,
+		input: ExportDeviceLibraryBookInput
+	): Promise<ApiResult<SidecarOutcome>> {
+		const sidecarData = input.sidecarData;
+		if (!sidecarData) return apiOk('missing');
 
 		let descriptor;
 		try {
@@ -165,7 +181,7 @@ export class ExportDeviceLibraryBookUseCase {
 			return apiError('Invalid title format. Expected filename with extension.', 400, cause);
 		}
 
-		const sidecarBuffer = Buffer.from(input.sidecarData);
+		const sidecarBuffer = Buffer.from(sidecarData);
 		const incomingContent = sidecarBuffer.toString('utf8');
 		const incomingModified = extractSummaryModifiedTimestamp(incomingContent);
 
@@ -193,6 +209,11 @@ export class ExportDeviceLibraryBookUseCase {
 			progressPercent,
 			progressUpdatedAt
 		);
+		await this.annotationIndexService?.tryIndexSource({
+			bookId: book.id,
+			source: incomingContent,
+			progressUpdatedAt
+		});
 		await this.deviceProgressDownloadRepository.upsertByDeviceAndBook({
 			deviceId: input.deviceId,
 			bookId: book.id,

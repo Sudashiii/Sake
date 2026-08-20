@@ -251,6 +251,17 @@ export class BookRepository implements BookRepositoryPort {
 		this.repoLogger.info({ event: 'book.rating.updated', bookId, rating }, 'Book rating updated');
 	}
 
+	async touchProgressUpdatedAt(bookId: number, progressUpdatedAt: string): Promise<void> {
+		await drizzleDb
+			.update(books)
+			.set({ progressUpdatedAt })
+			.where(eq(books.id, bookId));
+		this.repoLogger.info(
+			{ event: 'book.progress.touched', bookId, progressUpdatedAt },
+			'Book progress update time advanced'
+		);
+	}
+
 	async updateState(
 		bookId: number,
 		state: {

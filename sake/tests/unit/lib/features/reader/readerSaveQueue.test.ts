@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import type { SidecarSnapshot } from '$lib/features/reader/koreaderSidecar';
+import type { SidecarSnapshot } from '$lib/koreader/koreaderSidecar';
 import { ReaderSaveQueue } from '$lib/features/reader/readerSaveQueue';
 
 const snapshot: SidecarSnapshot = {

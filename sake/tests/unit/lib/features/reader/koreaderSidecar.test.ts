@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { LuaDataDocument } from '$lib/features/reader/luaData';
+import { LuaDataDocument } from '$lib/koreader/luaData';
 import {
 	createMinimalKoreaderSidecar,
+	createAnnotationVersion,
 	mergeKoreaderSidecar,
 	parseKoreaderSidecar,
 	type ReaderAnnotation
-} from '$lib/features/reader/koreaderSidecar';
+} from '$lib/koreader/koreaderSidecar';
 
 const EXISTING_SIDECAR = `return {
     ["annotations"] = {
@@ -18,7 +19,10 @@ const EXISTING_SIDECAR = `return {
             ["page"] = "/body/DocFragment[1]/body/p/text().0",
             ["pos0"] = "/body/DocFragment[1]/body/p/text().0",
             ["pos1"] = "/body/DocFragment[1]/body/p/text().4",
-            ["text"] = "Test",
+			["text"] = "Test",
+			["plugin_payload"] = {
+				["score"] = 7,
+			},
         },
     },
     ["cre_dom_version"] = 20240114,
@@ -95,6 +99,7 @@ describe('KOReader sidecar data handling', () => {
 		assert.match(merged.source, /\["percent_finished"\] = 0\.5/);
 		assert.match(merged.source, /\["cre_dom_version"\] = 20240114/);
 		assert.match(merged.source, /\["unknown_summary_value"\] = "keep me"/);
+		assert.match(merged.source, /\["plugin_payload"\][\s\S]*\["score"\] = 7/);
 		assert.ok(merged.source.includes(unknownBlock));
 		assert.equal(merged.annotations.length, 2);
 	});
@@ -118,6 +123,24 @@ describe('KOReader sidecar data handling', () => {
 		assert.equal(merged.annotations.length, 1);
 		assert.equal(merged.annotations[0].note, 'Newest note');
 		assert.equal(parseKoreaderSidecar(merged.source).annotations[0].note, 'Newest note');
+	});
+
+	test('preserves unknown annotation fields while editing known fields', () => {
+		const existing = parseKoreaderSidecar(EXISTING_SIDECAR).annotations[0];
+		const merged = mergeKoreaderSidecar(
+			EXISTING_SIDECAR,
+			{
+				percentFinished: 0.25,
+				upsertedAnnotations: [
+					{ ...existing, note: 'Edited note', datetimeUpdated: '2026-06-06 11:00:00' }
+				],
+				deletedAnnotationIds: []
+			},
+			'2026-06-06'
+		);
+
+		assert.match(merged.source, /\["plugin_payload"\][\s\S]*\["score"\] = 7/);
+		assert.equal(parseKoreaderSidecar(merged.source).annotations[0].note, 'Edited note');
 	});
 
 	test('adds a missing summary table without disturbing other fields', () => {
@@ -154,5 +177,12 @@ describe('KOReader sidecar data handling', () => {
 			LuaDataDocument.parse(merged.source).get(['last_xpointer']),
 			'/body/DocFragment[1]/body/p/text().0'
 		);
+	});
+
+	test('creates stable versions that change with editable annotation content', () => {
+		const original = annotation();
+		assert.equal(createAnnotationVersion(original), createAnnotationVersion({ ...original }));
+		assert.notEqual(createAnnotationVersion(original), createAnnotationVersion({ ...original, note: 'Changed' }));
+		assert.notEqual(createAnnotationVersion(original), createAnnotationVersion({ ...original, color: 'blue' }));
 	});
 });

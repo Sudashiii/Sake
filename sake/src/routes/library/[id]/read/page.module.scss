@@ -359,6 +359,20 @@
 	transform: translateX(-50%);
 }
 
+.warning {
+	position: fixed;
+	z-index: 50;
+	left: 50%;
+	bottom: 48px;
+	max-width: min(520px, calc(100vw - 32px));
+	padding: 10px 14px;
+	border: 1px solid #8a7139;
+	border-radius: 9px;
+	background: #342c1b;
+	color: #f0ddb0;
+	transform: translateX(-50%);
+}
+
 @media (max-width: 700px) {
 	.reader {
 		grid-template-rows: 58px minmax(0, 1fr) 48px;

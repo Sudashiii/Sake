@@ -61,6 +61,7 @@ This setup gives you:
 - Directly download books from multiple provider-based search sources into your collection
 - KOReader device pairing and sync from the same self-hosted stack
 - Seamless background reading progress sync across devices, including notes and sidecar metadata
+- Searchable highlights and annotations hub with inline note editing and Markdown/JSON export
 - Export an existing KOReader device library back into the web app
 - Built-in KOReader plugin updater and release delivery
 - Flexible deployment with Docker images or local Bun development
