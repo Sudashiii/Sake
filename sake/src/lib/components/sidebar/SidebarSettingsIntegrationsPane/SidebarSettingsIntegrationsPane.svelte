@@ -8,6 +8,11 @@
 	interface Props {
 		status: HardcoverProgressSyncStatus | null;
 		error: string | null;
+		zlibName: string;
+		showZLibraryLogin: boolean;
+		isLoggingOutZLibrary?: boolean;
+		onOpenZLibraryLogin: () => void;
+		onLogoutZLibrary: () => void;
 		isLoading?: boolean;
 		isSaving?: boolean;
 		isSyncing?: boolean;
@@ -19,6 +24,11 @@
 	let {
 		status,
 		error,
+		zlibName,
+		showZLibraryLogin,
+		isLoggingOutZLibrary = false,
+		onOpenZLibraryLogin,
+		onLogoutZLibrary,
 		isLoading = false,
 		isSaving = false,
 		isSyncing = false,
@@ -106,6 +116,30 @@
 </script>
 
 <section class={styles.root}>
+	{#if showZLibraryLogin}
+		<div class="zlibrary-settings">
+			<div>
+				<h4>Z-Library account</h4>
+				<p class="integration-note">Connect an account or remix credentials for authenticated search and downloads.</p>
+			</div>
+			<div class="zlibrary-account-row">
+				<div>
+					<p class="zlibrary-account-status">{zlibName ? 'Connected' : 'Not connected'}</p>
+					{#if zlibName}<p class="zlibrary-account-identity">{zlibName}</p>{/if}
+				</div>
+				<button
+					type="button"
+					class="zlibrary-account-action"
+					class:disconnect={Boolean(zlibName)}
+					disabled={isLoggingOutZLibrary}
+					onclick={zlibName ? onLogoutZLibrary : onOpenZLibraryLogin}
+				>
+					{zlibName ? (isLoggingOutZLibrary ? 'Logging out...' : 'Log out') : 'Connect'}
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<div class="integration-heading">
 		<div>
 			<h4>Hardcover</h4>

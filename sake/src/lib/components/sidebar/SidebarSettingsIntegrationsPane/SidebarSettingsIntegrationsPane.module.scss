@@ -20,6 +20,61 @@
 		font-weight: 500;
 	}
 
+	:global(.zlibrary-settings) {
+		display: grid;
+		gap: 0.75rem;
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	:global(.zlibrary-account-row) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	:global(.zlibrary-account-status) {
+		color: var(--color-text-primary);
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	:global(.zlibrary-account-identity) {
+		margin-top: 0.125rem;
+		color: var(--color-text-muted);
+		font-size: 0.75rem;
+		word-break: break-word;
+	}
+
+	:global(.zlibrary-account-action) {
+		flex: 0 0 auto;
+		padding: 0.5rem 0.875rem;
+		border: 1px solid color-mix(in oklab, var(--color-primary), transparent 65%);
+		border-radius: 0.5rem;
+		background: color-mix(in oklab, var(--color-primary), transparent 90%);
+		color: var(--color-primary);
+		font: inherit;
+		font-size: 0.875rem;
+		cursor: pointer;
+
+		&:focus-visible {
+			outline: 2px solid var(--color-primary);
+			outline-offset: 2px;
+		}
+
+		&:disabled {
+			cursor: not-allowed;
+			opacity: 0.45;
+		}
+
+		&.disconnect {
+			border-color: color-mix(in oklab, var(--color-danger), transparent 65%);
+			background: color-mix(in oklab, var(--color-danger), transparent 90%);
+			color: var(--color-danger);
+		}
+	}
+
 	:global(.integration-heading p),
 	:global(.integration-note),
 	:global(.integration-summary p) {

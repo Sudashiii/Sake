@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import AppWindowIcon from '$lib/assets/icons/AppWindowIcon.svelte';
 	import DownloadIcon from '$lib/assets/icons/DownloadIcon.svelte';
-	import LogInIcon from '$lib/assets/icons/LogInIcon.svelte';
 	import SmartphoneIcon from '$lib/assets/icons/SmartphoneIcon.svelte';
 	import ShareIcon from '$lib/assets/icons/ShareIcon.svelte';
 	import UserCircleIcon from '$lib/assets/icons/UserCircleIcon.svelte';
@@ -10,7 +9,6 @@
 	import SidebarSettingsAppPane from '../SidebarSettingsAppPane/SidebarSettingsAppPane.svelte';
 	import SidebarSettingsAccountPane from '../SidebarSettingsAccountPane/SidebarSettingsAccountPane.svelte';
 	import SidebarSettingsDevicesPane from '../SidebarSettingsDevicesPane/SidebarSettingsDevicesPane.svelte';
-	import SidebarSettingsLoginsPane from '../SidebarSettingsLoginsPane/SidebarSettingsLoginsPane.svelte';
 	import SidebarSettingsPluginPane from '../SidebarSettingsPluginPane/SidebarSettingsPluginPane.svelte';
 	import SidebarSettingsIntegrationsPane from '../SidebarSettingsIntegrationsPane/SidebarSettingsIntegrationsPane.svelte';
 	import styles from './SidebarSettingsModal.module.scss';
@@ -170,9 +168,6 @@
 		if (sectionId === 'integrations') {
 			return ShareIcon;
 		}
-		if (sectionId === 'logins') {
-			return LogInIcon;
-		}
 		if (sectionId === 'devices') {
 			return SmartphoneIcon;
 		}
@@ -231,17 +226,14 @@
 							isLoading={isLoadingHardcoverProgress}
 							isSaving={isSavingHardcoverProgress}
 							isSyncing={isTriggeringHardcoverProgress}
-							{formatDateTime}
-							onToggle={onToggleHardcoverProgress}
-							onSync={onSyncHardcoverProgress}
-						/>
-					{:else if activeSection === 'logins'}
-						<SidebarSettingsLoginsPane
 							{zlibName}
 							{showZLibraryLogin}
 							{isLoggingOutZLibrary}
+							{formatDateTime}
 							onOpenZLibraryLogin={onOpenZLibraryLogin}
 							onLogoutZLibrary={onLogoutZLibrary}
+							onToggle={onToggleHardcoverProgress}
+							onSync={onSyncHardcoverProgress}
 						/>
 					{:else if activeSection === 'account'}
 						<SidebarSettingsAccountPane
