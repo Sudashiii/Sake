@@ -3,7 +3,8 @@ import { describe, test } from 'node:test';
 import { DEFAULT_ZLIBRARY_BASE_URL, resolveZLibraryBaseUrl } from '$lib/server/config/zlibrary';
 
 describe('resolveZLibraryBaseUrl', () => {
-	test('uses the backwards-compatible default when unset', () => {
+	test('uses the verified default when unset', () => {
+		assert.equal(DEFAULT_ZLIBRARY_BASE_URL, 'https://z-lib.gl');
 		assert.equal(resolveZLibraryBaseUrl(undefined), DEFAULT_ZLIBRARY_BASE_URL);
 	});
 

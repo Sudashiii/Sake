@@ -1,4 +1,4 @@
-export const DEFAULT_ZLIBRARY_BASE_URL = 'https://1lib.sk';
+export const DEFAULT_ZLIBRARY_BASE_URL = 'https://z-lib.gl';
 
 export function resolveZLibraryBaseUrl(rawValue: string | undefined | null): string {
 	const value = rawValue?.trim();

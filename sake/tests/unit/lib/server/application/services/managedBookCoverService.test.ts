@@ -320,10 +320,10 @@ describe('ManagedBookCoverService', () => {
 		} as StoragePort;
 
 		const service = new ManagedBookCoverService(storage, async (input, init) => {
-			assert.equal(input, 'https://1lib.sk/covers/books/123.webp');
+			assert.equal(input, 'https://z-lib.gl/covers/books/123.webp');
 			requestHeaders = init?.headers as Headers;
 			return createResponse({
-				url: 'https://1lib.sk/covers/books/123.webp',
+				url: 'https://z-lib.gl/covers/books/123.webp',
 				headers: {
 					'content-type': 'image/webp'
 				},
@@ -346,7 +346,7 @@ describe('ManagedBookCoverService', () => {
 				'example.epub.webp',
 				buildManagedBookCoverVersionToken(coverBuffer)
 			),
-			sourceUrl: 'https://1lib.sk/covers/books/123.webp'
+			sourceUrl: 'https://z-lib.gl/covers/books/123.webp'
 		});
 		if (requestHeaders === null) {
 			throw new Error('Expected Z-Library cover request headers');
