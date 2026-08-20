@@ -19,6 +19,9 @@ import { HardcoverProgressSettingsRepository } from '$lib/server/infrastructure/
 import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
 import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
+import { AnnotationRepository } from '$lib/server/infrastructure/repositories/AnnotationRepository';
+import { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
+import { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
 
 export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
 export const storage = createLazySingleton(() => new S3Storage());
@@ -34,6 +37,9 @@ export const shelfRepository = new ShelfRepository();
 export const deviceDownloadRepository = new DeviceDownloadRepository();
 export const deviceProgressDownloadRepository = new DeviceProgressDownloadRepository();
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
+export const annotationRepository = new AnnotationRepository();
+export const annotationIndexService = new AnnotationIndexService(annotationRepository, storage);
+export const sidecarWriteCoordinator = new SidecarWriteCoordinator();
 export const managedBookCoverService = new ManagedBookCoverService(storage);
 
 export const hardcoverApiToken = env.HARDCOVER_API_TOKEN?.trim() || null;

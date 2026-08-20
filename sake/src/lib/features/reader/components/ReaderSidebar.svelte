@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { NavItem } from 'epubjs';
-	import type { ReaderAnnotation } from '../koreaderSidecar';
+	import type { ReaderAnnotation } from '$lib/koreader/koreaderSidecar';
 	import type { ReaderTheme } from '../readerAppearance';
 	import styles from './ReaderSidebar.module.scss';
 

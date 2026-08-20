@@ -31,6 +31,7 @@ export interface BookRepositoryPort {
 		progressPercent: number | null,
 		progressUpdatedAt?: string | null
 	): Promise<void>;
+	touchProgressUpdatedAt(bookId: number, progressUpdatedAt: string): Promise<void>;
 	updateRating(bookId: number, rating: number | null): Promise<void>;
 	updateState(
 		bookId: number,

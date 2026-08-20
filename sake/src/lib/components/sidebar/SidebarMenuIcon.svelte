@@ -7,6 +7,7 @@
 	import StatsIcon from '$lib/assets/icons/StatsIcon.svelte';
 	import Trash2Icon from '$lib/assets/icons/Trash2Icon.svelte';
 	import type { MenuItem } from '$lib/types/Navigation';
+	import HighlighterIcon from '$lib/assets/icons/HighlighterIcon.svelte';
 
 	interface Props {
 		icon?: MenuItem['icon'];
@@ -21,6 +22,8 @@
 	<SearchIcon size={size} class={className} decorative={true} />
 {:else if icon === 'library'}
 	<LibraryIcon size={size} class={className} decorative={true} />
+{:else if icon === 'annotations'}
+	<HighlighterIcon size={size} class={className} decorative={true} />
 {:else if icon === 'queue'}
 	<QueueIcon size={size} class={className} decorative={true} />
 {:else if icon === 'stats'}

@@ -8,3 +8,4 @@ export * from './composition/library';
 export * from './composition/search';
 export * from './composition/auth';
 export * from './composition/integrations';
+export * from './composition/annotations';

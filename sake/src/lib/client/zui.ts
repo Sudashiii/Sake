@@ -85,12 +85,30 @@ import {
 	triggerHardcoverProgressSync,
 	updateHardcoverProgressSyncSetting
 } from './routes/hardcoverProgressSync';
+import {
+	annotationExportUrl,
+	deleteAnnotation,
+	getAnnotation,
+	getAnnotationFacets,
+	getAnnotations,
+	reindexAnnotations,
+	updateAnnotation
+} from './routes/annotations';
+import type { AnnotationQuery, DeleteAnnotationRequest, UpdateAnnotationRequest } from '$lib/types/Annotations/Annotation';
 
 /**
  * Facade for all Z-Library UI client operations.
  * All methods return Result types for type-safe error handling.
  */
 export const ZUI = {
+	getAnnotations,
+	getAnnotationFacets,
+	getAnnotation,
+	updateAnnotation: (id: number, request: UpdateAnnotationRequest) => updateAnnotation(id, request),
+	deleteAnnotation: (id: number, request: DeleteAnnotationRequest) => deleteAnnotation(id, request),
+	reindexAnnotations,
+	annotationExportUrl: (query: AnnotationQuery, format: 'markdown' | 'json') =>
+		annotationExportUrl(query, format),
 	searchBooks: (request: SearchBooksRequest): Promise<Result<SearchBooksResponse, ApiError>> =>
 		searchBooks(request),
 

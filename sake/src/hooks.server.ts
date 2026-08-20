@@ -16,7 +16,8 @@ import {
 	purgeExpiredTrashUseCase,
 	reportDeviceVersionUseCase,
 	syncKoreaderPluginReleaseUseCase,
-	hardcoverProgressSyncService
+	hardcoverProgressSyncService,
+	annotationIndexService
 } from '$lib/server/application/composition';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 import { randomUUID } from 'node:crypto';
@@ -28,6 +29,7 @@ let lastTrashPurgeStartedAt = 0;
 let runningPurgePromise: Promise<void> | null = null;
 let pluginSyncStarted = false;
 let hardcoverProgressSyncStarted = false;
+let annotationIndexSyncStarted = false;
 
 function shouldSkipTrashPurge(): boolean {
 	const raw = process.env.SAKE_SKIP_TRASH_PURGE?.trim().toLowerCase();
@@ -128,6 +130,16 @@ function triggerHardcoverProgressSyncOnStartup(): void {
 }
 
 triggerHardcoverProgressSyncOnStartup();
+
+function triggerAnnotationIndexSyncOnStartup(): void {
+	if (annotationIndexSyncStarted) return;
+	annotationIndexSyncStarted = true;
+	const raw = process.env.SAKE_SKIP_ANNOTATION_INDEX_SYNC?.trim().toLowerCase();
+	if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on') return;
+	annotationIndexService.startReconciliation();
+}
+
+triggerAnnotationIndexSyncOnStartup();
 
 async function syncDeviceVersionFromHeader(event: Parameters<Handle>[0]['event']): Promise<void> {
 	if (event.locals.auth?.type !== 'api_key') {

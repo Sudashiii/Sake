@@ -8,6 +8,8 @@ import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import type { CreateBookInput } from '$lib/server/domain/entities/Book';
+import type { ReaderAnnotation } from '$lib/koreader/koreaderSidecar';
+import { EMPTY_ANNOTATION_QUERY } from '$lib/types/Annotations/Annotation';
 // @ts-expect-error Bun's test-only mock API is available at runtime but excluded from the app tsconfig.
 import { mock } from 'bun:test';
 
@@ -26,6 +28,7 @@ process.env.S3_FORCE_PATH_STYLE = 'true';
 
 mock.module('$env/dynamic/private', () => ({ env: process.env }));
 const { BookRepository } = await import('$lib/server/infrastructure/repositories/BookRepository');
+const { AnnotationRepository } = await import('$lib/server/infrastructure/repositories/AnnotationRepository');
 
 const book: CreateBookInput = {
 	zLibId: null,
@@ -57,11 +60,14 @@ const book: CreateBookInput = {
 
 describe('BookRepository with a migrated libSQL database', () => {
 	let repository: InstanceType<typeof BookRepository>;
+	let annotationRepository: InstanceType<typeof AnnotationRepository>;
+	let client: ReturnType<typeof createClient>;
 
 	before(async () => {
-		const client = createClient({ url: `file:${databasePath}` });
+		client = createClient({ url: `file:${databasePath}` });
 		await migrate(drizzle(client), { migrationsFolder: new URL('../../../drizzle', import.meta.url).pathname });
 		repository = new BookRepository();
+		annotationRepository = new AnnotationRepository();
 	});
 
 	after(async () => {
@@ -91,6 +97,55 @@ describe('BookRepository with a migrated libSQL database', () => {
 		assert.equal(await repository.getById(created.id), undefined);
 		assert.equal((await repository.getByIdIncludingTrashed(created.id))?.deleted_at, '2026-07-10T00:00:00.000Z');
 		assert.equal((await repository.getAll()).some((entry) => entry.id === created.id), false);
+		await repository.delete(created.id);
+	});
+
+	test('keeps annotation ids stable across projection replacement and cascades deletion', async () => {
+		const created = await repository.create({ ...book, s3_storage_key: 'annotation.epub', title: 'Annotation Book' });
+		await repository.updateProgress(created.id, 'annotation.sdr/metadata.epub.lua', 0.5, '2026-08-16T10:00:00.000Z');
+		const annotation: ReaderAnnotation = {
+			id: 'source-1', kind: 'highlight', page: '/body/p', pos0: '/body/p', pos1: '/body/p.4',
+			text: 'Needle passage', note: 'Needle note', chapter: 'Chapter One', color: 'yellow',
+			datetime: '2026-08-16 10:00:00'
+		};
+		await annotationRepository.replaceForBook({
+			bookId: created.id,
+			annotations: [annotation],
+			sourceProgressUpdatedAt: '2026-08-16T10:00:00.000Z',
+			parserVersion: 1
+		});
+		const first = await annotationRepository.list({ ...EMPTY_ANNOTATION_QUERY, q: 'needle' }, null);
+		assert.equal(first.items.length, 1);
+		const annotationId = first.items[0].id;
+		await annotationRepository.replaceForBook({
+			bookId: created.id,
+			annotations: [{ ...annotation, note: 'Updated' }],
+			sourceProgressUpdatedAt: '2026-08-16T11:00:00.000Z',
+			parserVersion: 1
+		});
+		assert.equal((await annotationRepository.getById(annotationId))?.note, 'Updated');
+		await repository.delete(created.id);
+		assert.equal(await annotationRepository.getById(annotationId), undefined);
+	});
+
+	test('treats matching null progress timestamps as an indexed projection', async () => {
+		const created = await repository.create({ ...book, s3_storage_key: 'null-progress.epub', title: 'Null progress' });
+		await repository.updateProgress(created.id, 'null-progress.sdr/metadata.epub.lua', 0.5);
+		await client.execute({
+			sql: 'UPDATE Books SET progress_updated_at = NULL WHERE id = ?',
+			args: [created.id]
+		});
+		await annotationRepository.replaceForBook({
+			bookId: created.id,
+			annotations: [],
+			sourceProgressUpdatedAt: null,
+			parserVersion: 1
+		});
+
+		const summary = await annotationRepository.getIndexSummary(1);
+		assert.equal(summary.indexedBooks, 1);
+		assert.equal(summary.pendingBooks, 0);
+		assert.deepEqual(await annotationRepository.listIndexCandidates(1, created.id), []);
 		await repository.delete(created.id);
 	});
 });
