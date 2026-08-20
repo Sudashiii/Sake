@@ -106,14 +106,13 @@ export class ZLibraryClient implements ZLibraryPort {
 
 	private async get(path: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
 		try {
-			const response = await requestExternal(this.fetchFn, this.baseUrl + path, {
+			const response = await this.request(this.baseUrl + path, {
 				method: 'GET',
-				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials)
 			});
 
 			if (!response.ok) {
-				return apiError(`Request failed with status ${response.status}`, response.status);
+				return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
 			}
 
 			return apiOk(response);
@@ -124,14 +123,13 @@ export class ZLibraryClient implements ZLibraryPort {
 
 	private async getAbsolute(url: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
 		try {
-			const response = await requestExternal(this.fetchFn, url, {
+			const response = await this.request(url, {
 				method: 'GET',
-				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials)
 			});
 
 			if (!response.ok) {
-				return apiError(`Request failed with status ${response.status}`, response.status);
+				return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
 			}
 
 			return apiOk(response);
@@ -146,12 +144,14 @@ export class ZLibraryClient implements ZLibraryPort {
 		credentials?: ZLibraryCredentials
 	): Promise<ApiResult<T>> {
 		try {
-			const response = await requestExternal(this.fetchFn, this.baseUrl + path, {
+			const response = await this.request(this.baseUrl + path, {
 				method: 'POST',
-				timeoutMs: 30_000,
 				headers: this.getHeaders(credentials),
 				body: toUrlEncoded(data)
 			});
+			if (!response.ok) {
+				return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
+			}
 
 			const parsed = await parseExternalJson(response, (value): value is T => {
 				if (path === ZLibraryRoutes.search) return isZSearchBookResponse(value);
@@ -163,10 +163,60 @@ export class ZLibraryClient implements ZLibraryPort {
 			return apiError('Failed to execute POST request', getExternalStatus(cause), cause);
 		}
 	}
+
+	private async request(url: string, init: RequestInit): Promise<Response> {
+		const response = await requestExternal(this.fetchFn, url, {
+			...init,
+			timeoutMs: 30_000,
+			redirect: 'manual',
+			allowManualRedirect: true
+		});
+
+		const challengeCookie = getChallengeCookie(response.headers.get('set-cookie'));
+		if (!isSelfRedirect(response, url) || challengeCookie === null) {
+			return response;
+		}
+
+		const headers = new Headers(init.headers);
+		const existingCookie = headers.get('Cookie');
+		headers.set('Cookie', existingCookie ? `${existingCookie}; ${challengeCookie}` : challengeCookie);
+
+		return requestExternal(this.fetchFn, url, {
+			...init,
+			timeoutMs: 30_000,
+			headers
+		});
+	}
 }
 
 function getExternalStatus(cause: unknown): number {
-	return cause instanceof ExternalClientError ? cause.status : 502;
+	return cause instanceof ExternalClientError ? getUpstreamErrorStatus(cause.status) : 502;
+}
+
+function getUpstreamErrorStatus(status: number): number {
+	return status >= 400 ? status : 502;
+}
+
+function getChallengeCookie(setCookie: string | null): string | null {
+	if (!setCookie) {
+		return null;
+	}
+
+	const cookie = setCookie.split(';', 1)[0]?.trim();
+	return cookie && cookie.includes('=') ? cookie : null;
+}
+
+function isSelfRedirect(response: Response, requestUrl: string): boolean {
+	const location = response.headers.get('location');
+	if (!location || response.status < 300 || response.status >= 400) {
+		return false;
+	}
+
+	try {
+		return new URL(location, requestUrl).toString() === new URL(requestUrl).toString();
+	} catch {
+		return false;
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { ZLibraryCredentials } from '$lib/server/application/ports/ZLibraryPort';
+import { DEFAULT_ZLIBRARY_BASE_URL } from '$lib/server/config/zlibrary';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 
-const ZLIBRARY_BASE_URL = 'https://1lib.sk';
 const ANNA_ARCHIVE_COVER_HOST = 'annas-archive.gl';
 const OPEN_LIBRARY_COVER_HOST = 'covers.openlibrary.org';
 const LIBRARY_COVER_ROUTE_PREFIX = '/api/library/covers/';
@@ -286,7 +286,7 @@ export class ManagedBookCoverService {
 	constructor(
 		private readonly storage: StoragePort,
 		private readonly fetchImpl: FetchLike = fetch,
-		private readonly zlibraryBaseUrl = ZLIBRARY_BASE_URL
+		private readonly zlibraryBaseUrl = DEFAULT_ZLIBRARY_BASE_URL
 	) {}
 
 	async storeFromSearchImport(

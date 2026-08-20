@@ -19,8 +19,10 @@ import { HardcoverProgressSettingsRepository } from '$lib/server/infrastructure/
 import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
 import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
+import { resolveZLibraryBaseUrl } from '$lib/server/config/zlibrary';
 
-export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
+export const zlibraryBaseUrl = resolveZLibraryBaseUrl(env.ZLIBRARY_BASE_URL);
+export const zlibraryClient = new ZLibraryClient(zlibraryBaseUrl);
 export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
@@ -34,7 +36,7 @@ export const shelfRepository = new ShelfRepository();
 export const deviceDownloadRepository = new DeviceDownloadRepository();
 export const deviceProgressDownloadRepository = new DeviceProgressDownloadRepository();
 export const bookProgressHistoryRepository = new BookProgressHistoryRepository();
-export const managedBookCoverService = new ManagedBookCoverService(storage);
+export const managedBookCoverService = new ManagedBookCoverService(storage, fetch, zlibraryBaseUrl);
 
 export const hardcoverApiToken = env.HARDCOVER_API_TOKEN?.trim() || null;
 export const hardcoverClient = hardcoverApiToken ? new HardcoverClient(hardcoverApiToken) : null;
