@@ -12,10 +12,10 @@ import {
 } from '$lib/server/infrastructure/clients/externalClientPolicy';
 
 export class ZLibraryClient implements ZLibraryPort {
-	private readonly baseUrl: string;
+	private readonly getBaseUrls: () => Promise<readonly string[]>;
 
-	constructor(baseUrl: string, private readonly fetchFn: typeof fetch = fetch) {
-		this.baseUrl = baseUrl;
+	constructor(baseUrl: string | (() => Promise<readonly string[]>), private readonly fetchFn: typeof fetch = fetch) {
+		this.getBaseUrls = typeof baseUrl === 'string' ? async () => [baseUrl] : baseUrl;
 	}
 
 	async search(searchBookRequest: ZLibrarySearchRequest): Promise<ApiResult<ZSearchBookResponse>> {
@@ -105,20 +105,22 @@ export class ZLibraryClient implements ZLibraryPort {
 	}
 
 	private async get(path: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
-		try {
-			const response = await this.request(this.baseUrl + path, {
-				method: 'GET',
-				headers: this.getHeaders(credentials)
-			});
+		return this.tryMirrors(async (baseUrl) => {
+			try {
+				const response = await this.request(baseUrl + path, {
+					method: 'GET',
+					headers: this.getHeaders(credentials)
+				});
 
-			if (!response.ok) {
-				return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
+				if (!response.ok) {
+					return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
+				}
+
+				return apiOk(response);
+			} catch (cause) {
+				return apiError('Failed to execute GET request', getExternalStatus(cause), cause);
 			}
-
-			return apiOk(response);
-		} catch (cause) {
-			return apiError('Failed to execute GET request', getExternalStatus(cause), cause);
-		}
+		});
 	}
 
 	private async getAbsolute(url: string, credentials?: ZLibraryCredentials): Promise<ApiResult<Response>> {
@@ -143,25 +145,44 @@ export class ZLibraryClient implements ZLibraryPort {
 		data: object,
 		credentials?: ZLibraryCredentials
 	): Promise<ApiResult<T>> {
-		try {
-			const response = await this.request(this.baseUrl + path, {
-				method: 'POST',
-				headers: this.getHeaders(credentials),
-				body: toUrlEncoded(data)
-			});
-			if (!response.ok) {
-				return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
-			}
+		return this.tryMirrors(async (baseUrl) => {
+			try {
+				const response = await this.request(baseUrl + path, {
+					method: 'POST',
+					headers: this.getHeaders(credentials),
+					body: toUrlEncoded(data)
+				});
+				if (!response.ok) {
+					return apiError(`Request failed with status ${response.status}`, getUpstreamErrorStatus(response.status));
+				}
 
-			const parsed = await parseExternalJson(response, (value): value is T => {
-				if (path === ZLibraryRoutes.search) return isZSearchBookResponse(value);
-				if (path === ZLibraryRoutes.passwordLogin) return isZLoginResponse(value);
-				return typeof value === 'object' && value !== null;
-			});
-			return apiOk(parsed);
+				const parsed = await parseExternalJson(response, (value): value is T => {
+					if (path === ZLibraryRoutes.search) return isZSearchBookResponse(value);
+					if (path === ZLibraryRoutes.passwordLogin) return isZLoginResponse(value);
+					return typeof value === 'object' && value !== null;
+				});
+				return apiOk(parsed);
+			} catch (cause) {
+				return apiError('Failed to execute POST request', getExternalStatus(cause), cause);
+			}
+		});
+	}
+
+	private async tryMirrors<T>(request: (baseUrl: string) => Promise<ApiResult<T>>): Promise<ApiResult<T>> {
+		let urls: readonly string[];
+		try {
+			urls = await this.getBaseUrls();
 		} catch (cause) {
-			return apiError('Failed to execute POST request', getExternalStatus(cause), cause);
+			return apiError('Failed to load Z-Library mirror configuration', 500, cause);
 		}
+
+		let lastFailure: ApiResult<T> | null = null;
+		for (const url of urls) {
+			const result = await request(url);
+			if (result.ok || !shouldTryNextMirror(result.error)) return result;
+			lastFailure = result;
+		}
+		return lastFailure ?? apiError('No Z-Library mirrors are configured', 503);
 	}
 
 	private async request(url: string, init: RequestInit): Promise<Response> {
@@ -191,6 +212,13 @@ export class ZLibraryClient implements ZLibraryPort {
 
 function getExternalStatus(cause: unknown): number {
 	return cause instanceof ExternalClientError ? getUpstreamErrorStatus(cause.status) : 502;
+}
+
+function shouldTryNextMirror(error: { status: number; cause?: unknown }): boolean {
+	if (error.status === 401 || error.status === 403 || error.status === 400 || error.status === 422) {
+		return false;
+	}
+	return error.cause instanceof ExternalClientError ? error.cause.isRetryable : error.status >= 500;
 }
 
 function getUpstreamErrorStatus(status: number): number {

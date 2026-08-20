@@ -14,6 +14,7 @@ export const ZUIRoutes = {
 	koreaderPluginUpstreamVersion: '/plugin/koreader/upstream-version',
 	hardcoverProgress: '/integrations/hardcover/progress',
 	hardcoverProgressSync: '/integrations/hardcover/progress/sync',
+	zlibraryMirrors: '/integrations/zlibrary/mirrors',
 	queue: '/queue',
 	searchBooks: '/search',
 	searchQueue: '/search/queue',

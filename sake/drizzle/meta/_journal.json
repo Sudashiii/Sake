@@ -174,7 +174,14 @@
       "idx": 24,
       "version": "6",
       "when": 1786881991558,
-		"tag": "0024_annotation_hub_index",
+      "tag": "0024_annotation_hub_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1787249844275,
+      "tag": "0025_zlibrary_mirror_settings",
       "breakpoints": true
     }
   ]

@@ -129,6 +129,11 @@
 		font-size: 0.8rem;
 	}
 
+	:global(.integration-success) {
+		color: var(--color-success, #4b9b70);
+		font-size: 0.8rem;
+	}
+
 	:global(.integration-sync-button) {
 		display: inline-flex;
 		width: fit-content;
@@ -147,5 +152,59 @@
 			cursor: not-allowed;
 			opacity: 0.45;
 		}
+	}
+
+	:global(.mirror-settings) {
+		display: grid;
+		gap: 0.75rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--color-border);
+	}
+
+	:global(.mirror-row) {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto auto;
+		gap: 0.4rem;
+	}
+
+	:global(.mirror-row input) {
+		min-width: 0;
+		padding: 0.5rem 0.625rem;
+		border: 1px solid var(--color-border);
+		border-radius: 0.5rem;
+		background: var(--color-surface-1);
+		color: var(--color-text-primary);
+		font: inherit;
+
+		&:focus-visible {
+			outline: 2px solid var(--color-primary);
+			outline-offset: 2px;
+		}
+	}
+
+	:global(.mirror-row button),
+	:global(.mirror-actions > button:first-child) {
+		border: 1px solid var(--color-border);
+		border-radius: 0.5rem;
+		background: var(--color-surface-2);
+		color: var(--color-text-primary);
+		font: inherit;
+		cursor: pointer;
+
+		&:focus-visible {
+			outline: 2px solid var(--color-primary);
+			outline-offset: 2px;
+		}
+
+		&:disabled {
+			cursor: not-allowed;
+			opacity: 0.45;
+		}
+	}
+
+	:global(.mirror-actions) {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 }

@@ -16,6 +16,46 @@ describe('ZLibraryClient', () => {
 		assert.equal(result.error.cause.isRetryable, false);
 	});
 
+	test('fails over to the next configured mirror after a retryable failure', async () => {
+		const requestedUrls: string[] = [];
+		const client = new ZLibraryClient(
+			async () => ['https://first.example', 'https://second.example'],
+			async (input) => {
+				const url = String(input);
+				requestedUrls.push(url);
+				if (url.startsWith('https://first.example')) return new Response(null, { status: 503 });
+				return new Response(JSON.stringify({ success: 1, books: [] }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				});
+			}
+		);
+
+		const result = await client.search({ searchText: 'book' });
+
+		assert.equal(result.ok, true);
+		assert.deepEqual(requestedUrls, [
+			'https://first.example/eapi/book/search',
+			'https://second.example/eapi/book/search'
+		]);
+	});
+
+	test('does not try another mirror after an authentication failure', async () => {
+		let calls = 0;
+		const client = new ZLibraryClient(
+			async () => ['https://first.example', 'https://second.example'],
+			async () => {
+				calls += 1;
+				return new Response(null, { status: 401 });
+			}
+		);
+
+		const result = await client.search({ searchText: 'book' });
+
+		assert.equal(result.ok, false);
+		assert.equal(calls, 1);
+	});
+
 	test('rejects malformed JSON as a non-retryable invalid response', async () => {
 		const client = new ZLibraryClient('https://z.example', async () =>
 			new Response('{not-json', { status: 200, headers: { 'Content-Type': 'application/json' } })

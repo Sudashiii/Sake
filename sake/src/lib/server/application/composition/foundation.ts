@@ -19,13 +19,27 @@ import { HardcoverProgressSettingsRepository } from '$lib/server/infrastructure/
 import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
 import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
-import { resolveZLibraryBaseUrl } from '$lib/server/config/zlibrary';
+import { resolveZLibraryBaseUrl, resolveZLibraryMirrorUrls } from '$lib/server/config/zlibrary';
 import { AnnotationRepository } from '$lib/server/infrastructure/repositories/AnnotationRepository';
 import { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
 import { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
+import { ZLibraryMirrorSettingsRepository } from '$lib/server/infrastructure/repositories/ZLibraryMirrorSettingsRepository';
+import {
+	GetZLibraryMirrorSettingsUseCase,
+	UpdateZLibraryMirrorSettingsUseCase
+} from '$lib/server/application/use-cases/ZLibraryMirrorSettingsUseCases';
 
 export const zlibraryBaseUrl = resolveZLibraryBaseUrl(env.ZLIBRARY_BASE_URL);
-export const zlibraryClient = new ZLibraryClient(zlibraryBaseUrl);
+export const zlibraryMirrorSettingsRepository = new ZLibraryMirrorSettingsRepository(
+	resolveZLibraryMirrorUrls(env.ZLIBRARY_BASE_URL)
+);
+export const zlibraryClient = new ZLibraryClient(() => zlibraryMirrorSettingsRepository.get());
+export const getZLibraryMirrorSettingsUseCase = new GetZLibraryMirrorSettingsUseCase(
+	zlibraryMirrorSettingsRepository
+);
+export const updateZLibraryMirrorSettingsUseCase = new UpdateZLibraryMirrorSettingsUseCase(
+	zlibraryMirrorSettingsRepository
+);
 export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
