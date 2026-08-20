@@ -263,11 +263,14 @@
 
 	:global(.mirror-row button),
 	:global(.mirror-actions > button:first-child) {
+		padding: 0.5rem 0.875rem;
 		border: 1px solid var(--color-border);
 		border-radius: 0.5rem;
 		background: var(--color-surface-2);
 		color: var(--color-text-primary);
 		font: inherit;
+		font-size: 0.875rem;
+		line-height: 1.25rem;
 		cursor: pointer;
 
 		&:focus-visible {
