@@ -10,6 +10,7 @@ import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import { createChildLogger } from '$lib/server/infrastructure/logging/logger';
 import type { HardcoverProgressSyncPort } from '$lib/server/application/ports/HardcoverProgressSyncPort';
 import type { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
+import type { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
 
 interface PutProgressInput {
 	fileName: string;
@@ -41,7 +42,8 @@ export class PutProgressUseCase {
 		private readonly storage: StoragePort,
 		private readonly deviceProgressDownloadRepository: DeviceProgressDownloadRepositoryPort,
 		private readonly hardcoverProgressSync?: HardcoverProgressSyncPort,
-		private readonly annotationIndexService?: AnnotationIndexService
+		private readonly annotationIndexService?: AnnotationIndexService,
+		private readonly sidecarWriteCoordinator?: SidecarWriteCoordinator
 	) {}
 
 	async execute(input: PutProgressInput): Promise<ApiResult<PutProgressResult>> {
@@ -94,7 +96,8 @@ export class PutProgressUseCase {
 			return apiError('Invalid title format. Expected filename with extension.', 400, cause);
 		}
 
-		const uploadKey = `library/${progressKey}`;
+		const persist = async (): Promise<ApiResult<PutProgressResult>> => {
+			const uploadKey = `library/${progressKey}`;
 		await this.storage.put(uploadKey, Buffer.from(input.fileData), 'application/x-lua');
 		const normalizedPercent = Math.max(0, Math.min(1, input.percentFinished));
 		const previousPercent = typeof book.progress_percent === 'number' ? book.progress_percent : null;
@@ -196,6 +199,11 @@ export class PutProgressUseCase {
 			);
 		}
 
-		return apiOk({ progressKey });
+			return apiOk({ progressKey });
+		};
+
+		return this.sidecarWriteCoordinator
+			? this.sidecarWriteCoordinator.run(book.id, persist)
+			: persist();
 	}
 }

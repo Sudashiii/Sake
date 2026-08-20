@@ -10,6 +10,7 @@ import {
 	annotationIndexService,
 	annotationRepository,
 	bookRepository,
+	sidecarWriteCoordinator,
 	storage
 } from './foundation';
 
@@ -17,7 +18,8 @@ export const annotationMutationService = new AnnotationMutationService(
 	annotationRepository,
 	bookRepository,
 	storage,
-	annotationIndexService
+	annotationIndexService,
+	sidecarWriteCoordinator
 );
 export const listAnnotationsUseCase = new ListAnnotationsUseCase(
 	annotationRepository,

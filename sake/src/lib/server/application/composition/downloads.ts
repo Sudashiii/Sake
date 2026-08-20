@@ -29,6 +29,7 @@ import {
 	hardcoverProgressSyncJobRepository,
 	hardcoverProgressSyncService,
 	managedBookCoverService,
+	sidecarWriteCoordinator,
 	storage,
 	zlibraryClient
 } from './foundation';
@@ -55,7 +56,8 @@ export const putProgressUseCase = new PutProgressUseCase(
 	storage,
 	deviceProgressDownloadRepository,
 	hardcoverProgressSyncService,
-	annotationIndexService
+	annotationIndexService,
+	sidecarWriteCoordinator
 );
 export const getBookProgressHistoryUseCase = new GetBookProgressHistoryUseCase(
 	bookRepository,
@@ -97,7 +99,8 @@ export const exportDeviceLibraryBookUseCase = new ExportDeviceLibraryBookUseCase
 	storage,
 	putLibraryFileUseCase,
 	hardcoverProgressSyncService,
-	annotationIndexService
+	annotationIndexService,
+	sidecarWriteCoordinator
 );
 export const deleteLibraryFileUseCase = new DeleteLibraryFileUseCase(storage);
 export const listDavDirectoryUseCase = new ListDavDirectoryUseCase(storage);

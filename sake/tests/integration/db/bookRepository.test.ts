@@ -61,9 +61,10 @@ const book: CreateBookInput = {
 describe('BookRepository with a migrated libSQL database', () => {
 	let repository: InstanceType<typeof BookRepository>;
 	let annotationRepository: InstanceType<typeof AnnotationRepository>;
+	let client: ReturnType<typeof createClient>;
 
 	before(async () => {
-		const client = createClient({ url: `file:${databasePath}` });
+		client = createClient({ url: `file:${databasePath}` });
 		await migrate(drizzle(client), { migrationsFolder: new URL('../../../drizzle', import.meta.url).pathname });
 		repository = new BookRepository();
 		annotationRepository = new AnnotationRepository();
@@ -125,5 +126,26 @@ describe('BookRepository with a migrated libSQL database', () => {
 		assert.equal((await annotationRepository.getById(annotationId))?.note, 'Updated');
 		await repository.delete(created.id);
 		assert.equal(await annotationRepository.getById(annotationId), undefined);
+	});
+
+	test('treats matching null progress timestamps as an indexed projection', async () => {
+		const created = await repository.create({ ...book, s3_storage_key: 'null-progress.epub', title: 'Null progress' });
+		await repository.updateProgress(created.id, 'null-progress.sdr/metadata.epub.lua', 0.5);
+		await client.execute({
+			sql: 'UPDATE Books SET progress_updated_at = NULL WHERE id = ?',
+			args: [created.id]
+		});
+		await annotationRepository.replaceForBook({
+			bookId: created.id,
+			annotations: [],
+			sourceProgressUpdatedAt: null,
+			parserVersion: 1
+		});
+
+		const summary = await annotationRepository.getIndexSummary(1);
+		assert.equal(summary.indexedBooks, 1);
+		assert.equal(summary.pendingBooks, 0);
+		assert.deepEqual(await annotationRepository.listIndexCandidates(1, created.id), []);
+		await repository.delete(created.id);
 	});
 });

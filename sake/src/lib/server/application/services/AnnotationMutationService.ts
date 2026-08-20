@@ -2,6 +2,7 @@ import type { AnnotationRepositoryPort } from '$lib/server/application/ports/Ann
 import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepositoryPort';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
+import type { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
 import {
 	createAnnotationVersion,
 	koreaderDateTime,
@@ -13,6 +14,7 @@ import {
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { AnnotationHubItem } from '$lib/types/Annotations/Annotation';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
+import { isDemoMode } from '$lib/server/config/demoMode';
 
 export class AnnotationMutationService {
 	private readonly serviceLogger = createChildLogger({ service: 'AnnotationMutationService' });
@@ -21,7 +23,8 @@ export class AnnotationMutationService {
 		private readonly annotationRepository: AnnotationRepositoryPort,
 		private readonly bookRepository: BookRepositoryPort,
 		private readonly storage: StoragePort,
-		private readonly indexService: AnnotationIndexService
+		private readonly indexService: AnnotationIndexService,
+		private readonly sidecarWriteCoordinator: SidecarWriteCoordinator
 	) {}
 
 	async update(input: {
@@ -30,65 +33,72 @@ export class AnnotationMutationService {
 		color?: ReaderHighlightColor;
 		expectedVersion: string;
 	}): Promise<ApiResult<AnnotationHubItem>> {
+		if (isDemoMode()) return apiError('Annotations cannot be changed in demo mode', 403);
 		const indexed = await this.annotationRepository.getById(input.id);
 		if (!indexed) return apiError('Annotation not found', 404);
 		if (indexed.kind === 'bookmark' && input.color !== undefined) {
 			return apiError('Bookmark colors cannot be changed', 400);
 		}
 
-		const mutation = await this.loadMutationSource(input.id, indexed.book.id, input.expectedVersion);
-		if (!mutation.ok) return mutation;
-		const now = koreaderDateTime();
-		const updated = {
-			...mutation.value.annotation,
-			note: input.note?.trim() || undefined,
-			color: input.color ?? mutation.value.annotation.color,
-			datetimeUpdated: now
-		};
-		const merged = mergeKoreaderSidecar(
-			mutation.value.source,
-			{
-				percentFinished: mutation.value.snapshot.percentFinished,
-				upsertedAnnotations: [updated],
-				deletedAnnotationIds: []
-			},
-			koreaderLocalDate()
-		);
-		const persisted = await this.persistMutation({
-			bookId: indexed.book.id,
-			progressStorageKey: mutation.value.progressStorageKey,
-			previousSource: mutation.value.source,
-			nextSource: merged.source
+
+		return this.sidecarWriteCoordinator.run(indexed.book.id, async () => {
+			const mutation = await this.loadMutationSource(input.id, indexed.book.id, input.expectedVersion);
+			if (!mutation.ok) return mutation;
+			const now = koreaderDateTime();
+			const updated = {
+				...mutation.value.annotation,
+				note: input.note?.trim() || undefined,
+				color: input.color ?? mutation.value.annotation.color,
+				datetimeUpdated: now
+			};
+			const merged = mergeKoreaderSidecar(
+				mutation.value.source,
+				{
+					percentFinished: mutation.value.snapshot.percentFinished,
+					upsertedAnnotations: [updated],
+					deletedAnnotationIds: []
+				},
+				koreaderLocalDate()
+			);
+			const persisted = await this.persistMutation({
+				bookId: indexed.book.id,
+				progressStorageKey: mutation.value.progressStorageKey,
+				previousSource: mutation.value.source,
+				nextSource: merged.source
+			});
+			if (!persisted.ok) return persisted;
+			const refreshed = await this.annotationRepository.getById(input.id);
+			return refreshed ? apiOk(refreshed) : apiError('Annotation changed during update', 409);
 		});
-		if (!persisted.ok) return persisted;
-		const refreshed = await this.annotationRepository.getById(input.id);
-		return refreshed ? apiOk(refreshed) : apiError('Annotation changed during update', 409);
 	}
 
 	async delete(input: {
 		id: number;
 		expectedVersion: string;
 	}): Promise<ApiResult<{ success: true }>> {
+		if (isDemoMode()) return apiError('Annotations cannot be changed in demo mode', 403);
 		const indexed = await this.annotationRepository.getById(input.id);
 		if (!indexed) return apiError('Annotation not found', 404);
-		const mutation = await this.loadMutationSource(input.id, indexed.book.id, input.expectedVersion);
-		if (!mutation.ok) return mutation;
-		const merged = mergeKoreaderSidecar(
-			mutation.value.source,
-			{
-				percentFinished: mutation.value.snapshot.percentFinished,
-				upsertedAnnotations: [],
-				deletedAnnotationIds: [mutation.value.annotation.id]
-			},
-			koreaderLocalDate()
-		);
-		const persisted = await this.persistMutation({
-			bookId: indexed.book.id,
-			progressStorageKey: mutation.value.progressStorageKey,
-			previousSource: mutation.value.source,
-			nextSource: merged.source
+		return this.sidecarWriteCoordinator.run(indexed.book.id, async () => {
+			const mutation = await this.loadMutationSource(input.id, indexed.book.id, input.expectedVersion);
+			if (!mutation.ok) return mutation;
+			const merged = mergeKoreaderSidecar(
+				mutation.value.source,
+				{
+					percentFinished: mutation.value.snapshot.percentFinished,
+					upsertedAnnotations: [],
+					deletedAnnotationIds: [mutation.value.annotation.id]
+				},
+				koreaderLocalDate()
+			);
+			const persisted = await this.persistMutation({
+				bookId: indexed.book.id,
+				progressStorageKey: mutation.value.progressStorageKey,
+				previousSource: mutation.value.source,
+				nextSource: merged.source
+			});
+			return persisted.ok ? apiOk({ success: true }) : persisted;
 		});
-		return persisted.ok ? apiOk({ success: true }) : persisted;
 	}
 
 	private async loadMutationSource(id: number, bookId: number, expectedVersion: string) {

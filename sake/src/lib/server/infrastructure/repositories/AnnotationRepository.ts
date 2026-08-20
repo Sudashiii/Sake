@@ -393,7 +393,7 @@ export class AnnotationRepository implements AnnotationRepositoryPort {
 						base,
 						eq(bookAnnotationIndexes.status, 'indexed'),
 						eq(bookAnnotationIndexes.parserVersion, parserVersion),
-						eq(bookAnnotationIndexes.sourceProgressUpdatedAt, books.progressUpdatedAt)
+							sql`${bookAnnotationIndexes.sourceProgressUpdatedAt} IS ${books.progressUpdatedAt}`
 					)
 				),
 			drizzleDb
@@ -422,7 +422,7 @@ export class AnnotationRepository implements AnnotationRepositoryPort {
 			isNull(bookAnnotationIndexes.bookId),
 			eq(bookAnnotationIndexes.status, 'failed'),
 			ne(bookAnnotationIndexes.parserVersion, parserVersion),
-			ne(bookAnnotationIndexes.sourceProgressUpdatedAt, books.progressUpdatedAt)
+				sql`${bookAnnotationIndexes.sourceProgressUpdatedAt} IS NOT ${books.progressUpdatedAt}`
 		);
 		const conditions = [
 			isNull(books.deletedAt),
