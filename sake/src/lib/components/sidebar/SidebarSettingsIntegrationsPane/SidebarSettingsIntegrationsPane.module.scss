@@ -20,11 +20,35 @@
 		font-weight: 500;
 	}
 
+	:global(.zlibrary-group) {
+		display: grid;
+		gap: 1.25rem;
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	:global(.integration-group-header) {
+		display: grid;
+		gap: 0.125rem;
+
+		h3 {
+			margin: 0;
+			color: var(--color-text-primary);
+			font-size: 1.125rem;
+			font-weight: 600;
+		}
+
+		p {
+			margin: 0;
+			color: var(--color-text-muted);
+			font-size: 0.75rem;
+			line-height: 1.6;
+		}
+	}
+
 	:global(.zlibrary-settings) {
 		display: grid;
 		gap: 0.75rem;
-		padding-bottom: 1.25rem;
-		border-bottom: 1px solid var(--color-border);
 	}
 
 	:global(.zlibrary-account-row) {

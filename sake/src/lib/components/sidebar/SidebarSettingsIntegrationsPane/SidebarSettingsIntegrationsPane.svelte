@@ -116,29 +116,87 @@
 </script>
 
 <section class={styles.root}>
-	{#if showZLibraryLogin}
-		<div class="zlibrary-settings">
-			<div>
-				<h4>Z-Library account</h4>
-				<p class="integration-note">Connect an account or remix credentials for authenticated search and downloads.</p>
-			</div>
-			<div class="zlibrary-account-row">
-				<div>
-					<p class="zlibrary-account-status">{zlibName ? 'Connected' : 'Not connected'}</p>
-					{#if zlibName}<p class="zlibrary-account-identity">{zlibName}</p>{/if}
-				</div>
-				<button
-					type="button"
-					class="zlibrary-account-action"
-					class:disconnect={Boolean(zlibName)}
-					disabled={isLoggingOutZLibrary}
-					onclick={zlibName ? onLogoutZLibrary : onOpenZLibraryLogin}
-				>
-					{zlibName ? (isLoggingOutZLibrary ? 'Logging out...' : 'Log out') : 'Connect'}
-				</button>
-			</div>
+	<div class="zlibrary-group" aria-labelledby="zlibrary-integration-title">
+		<div class="integration-group-header">
+			<h3 id="zlibrary-integration-title">Z-Library</h3>
+			<p>Manage account access and the mirror order used for provider requests.</p>
 		</div>
-	{/if}
+
+		{#if showZLibraryLogin}
+			<div class="zlibrary-settings">
+				<div>
+					<h4>Account</h4>
+					<p class="integration-note">Connect an account or remix credentials for authenticated search and downloads.</p>
+				</div>
+				<div class="zlibrary-account-row">
+					<div>
+						<p class="zlibrary-account-status">{zlibName ? 'Connected' : 'Not connected'}</p>
+						{#if zlibName}<p class="zlibrary-account-identity">{zlibName}</p>{/if}
+					</div>
+					<button
+						type="button"
+						class="zlibrary-account-action"
+						class:disconnect={Boolean(zlibName)}
+						disabled={isLoggingOutZLibrary}
+						onclick={zlibName ? onLogoutZLibrary : onOpenZLibraryLogin}
+					>
+						{zlibName ? (isLoggingOutZLibrary ? 'Logging out...' : 'Log out') : 'Connect'}
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		<div class="mirror-settings">
+			<div>
+				<h4>Mirrors</h4>
+				<p class="integration-note">Mirrors are tried in order. The first is primary.</p>
+			</div>
+			{#if loadingMirrors}
+				<p class="integration-note">Loading mirror configuration...</p>
+			{:else}
+				{#each urls as url, index}
+					<div class="mirror-row">
+						<label class="sr-only" for={`mirror-${index}`}>Mirror {index + 1}</label>
+						<input
+							id={`mirror-${index}`}
+							type="url"
+							value={url}
+							placeholder="https://mirror.example"
+							disabled={savingMirrors}
+							oninput={(event) => updateUrl(index, event.currentTarget.value)}
+						/>
+						<button
+							type="button"
+							disabled={index === 0 || savingMirrors}
+							aria-label={`Move mirror ${index + 1} up`}
+							onclick={() => moveUrl(index, -1)}>↑</button
+						>
+						<button
+							type="button"
+							disabled={index === urls.length - 1 || savingMirrors}
+							aria-label={`Move mirror ${index + 1} down`}
+							onclick={() => moveUrl(index, 1)}>↓</button
+						>
+						<button
+							type="button"
+							disabled={urls.length === 1 || savingMirrors}
+							onclick={() => (urls = urls.filter((_, currentIndex) => currentIndex !== index))}
+						>
+							Remove
+						</button>
+					</div>
+				{/each}
+				{#if mirrorError}<p class="integration-error" role="alert">{mirrorError}</p>{/if}
+				{#if mirrorNotice}<p class="integration-success" role="status">{mirrorNotice}</p>{/if}
+				<div class="mirror-actions">
+					<button type="button" disabled={savingMirrors} onclick={() => (urls = [...urls, ''])}>Add mirror</button>
+					<button type="button" class="integration-sync-button" disabled={!changed || savingMirrors} onclick={saveMirrors}>
+						{savingMirrors ? 'Saving...' : 'Save mirrors'}
+					</button>
+				</div>
+			{/if}
+		</div>
+	</div>
 
 	<div class="integration-heading">
 		<div>
@@ -180,55 +238,4 @@
 			</button>
 		{/if}
 	{/if}
-
-	<div class="mirror-settings">
-		<div>
-			<h4>Z-Library mirrors</h4>
-			<p class="integration-note">Mirrors are tried in order. The first is primary.</p>
-		</div>
-		{#if loadingMirrors}
-			<p class="integration-note">Loading mirror configuration...</p>
-		{:else}
-			{#each urls as url, index}
-				<div class="mirror-row">
-					<label class="sr-only" for={`mirror-${index}`}>Mirror {index + 1}</label>
-					<input
-						id={`mirror-${index}`}
-						type="url"
-						value={url}
-						placeholder="https://mirror.example"
-						disabled={savingMirrors}
-						oninput={(event) => updateUrl(index, event.currentTarget.value)}
-					/>
-					<button
-						type="button"
-						disabled={index === 0 || savingMirrors}
-						aria-label={`Move mirror ${index + 1} up`}
-						onclick={() => moveUrl(index, -1)}>↑</button
-					>
-					<button
-						type="button"
-						disabled={index === urls.length - 1 || savingMirrors}
-						aria-label={`Move mirror ${index + 1} down`}
-						onclick={() => moveUrl(index, 1)}>↓</button
-					>
-					<button
-						type="button"
-						disabled={urls.length === 1 || savingMirrors}
-						onclick={() => (urls = urls.filter((_, currentIndex) => currentIndex !== index))}
-					>
-						Remove
-					</button>
-				</div>
-			{/each}
-			{#if mirrorError}<p class="integration-error" role="alert">{mirrorError}</p>{/if}
-			{#if mirrorNotice}<p class="integration-success" role="status">{mirrorNotice}</p>{/if}
-			<div class="mirror-actions">
-				<button type="button" disabled={savingMirrors} onclick={() => (urls = [...urls, ''])}>Add mirror</button>
-				<button type="button" class="integration-sync-button" disabled={!changed || savingMirrors} onclick={saveMirrors}>
-					{savingMirrors ? 'Saving...' : 'Save mirrors'}
-				</button>
-			</div>
-		{/if}
-	</div>
 </section>
