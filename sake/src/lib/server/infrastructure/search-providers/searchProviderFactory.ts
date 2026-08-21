@@ -8,7 +8,6 @@ import type { SearchProviderId } from '$lib/types/Search/Provider';
 
 interface SearchProviderFactoryDependencies {
 	zlibrary: ZLibraryPort;
-	zlibraryBaseUrl?: string;
 }
 
 export function createSearchProvider(
@@ -17,7 +16,7 @@ export function createSearchProvider(
 ): SearchProviderPort {
 	switch (providerId) {
 		case 'zlibrary':
-			return new ZLibrarySearchProvider(dependencies.zlibrary, dependencies.zlibraryBaseUrl);
+			return new ZLibrarySearchProvider(dependencies.zlibrary);
 		case 'anna':
 			return new AnnaArchiveSearchProvider();
 		case 'openlibrary':

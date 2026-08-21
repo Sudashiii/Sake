@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import type { ZLibraryCredentials } from '$lib/server/application/ports/ZLibraryPort';
-import { DEFAULT_ZLIBRARY_BASE_URL } from '$lib/server/config/zlibrary';
+import {
+	buildZLibraryUrl,
+	DEFAULT_ZLIBRARY_BASE_URL,
+	normalizeZLibraryMirrorUrls
+} from '$lib/server/config/zlibrary';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 
@@ -48,6 +52,7 @@ export interface StoreManagedBookCoverBufferInput {
 }
 
 type FetchLike = typeof fetch;
+type ZLibraryMirrorResolver = () => Promise<readonly string[]>;
 
 function parseUrl(value: string): URL | null {
 	try {
@@ -282,17 +287,23 @@ export function isValidManagedBookCoverFileName(fileName: string): boolean {
 
 export class ManagedBookCoverService {
 	private readonly serviceLogger = createChildLogger({ service: 'ManagedBookCoverService' });
+	private readonly getZLibraryMirrorUrls: ZLibraryMirrorResolver;
 
 	constructor(
 		private readonly storage: StoragePort,
 		private readonly fetchImpl: FetchLike = fetch,
-		private readonly zlibraryBaseUrl = DEFAULT_ZLIBRARY_BASE_URL
-	) {}
+		mirrorSource: string | ZLibraryMirrorResolver = DEFAULT_ZLIBRARY_BASE_URL
+	) {
+		this.getZLibraryMirrorUrls =
+			typeof mirrorSource === 'string' ? async () => [mirrorSource] : mirrorSource;
+	}
 
 	async storeFromSearchImport(
 		input: StoreManagedBookCoverInput
 	): Promise<ManagedBookCoverResult> {
-		const sourceUrl = this.normalizeSourceUrl(input.provider, input.coverUrl);
+		const mirrorUrls =
+			input.provider === 'zlibrary' ? await this.resolveZLibraryMirrorUrls() : [DEFAULT_ZLIBRARY_BASE_URL];
+		const sourceUrl = this.normalizeSourceUrl(input.provider, input.coverUrl, mirrorUrls);
 		if (sourceUrl === null) {
 			return { managedUrl: null, sourceUrl: null };
 		}
@@ -301,8 +312,8 @@ export class ManagedBookCoverService {
 			bookStorageKey: input.bookStorageKey,
 			provider: input.provider,
 			sourceUrl,
-			fetchHeaders: this.buildFetchHeaders(input.provider, input.zlibraryCredentials, sourceUrl),
-			responseUrlNormalizer: (url) => this.normalizeSourceUrl(input.provider, url)
+			fetchHeaders: this.buildFetchHeaders(input.provider, input.zlibraryCredentials, sourceUrl, mirrorUrls),
+			responseUrlNormalizer: (url) => this.normalizeSourceUrl(input.provider, url, mirrorUrls)
 		});
 	}
 
@@ -664,7 +675,8 @@ export class ManagedBookCoverService {
 
 	private normalizeSourceUrl(
 		provider: SearchProviderId,
-		coverUrl: string | null | undefined
+		coverUrl: string | null | undefined,
+		zlibraryMirrorUrls: readonly string[]
 	): string | null {
 		const normalized = typeof coverUrl === 'string' ? coverUrl.trim() : '';
 		if (!normalized) {
@@ -698,7 +710,7 @@ export class ManagedBookCoverService {
 		}
 
 		if (provider === 'zlibrary') {
-			const baseUrl = parseUrl(this.zlibraryBaseUrl);
+			const baseUrl = parseUrl(zlibraryMirrorUrls[0] ?? DEFAULT_ZLIBRARY_BASE_URL);
 			if (baseUrl === null) {
 				return null;
 			}
@@ -706,7 +718,9 @@ export class ManagedBookCoverService {
 			let url = parseUrl(normalized);
 			if (url === null) {
 				try {
-					url = new URL(normalized, baseUrl);
+					url = normalized.startsWith('//')
+						? new URL(`https:${normalized}`)
+						: new URL(buildZLibraryUrl(baseUrl.toString(), normalized));
 				} catch {
 					return null;
 				}
@@ -749,22 +763,39 @@ export class ManagedBookCoverService {
 	private buildFetchHeaders(
 		provider: SearchProviderId,
 		zlibraryCredentials: ZLibraryCredentials | undefined,
-		targetUrl: string
+		targetUrl: string,
+		zlibraryMirrorUrls: readonly string[]
 	): Headers {
 		const headers = this.buildDefaultFetchHeaders();
 
-		const baseUrl = parseUrl(this.zlibraryBaseUrl);
 		const requestUrl = parseUrl(targetUrl);
+		const mirrorOrigins = new Set(
+			zlibraryMirrorUrls
+				.map(parseUrl)
+				.filter((url): url is URL => url !== null)
+				.map((url) => url.origin)
+		);
 		if (
 			provider === 'zlibrary' &&
 			zlibraryCredentials &&
-			baseUrl !== null &&
 			requestUrl !== null &&
-			requestUrl.hostname === baseUrl.hostname
+			mirrorOrigins.has(requestUrl.origin)
 		) {
 			headers.set('Cookie', buildZLibraryCookie(zlibraryCredentials));
 		}
 
 		return headers;
+	}
+
+	private async resolveZLibraryMirrorUrls(): Promise<readonly string[]> {
+		try {
+			return normalizeZLibraryMirrorUrls(await this.getZLibraryMirrorUrls());
+		} catch (error: unknown) {
+			this.serviceLogger.warn(
+				{ event: 'library.cover.zlibrary_mirror_resolution_failed', error: toLogError(error) },
+				'Z-Library mirror resolution failed for cover import; using the verified default'
+			);
+			return [DEFAULT_ZLIBRARY_BASE_URL];
+		}
 	}
 }

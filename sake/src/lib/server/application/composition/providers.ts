@@ -9,8 +9,7 @@ import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import {
 	hardcoverApiToken,
 	hardcoverClient,
-	zlibraryClient,
-	zlibraryBaseUrl
+	zlibraryClient
 } from './foundation';
 
 export const activatedMetadataProviders = createMetadataProviders(getActivatedMetadataProviders(), {
@@ -25,7 +24,7 @@ export const externalBookMetadataService = new ExternalBookMetadataService(
 );
 
 export const activeSearchProviders = getActivatedSearchProviders();
-const searchProviderDependencies = { zlibrary: zlibraryClient, zlibraryBaseUrl };
+const searchProviderDependencies = { zlibrary: zlibraryClient };
 
 export const activeSearchProviderInstances = createSearchProviders(
 	activeSearchProviders,

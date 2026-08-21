@@ -6,7 +6,7 @@ import type {
 	ZLibraryPort,
 	ZLibrarySearchRequest
 } from '$lib/server/application/ports/ZLibraryPort';
-import { DEFAULT_ZLIBRARY_BASE_URL } from '$lib/server/config/zlibrary';
+import { buildZLibraryUrl } from '$lib/server/config/zlibrary';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
@@ -25,10 +25,17 @@ function normalizeBookUrl(href: string, baseUrl: string): string | null {
 	if (!normalized) {
 		return null;
 	}
-	if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-		return normalized;
+
+	try {
+		const url = normalized.startsWith('http://') || normalized.startsWith('https://')
+			? new URL(normalized)
+			: normalized.startsWith('//')
+				? new URL(`https:${normalized}`)
+				: new URL(buildZLibraryUrl(baseUrl, normalized));
+		return url.protocol === 'https:' ? url.toString() : null;
+	} catch {
+		return null;
 	}
-	return `${baseUrl}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
 function mapSort(sort: SearchBooksRequest['sort']): ZLibrarySearchRequest['order'] {
@@ -63,7 +70,7 @@ function mapBook(book: ZBook, zlibraryBaseUrl: string): SearchResultBook {
 		year: typeof book.year === 'number' ? book.year : null,
 		extension: book.extension?.trim() ? book.extension : null,
 		filesize: typeof book.filesize === 'number' ? book.filesize : null,
-		cover: book.cover?.trim() ? book.cover : null,
+		cover: book.cover?.trim() ? normalizeBookUrl(book.cover, zlibraryBaseUrl) : null,
 		description: book.description?.trim() ? book.description : null,
 		series: book.series?.trim() ? book.series : null,
 		volume: book.volume?.trim() ? book.volume : null,
@@ -82,8 +89,7 @@ export class ZLibrarySearchProvider implements SearchProviderPort {
 	readonly id = 'zlibrary' as const;
 
 	constructor(
-		private readonly zlibrary: ZLibraryPort,
-		private readonly zlibraryBaseUrl = DEFAULT_ZLIBRARY_BASE_URL
+		private readonly zlibrary: ZLibraryPort
 	) {}
 
 	async search(
@@ -105,6 +111,6 @@ export class ZLibrarySearchProvider implements SearchProviderPort {
 			return searchResult;
 		}
 
-		return apiOk(searchResult.value.books.map((book) => mapBook(book, this.zlibraryBaseUrl)));
+		return apiOk(searchResult.value.response.books.map((book) => mapBook(book, searchResult.value.mirrorUrl)));
 	}
 }

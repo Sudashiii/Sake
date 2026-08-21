@@ -307,7 +307,7 @@ KOReader plugin releases are tracked in the database and the artifacts are serve
 Search is provider-based and routed through `POST /api/search`.
 
 - `anna`, `openlibrary`, and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
-- `zlibrary` also requires you to connect your Z-Library session in `Settings -> Logins`
+- `zlibrary` also requires you to connect your Z-Library session in `Settings -> Integrations`
 
 To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
 
@@ -316,7 +316,9 @@ ACTIVATED_PROVIDERS=zlib,anna,openlib,gutenberg
 ZLIBRARY_BASE_URL=
 ```
 
-In the app UI, open `Settings -> Logins`, then use `Connect Z-Library` and either:
+Z-Library mirror URLs must use HTTPS. Sake accepts up to five mirrors, with a maximum of 2,048 characters per URL.
+
+In the app UI, open `Settings -> Integrations`, then use `Connect Z-Library` and either:
 
 - log in with your email and password, or
 - copy `remix_userid` and `remix_userkey` from your Z-Library cookies

@@ -124,4 +124,116 @@ describe('ZLibraryClient', () => {
 		if (result.ok) return;
 		assert.equal(result.error.status, 502);
 	});
+
+	for (const redirectStatus of [302, 307, 308]) {
+		test(`follows normal ${redirectStatus} download redirects`, async () => {
+			const requests: Array<{ url: string; headers: Headers }> = [];
+			const client = new ZLibraryClient('https://z.example', async (input, init) => {
+				const url = String(input);
+				requests.push({ url, headers: new Headers(init?.headers) });
+				if (url.includes('/eapi/book/') && url.endsWith('/file')) {
+					return new Response(
+						JSON.stringify({ success: 1, file: { downloadLink: 'https://cdn.example/file' } }),
+						{ status: 200, headers: { 'Content-Type': 'application/json' } }
+					);
+				}
+				if (url === 'https://cdn.example/file') {
+					return new Response(null, {
+						status: redirectStatus,
+						headers: { location: 'https://cdn.example/final-file' }
+					});
+				}
+				return new Response('book bytes', { status: 200 });
+			}, undefined);
+
+			const result = await client.download('book-1', 'hash-1', {
+				userId: 'user-1',
+				userKey: 'key-1'
+			});
+
+			assert.equal(result.ok, true);
+			if (!result.ok) return;
+			assert.equal(await result.value.text(), 'book bytes');
+			assert.equal(requests[1]?.headers.get('Cookie'), null);
+			assert.equal(requests[2]?.headers.get('Cookie'), null);
+		});
+	}
+
+	test('rejects HTTP download redirects without making the insecure request', async () => {
+		const requestedUrls: string[] = [];
+		const client = new ZLibraryClient('https://z.example', async (input) => {
+			const url = String(input);
+			requestedUrls.push(url);
+			if (url.includes('/eapi/book/') && url.endsWith('/file')) {
+				return new Response(
+					JSON.stringify({ success: 1, file: { downloadLink: 'https://z.example/file' } }),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			}
+			return new Response(null, { status: 302, headers: { location: 'http://cdn.example/file' } });
+		});
+
+		const result = await client.download('book-1', 'hash-1', { userId: 'user-1', userKey: 'key-1' });
+
+		assert.equal(result.ok, false);
+		if (result.ok) return;
+		assert.equal(result.error.status, 502);
+		assert.deepEqual(requestedUrls, [
+			'https://z.example/eapi/book/book-1/hash-1/file',
+			'https://z.example/file'
+		]);
+	});
+
+	test('returns the mirror that successfully handled a search after failover', async () => {
+		const client = new ZLibraryClient(
+			async () => ['https://first.example', 'https://second.example'],
+			async (input) => {
+				if (String(input).startsWith('https://first.example')) return new Response(null, { status: 503 });
+				return new Response(JSON.stringify({ success: 1, books: [] }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				});
+			}
+		);
+
+		const result = await client.search({ searchText: 'book' });
+
+		assert.equal(result.ok, true);
+		if (result.ok) assert.equal(result.value.mirrorUrl, 'https://second.example');
+	});
+
+	test('rejects more than five mirrors before making an upstream request', async () => {
+		let calls = 0;
+		const client = new ZLibraryClient(
+			async () => Array.from({ length: 6 }, (_, index) => `https://mirror-${index}.example`),
+			async () => {
+				calls += 1;
+				return new Response(null, { status: 503 });
+			}
+		);
+
+		const result = await client.search({ searchText: 'book' });
+
+		assert.equal(result.ok, false);
+		assert.equal(calls, 0);
+	});
+
+	test('stops failover when the shared deadline is exhausted', async () => {
+		let now = 0;
+		let calls = 0;
+		const client = new ZLibraryClient(
+			async () => ['https://first.example', 'https://second.example'],
+			async () => {
+				calls += 1;
+				now = 90_001;
+				return new Response(null, { status: 503 });
+			},
+			() => now
+		);
+
+		const result = await client.search({ searchText: 'book' });
+
+		assert.equal(result.ok, false);
+		assert.equal(calls, 1);
+	});
 });

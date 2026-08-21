@@ -48,6 +48,8 @@
 	let mirrorNotice = $state<string | null>(null);
 	let loadingMirrors = $state(true);
 	let savingMirrors = $state(false);
+	const maxMirrors = 5;
+	const maxMirrorUrlLength = 2048;
 	const changed = $derived(JSON.stringify(urls) !== JSON.stringify(saved));
 	const mirrorSettingsUrl = `/api${ZUIRoutes.zlibraryMirrors}`;
 
@@ -90,6 +92,14 @@
 		const next = urls.map((url) => url.trim()).filter(Boolean);
 		if (!next.length) {
 			mirrorError = 'Add at least one mirror URL.';
+			return;
+		}
+		if (next.length > maxMirrors) {
+			mirrorError = `You can configure at most ${maxMirrors} mirrors.`;
+			return;
+		}
+		if (next.some((url) => url.length > maxMirrorUrlLength)) {
+			mirrorError = `Mirror URLs must be at most ${maxMirrorUrlLength} characters.`;
 			return;
 		}
 
@@ -149,7 +159,7 @@
 		<div class="mirror-settings">
 			<div>
 				<h4>Mirrors</h4>
-				<p class="integration-note">Mirrors are tried in order. The first is primary.</p>
+			<p class="integration-note">Mirrors are tried in order. The first is primary. Use HTTPS URLs; up to 5 mirrors are supported.</p>
 			</div>
 			{#if loadingMirrors}
 				<p class="integration-note">Loading mirror configuration...</p>
@@ -160,9 +170,10 @@
 						<input
 							id={`mirror-${index}`}
 							type="url"
-							value={url}
-							placeholder="https://mirror.example"
-							disabled={savingMirrors}
+								value={url}
+								placeholder="https://mirror.example"
+								maxlength={maxMirrorUrlLength}
+								disabled={savingMirrors}
 							oninput={(event) => updateUrl(index, event.currentTarget.value)}
 						/>
 						<button
@@ -189,7 +200,11 @@
 				{#if mirrorError}<p class="integration-error" role="alert">{mirrorError}</p>{/if}
 				{#if mirrorNotice}<p class="integration-success" role="status">{mirrorNotice}</p>{/if}
 				<div class="mirror-actions">
-					<button type="button" disabled={savingMirrors} onclick={() => (urls = [...urls, ''])}>Add mirror</button>
+					<button
+						type="button"
+						disabled={savingMirrors || urls.length >= maxMirrors}
+						onclick={() => (urls = [...urls, ''])}>Add mirror</button
+					>
 					<button type="button" class="integration-sync-button" disabled={!changed || savingMirrors} onclick={saveMirrors}>
 						{savingMirrors ? 'Saving...' : 'Save mirrors'}
 					</button>

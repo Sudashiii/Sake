@@ -1,11 +1,17 @@
 import { eq } from 'drizzle-orm';
+import type { ZLibraryMirrorSettingsPort } from '$lib/server/application/ports/ZLibraryMirrorSettingsPort';
+import { normalizeZLibraryMirrorUrls } from '$lib/server/config/zlibrary';
 import { drizzleDb } from '$lib/server/infrastructure/db/client';
 import { zlibraryMirrorSettings } from '$lib/server/infrastructure/db/schema';
 
 const SETTINGS_ID = 1;
 
-export class ZLibraryMirrorSettingsRepository {
-	constructor(private readonly fallbackUrls: readonly string[]) {}
+export class ZLibraryMirrorSettingsRepository implements ZLibraryMirrorSettingsPort {
+	private readonly fallbackUrls: readonly string[];
+
+	constructor(fallbackUrls: readonly string[]) {
+		this.fallbackUrls = normalizeZLibraryMirrorUrls(fallbackUrls);
+	}
 
 	async get(): Promise<string[]> {
 		const [row] = await drizzleDb
@@ -16,20 +22,25 @@ export class ZLibraryMirrorSettingsRepository {
 		if (!row) return [...this.fallbackUrls];
 		try {
 			const value: unknown = JSON.parse(row.urlsJson);
-			return Array.isArray(value) && value.every((url) => typeof url === 'string') && value.length > 0
-				? value
-				: [...this.fallbackUrls];
+			if (!Array.isArray(value) || !value.every((url) => typeof url === 'string')) {
+				return [...this.fallbackUrls];
+			}
+			return normalizeZLibraryMirrorUrls(value);
 		} catch {
 			return [...this.fallbackUrls];
 		}
 	}
 
 	async replace(urls: readonly string[]): Promise<string[]> {
+		const normalizedUrls = normalizeZLibraryMirrorUrls(urls);
 		const now = new Date().toISOString();
 		await drizzleDb
 			.insert(zlibraryMirrorSettings)
-			.values({ id: SETTINGS_ID, urlsJson: JSON.stringify(urls), createdAt: now, updatedAt: now })
-			.onConflictDoUpdate({ target: zlibraryMirrorSettings.id, set: { urlsJson: JSON.stringify(urls), updatedAt: now } });
-		return [...urls];
+			.values({ id: SETTINGS_ID, urlsJson: JSON.stringify(normalizedUrls), createdAt: now, updatedAt: now })
+			.onConflictDoUpdate({
+				target: zlibraryMirrorSettings.id,
+				set: { urlsJson: JSON.stringify(normalizedUrls), updatedAt: now }
+			});
+		return [...normalizedUrls];
 	}
 }
