@@ -26,6 +26,8 @@ Main groups:
 
 When the Z-Library provider is enabled, configure its ordered mirror list in **Settings → Integrations**. Sake tries each mirror in order when an upstream request fails transiently. `ZLIBRARY_BASE_URL` remains the comma-separated fallback used until a mirror list is saved.
 
+When Anna's Archive is enabled, configure an ordered list of Anna-compatible mirror or proxy URLs in **Settings → Integrations**. Sake fails over when a mirror is unavailable or browser verification blocks the server-side request. `ANNA_ARCHIVE_BASE_URL` remains the comma-separated fallback used until an Anna mirror list is saved. Configured endpoints must preserve Anna's legacy `/search` HTML and `/md5/<hash>` links for downloads to remain available.
+
 `LIBSQL_AUTH_TOKEN` is optional. For local self-hosting, `LIBSQL_URL=file:/data/sake.db` is supported.
 For Cloudflare R2, use `S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`, `S3_REGION=auto`, and `S3_FORCE_PATH_STYLE=false`.
 

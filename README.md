@@ -187,6 +187,7 @@ Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
 - `VITE_ALLOWED_HOSTS` - comma-separated host overrides for Vite/dev setups
 - `ACTIVATED_PROVIDERS` - comma-separated search providers
 - `ZLIBRARY_BASE_URL` - optional Z-Library upstream URL; use this when the default upstream is unavailable
+- `ANNA_ARCHIVE_BASE_URL` - optional comma-separated HTTPS Anna-compatible mirror or proxy URLs; Settings -> Integrations overrides this after the first save
 - `ACTIVATED_METADATA_PROVIDERS` - comma-separated metadata providers, for example `googlebooks,openlibrary,hardcover`
 - `GOOGLE_BOOKS_API_KEY` - optional Google Books key for higher rate limits
 - `HARDCOVER_API_TOKEN` - optional server-wide token required for the Hardcover metadata provider
@@ -317,6 +318,8 @@ ZLIBRARY_BASE_URL=
 ```
 
 Z-Library mirror URLs must use HTTPS. Sake accepts up to five mirrors, with a maximum of 2,048 characters per URL.
+
+Anna's Archive requests can be browser-challenge protected. Configure up to five ordered HTTPS Anna-compatible mirrors or proxies in `Settings -> Integrations`; Sake fails over on challenges, timeouts, rate limits, upstream errors, and incompatible HTML. Endpoints must preserve the legacy `/search` HTML and `/md5/<hash>` links used by the existing download flow. Sake does not silently select an unverified `.is` endpoint or bundle browser automation.
 
 In the app UI, open `Settings -> Integrations`, then use `Connect Z-Library` and either:
 

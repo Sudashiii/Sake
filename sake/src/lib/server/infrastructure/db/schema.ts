@@ -240,6 +240,13 @@ export const zlibraryMirrorSettings = sqliteTable('ZLibraryMirrorSettings', {
 	updatedAt: text('updated_at').notNull()
 });
 
+export const annaArchiveMirrorSettings = sqliteTable('AnnaArchiveMirrorSettings', {
+	id: integer('id').primaryKey(),
+	urlsJson: text('urls_json').notNull(),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
 export const hardcoverProgressSyncJobs = sqliteTable(
 	'HardcoverProgressSyncJobs',
 	{

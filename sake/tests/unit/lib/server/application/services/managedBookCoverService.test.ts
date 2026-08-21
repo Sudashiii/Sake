@@ -399,6 +399,43 @@ describe('ManagedBookCoverService', () => {
 
 	});
 
+	test('uses the runtime Anna mirror resolver for relative covers', async () => {
+		const coverBuffer = createImageBuffer('image/jpeg', 11);
+		const storage = {
+			async put(): Promise<void> {},
+			async get(): Promise<Buffer> {
+				throw new Error('not implemented');
+			},
+			async delete(): Promise<void> {},
+			async list(): Promise<[]> {
+				return [];
+			}
+		} as StoragePort;
+
+		const service = new ManagedBookCoverService(
+			storage,
+			async (input) => {
+				assert.equal(input, 'https://mirror.example/anna/covers/books/123.jpg');
+				return createResponse({
+					url: 'https://mirror.example/anna/covers/books/123.jpg',
+					headers: { 'content-type': 'image/jpeg' },
+					body: coverBuffer
+				});
+			},
+			undefined,
+			async () => ['https://mirror.example/anna']
+		);
+
+		const result = await service.storeFromSearchImport({
+			bookStorageKey: 'example.epub',
+			provider: 'anna',
+			coverUrl: '/covers/books/123.jpg'
+		});
+
+		assert.equal(result.sourceUrl, 'https://mirror.example/anna/covers/books/123.jpg');
+		assert.ok(result.managedUrl);
+	});
+
 	test('accepts protocol-relative Z-Library CDN cover URLs without leaking auth cookies', async () => {
 		let requestHeaders: Headers | null = null;
 		const coverBuffer = createImageBuffer('image/jpeg', 7);

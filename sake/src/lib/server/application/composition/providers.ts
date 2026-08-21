@@ -9,6 +9,7 @@ import { SEARCH_PROVIDER_IDS } from '$lib/types/Search/Provider';
 import {
 	hardcoverApiToken,
 	hardcoverClient,
+	annaArchiveMirrorSettingsRepository,
 	zlibraryClient
 } from './foundation';
 
@@ -24,7 +25,10 @@ export const externalBookMetadataService = new ExternalBookMetadataService(
 );
 
 export const activeSearchProviders = getActivatedSearchProviders();
-const searchProviderDependencies = { zlibrary: zlibraryClient };
+const searchProviderDependencies = {
+	anna: { getMirrorUrls: () => annaArchiveMirrorSettingsRepository.get() },
+	zlibrary: zlibraryClient
+};
 
 export const activeSearchProviderInstances = createSearchProviders(
 	activeSearchProviders,

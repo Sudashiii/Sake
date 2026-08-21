@@ -27,6 +27,18 @@
 		border-bottom: 1px solid var(--color-border);
 	}
 
+	:global(.anna-group) {
+		display: grid;
+		gap: 1.25rem;
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--color-border);
+
+		:global(.mirror-settings) {
+			padding-top: 0;
+			border-top: 0;
+		}
+	}
+
 	:global(.integration-group-header) {
 		display: grid;
 		gap: 0.125rem;

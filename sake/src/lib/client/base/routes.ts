@@ -15,6 +15,7 @@ export const ZUIRoutes = {
 	hardcoverProgress: '/integrations/hardcover/progress',
 	hardcoverProgressSync: '/integrations/hardcover/progress/sync',
 	zlibraryMirrors: '/integrations/zlibrary/mirrors',
+	annaArchiveMirrors: '/integrations/anna/mirrors',
 	queue: '/queue',
 	searchBooks: '/search',
 	searchQueue: '/search/queue',

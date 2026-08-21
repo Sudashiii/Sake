@@ -1,5 +1,6 @@
 import type { SearchProviderPort } from '$lib/server/application/ports/SearchProviderPort';
 import type { ZLibraryPort } from '$lib/server/application/ports/ZLibraryPort';
+import type { AnnaArchiveSearchProviderDependencies } from '$lib/server/infrastructure/search-providers/AnnaArchiveSearchProvider';
 import { AnnaArchiveSearchProvider } from '$lib/server/infrastructure/search-providers/AnnaArchiveSearchProvider';
 import { GutenbergSearchProvider } from '$lib/server/infrastructure/search-providers/GutenbergSearchProvider';
 import { OpenLibrarySearchProvider } from '$lib/server/infrastructure/search-providers/OpenLibrarySearchProvider';
@@ -7,6 +8,7 @@ import { ZLibrarySearchProvider } from '$lib/server/infrastructure/search-provid
 import type { SearchProviderId } from '$lib/types/Search/Provider';
 
 interface SearchProviderFactoryDependencies {
+	anna: AnnaArchiveSearchProviderDependencies;
 	zlibrary: ZLibraryPort;
 }
 
@@ -18,7 +20,7 @@ export function createSearchProvider(
 		case 'zlibrary':
 			return new ZLibrarySearchProvider(dependencies.zlibrary);
 		case 'anna':
-			return new AnnaArchiveSearchProvider();
+			return new AnnaArchiveSearchProvider(dependencies.anna);
 		case 'openlibrary':
 			return new OpenLibrarySearchProvider();
 		case 'gutenberg':

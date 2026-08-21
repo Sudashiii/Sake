@@ -20,6 +20,7 @@ import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/r
 import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
 import { resolveZLibraryMirrorUrls } from '$lib/server/config/zlibrary';
+import { resolveAnnaArchiveMirrorUrls } from '$lib/server/config/annaArchive';
 import { AnnotationRepository } from '$lib/server/infrastructure/repositories/AnnotationRepository';
 import { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
 import { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
@@ -28,6 +29,11 @@ import {
 	GetZLibraryMirrorSettingsUseCase,
 	UpdateZLibraryMirrorSettingsUseCase
 } from '$lib/server/application/use-cases/ZLibraryMirrorSettingsUseCases';
+import { AnnaArchiveMirrorSettingsRepository } from '$lib/server/infrastructure/repositories/AnnaArchiveMirrorSettingsRepository';
+import {
+	GetAnnaArchiveMirrorSettingsUseCase,
+	UpdateAnnaArchiveMirrorSettingsUseCase
+} from '$lib/server/application/use-cases/AnnaArchiveMirrorSettingsUseCases';
 
 export const zlibraryMirrorSettingsRepository = new ZLibraryMirrorSettingsRepository(
 	resolveZLibraryMirrorUrls(env.ZLIBRARY_BASE_URL)
@@ -39,6 +45,16 @@ export const getZLibraryMirrorSettingsUseCase = new GetZLibraryMirrorSettingsUse
 );
 export const updateZLibraryMirrorSettingsUseCase = new UpdateZLibraryMirrorSettingsUseCase(
 	zlibraryMirrorSettingsRepository
+);
+export const annaArchiveMirrorSettingsRepository = new AnnaArchiveMirrorSettingsRepository(
+	resolveAnnaArchiveMirrorUrls(env.ANNA_ARCHIVE_BASE_URL)
+);
+export const getAnnaArchiveMirrorUrls = () => annaArchiveMirrorSettingsRepository.get();
+export const getAnnaArchiveMirrorSettingsUseCase = new GetAnnaArchiveMirrorSettingsUseCase(
+	annaArchiveMirrorSettingsRepository
+);
+export const updateAnnaArchiveMirrorSettingsUseCase = new UpdateAnnaArchiveMirrorSettingsUseCase(
+	annaArchiveMirrorSettingsRepository
 );
 export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
@@ -56,7 +72,12 @@ export const bookProgressHistoryRepository = new BookProgressHistoryRepository()
 export const annotationRepository = new AnnotationRepository();
 export const annotationIndexService = new AnnotationIndexService(annotationRepository, storage);
 export const sidecarWriteCoordinator = new SidecarWriteCoordinator();
-export const managedBookCoverService = new ManagedBookCoverService(storage, fetch, getZLibraryMirrorUrls);
+export const managedBookCoverService = new ManagedBookCoverService(
+	storage,
+	fetch,
+	getZLibraryMirrorUrls,
+	getAnnaArchiveMirrorUrls
+);
 
 export const hardcoverApiToken = env.HARDCOVER_API_TOKEN?.trim() || null;
 export const hardcoverClient = hardcoverApiToken ? new HardcoverClient(hardcoverApiToken) : null;

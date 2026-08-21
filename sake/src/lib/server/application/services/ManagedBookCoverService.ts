@@ -6,6 +6,11 @@ import {
 	DEFAULT_ZLIBRARY_BASE_URL,
 	normalizeZLibraryMirrorUrls
 } from '$lib/server/config/zlibrary';
+import {
+	buildAnnaArchiveUrl,
+	DEFAULT_ANNA_ARCHIVE_BASE_URL,
+	normalizeAnnaArchiveMirrorUrls
+} from '$lib/server/config/annaArchive';
 import type { SearchProviderId } from '$lib/types/Search/Provider';
 import { createChildLogger, toLogError } from '$lib/server/infrastructure/logging/logger';
 
@@ -53,6 +58,7 @@ export interface StoreManagedBookCoverBufferInput {
 
 type FetchLike = typeof fetch;
 type ZLibraryMirrorResolver = () => Promise<readonly string[]>;
+type AnnaArchiveMirrorResolver = () => Promise<readonly string[]>;
 
 function parseUrl(value: string): URL | null {
 	try {
@@ -288,14 +294,18 @@ export function isValidManagedBookCoverFileName(fileName: string): boolean {
 export class ManagedBookCoverService {
 	private readonly serviceLogger = createChildLogger({ service: 'ManagedBookCoverService' });
 	private readonly getZLibraryMirrorUrls: ZLibraryMirrorResolver;
+	private readonly getAnnaArchiveMirrorUrls: AnnaArchiveMirrorResolver;
 
 	constructor(
 		private readonly storage: StoragePort,
 		private readonly fetchImpl: FetchLike = fetch,
-		mirrorSource: string | ZLibraryMirrorResolver = DEFAULT_ZLIBRARY_BASE_URL
+		mirrorSource: string | ZLibraryMirrorResolver = DEFAULT_ZLIBRARY_BASE_URL,
+		annaMirrorSource: string | AnnaArchiveMirrorResolver = DEFAULT_ANNA_ARCHIVE_BASE_URL
 	) {
 		this.getZLibraryMirrorUrls =
 			typeof mirrorSource === 'string' ? async () => [mirrorSource] : mirrorSource;
+		this.getAnnaArchiveMirrorUrls =
+			typeof annaMirrorSource === 'string' ? async () => [annaMirrorSource] : annaMirrorSource;
 	}
 
 	async storeFromSearchImport(
@@ -303,7 +313,14 @@ export class ManagedBookCoverService {
 	): Promise<ManagedBookCoverResult> {
 		const mirrorUrls =
 			input.provider === 'zlibrary' ? await this.resolveZLibraryMirrorUrls() : [DEFAULT_ZLIBRARY_BASE_URL];
-		const sourceUrl = this.normalizeSourceUrl(input.provider, input.coverUrl, mirrorUrls);
+		const annaMirrorUrls =
+			input.provider === 'anna' ? await this.resolveAnnaArchiveMirrorUrls() : [];
+		const sourceUrl = this.normalizeSourceUrl(
+			input.provider,
+			input.coverUrl,
+			mirrorUrls,
+			annaMirrorUrls
+		);
 		if (sourceUrl === null) {
 			return { managedUrl: null, sourceUrl: null };
 		}
@@ -313,7 +330,8 @@ export class ManagedBookCoverService {
 			provider: input.provider,
 			sourceUrl,
 			fetchHeaders: this.buildFetchHeaders(input.provider, input.zlibraryCredentials, sourceUrl, mirrorUrls),
-			responseUrlNormalizer: (url) => this.normalizeSourceUrl(input.provider, url, mirrorUrls)
+			responseUrlNormalizer: (url) =>
+				this.normalizeSourceUrl(input.provider, url, mirrorUrls, annaMirrorUrls)
 		});
 	}
 
@@ -676,7 +694,8 @@ export class ManagedBookCoverService {
 	private normalizeSourceUrl(
 		provider: SearchProviderId,
 		coverUrl: string | null | undefined,
-		zlibraryMirrorUrls: readonly string[]
+		zlibraryMirrorUrls: readonly string[],
+		annaArchiveMirrorUrls: readonly string[]
 	): string | null {
 		const normalized = typeof coverUrl === 'string' ? coverUrl.trim() : '';
 		if (!normalized) {
@@ -696,13 +715,33 @@ export class ManagedBookCoverService {
 		}
 
 		if (provider === 'anna') {
-			const url = parseUrl(normalized);
-			if (url === null || url.protocol !== 'https:') {
+			const configuredMirrors = this.normalizeConfiguredAnnaArchiveMirrorUrls(annaArchiveMirrorUrls);
+			const primaryMirror = configuredMirrors[0] ?? DEFAULT_ANNA_ARCHIVE_BASE_URL;
+			let url = parseUrl(normalized);
+			if (url === null) {
+				try {
+					url = normalized.startsWith('//')
+						? new URL(`https:${normalized}`)
+						: new URL(buildAnnaArchiveUrl(primaryMirror, normalized));
+				} catch {
+					return null;
+				}
+			}
+
+			if (url.protocol !== 'https:') {
 				return null;
 			}
+
+			const mirrorOrigins = new Set(
+				configuredMirrors
+					.map(parseUrl)
+					.filter((mirror): mirror is URL => mirror !== null)
+					.map((mirror) => mirror.origin)
+			);
 			if (
 				url.hostname !== ANNA_ARCHIVE_COVER_HOST &&
-				url.hostname !== OPEN_LIBRARY_COVER_HOST
+				url.hostname !== OPEN_LIBRARY_COVER_HOST &&
+				!mirrorOrigins.has(url.origin)
 			) {
 				return null;
 			}
@@ -796,6 +835,30 @@ export class ManagedBookCoverService {
 				'Z-Library mirror resolution failed for cover import; using the verified default'
 			);
 			return [DEFAULT_ZLIBRARY_BASE_URL];
+		}
+	}
+
+	private normalizeConfiguredAnnaArchiveMirrorUrls(urls: readonly string[]): string[] {
+		try {
+			return normalizeAnnaArchiveMirrorUrls(urls);
+		} catch (error: unknown) {
+			this.serviceLogger.warn(
+				{ event: 'library.cover.anna_mirror_configuration_invalid', error: toLogError(error) },
+				'Anna Archive mirror configuration is invalid for cover import; using the verified default'
+			);
+			return [DEFAULT_ANNA_ARCHIVE_BASE_URL];
+		}
+	}
+
+	private async resolveAnnaArchiveMirrorUrls(): Promise<readonly string[]> {
+		try {
+			return this.normalizeConfiguredAnnaArchiveMirrorUrls(await this.getAnnaArchiveMirrorUrls());
+		} catch (error: unknown) {
+			this.serviceLogger.warn(
+				{ event: 'library.cover.anna_mirror_resolution_failed', error: toLogError(error) },
+				'Anna Archive mirror resolution failed for cover import; using the verified default'
+			);
+			return [DEFAULT_ANNA_ARCHIVE_BASE_URL];
 		}
 	}
 }

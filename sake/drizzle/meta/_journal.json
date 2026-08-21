@@ -183,6 +183,13 @@
       "when": 1787249844275,
       "tag": "0025_zlibrary_mirror_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1787293508321,
+      "tag": "0026_anna_archive_mirror_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -179,4 +179,142 @@ describe('AnnaArchiveSearchProvider', () => {
 		assert.equal(result.value[0]?.title, 'Harry Potter und der Feuerkelch');
 		assert.deepEqual([...new Set(requestedQueries)], ['Harry Potter', 'Harry Potter deutsch']);
 	});
+
+	test('fails over from a browser challenge to the next configured mirror', async () => {
+		const requestedOrigins: string[] = [];
+		const provider = new AnnaArchiveSearchProvider({
+			getMirrorUrls: async () => ['https://blocked.example', 'https://healthy.example'],
+			fetchFn: async (input: RequestInfo | URL): Promise<Response> => {
+				const requestUrl = new URL(String(input));
+				requestedOrigins.push(requestUrl.origin);
+				if (requestUrl.origin === 'https://blocked.example') {
+					return new Response(
+						'<!doctype html><title>DDoS-Guard</title>Checking your browser before accessing',
+						{ status: 403, headers: { server: 'ddos-guard' } }
+					);
+				}
+				return new Response(
+					buildSearchHtml(
+						'ffffffffffffffffffffffffffffffff',
+						'Healthy mirror result',
+						'Author',
+						'English [en] · EPUB · 1 MB · 2024 · zlib'
+					),
+					{ status: 200, headers: { 'content-type': 'text/html' } }
+				);
+			}
+		});
+
+		const result = await provider.search({ query: 'Healthy mirror' }, {});
+
+		assert.equal(result.ok, true);
+		if (!result.ok) return;
+		assert.deepEqual(requestedOrigins, ['https://blocked.example', 'https://healthy.example']);
+		assert.equal(result.value[0]?.title, 'Healthy mirror result');
+		assert.equal(result.value[0]?.sourceUrl, 'https://healthy.example/md5/ffffffffffffffffffffffffffffffff');
+	});
+
+	test('returns an actionable error when every mirror is browser challenged', async () => {
+		const provider = new AnnaArchiveSearchProvider({
+			getMirrorUrls: async () => ['https://blocked-one.example', 'https://blocked-two.example'],
+			fetchFn: async (): Promise<Response> =>
+				new Response('<title>DDoS-Guard</title>Checking your browser', {
+					status: 403,
+					headers: { server: 'ddos-guard' }
+				})
+		});
+
+		const result = await provider.search({ query: 'Blocked book' }, {});
+
+		assert.equal(result.ok, false);
+		if (result.ok) return;
+		assert.equal(result.error.status, 502);
+		assert.match(result.error.message, /browser verification/);
+		assert.match(result.error.message, /Settings → Integrations/);
+	});
+
+	test('fails over after a rate limit and rejects incompatible HTML', async () => {
+		let calls = 0;
+		const provider = new AnnaArchiveSearchProvider({
+			getMirrorUrls: async () => ['https://rate-limited.example', 'https://incompatible.example', 'https://healthy.example'],
+			fetchFn: async (): Promise<Response> => {
+				calls += 1;
+				if (calls === 1) return new Response('', { status: 429 });
+				if (calls === 2) return new Response('<html><body>unrelated page</body></html>', { status: 200 });
+				return new Response(
+					buildSearchHtml(
+						'11111111111111111111111111111111',
+						'Fallback result',
+						'Author',
+						'English [en] · EPUB · 1 MB · 2024 · zlib'
+					),
+					{ status: 200 }
+				);
+			}
+		});
+
+		const result = await provider.search({ query: 'Fallback' }, {});
+
+		assert.equal(result.ok, true);
+		if (!result.ok) return;
+		assert.equal(calls, 3);
+		assert.equal(result.value[0]?.title, 'Fallback result');
+	});
+
+	test('fails over after a timed-out mirror', async () => {
+		let calls = 0;
+		const provider = new AnnaArchiveSearchProvider({
+			getMirrorUrls: async () => ['https://slow.example', 'https://healthy.example'],
+			fetchFn: async (): Promise<Response> => {
+				calls += 1;
+				if (calls === 1) {
+					const error = new Error('request aborted');
+					error.name = 'AbortError';
+					throw error;
+				}
+				return new Response(
+					buildSearchHtml(
+						'33333333333333333333333333333333',
+						'Timed out mirror fallback',
+						'Author',
+						'English [en] · EPUB · 1 MB · 2024 · zlib'
+					),
+					{ status: 200 }
+				);
+			}
+		});
+
+		const result = await provider.search({ query: 'Timeout' }, {});
+
+		assert.equal(result.ok, true);
+		if (!result.ok) return;
+		assert.equal(calls, 2);
+		assert.equal(result.value[0]?.title, 'Timed out mirror fallback');
+	});
+
+	test('preserves a configured mirror path when resolving search and cover URLs', async () => {
+		const provider = new AnnaArchiveSearchProvider({
+			getMirrorUrls: async () => ['https://mirror.example/anna'],
+			fetchFn: async (input: RequestInfo | URL): Promise<Response> => {
+				const requestUrl = new URL(String(input));
+				assert.equal(requestUrl.pathname, '/anna/search');
+				return new Response(
+					buildSearchHtml(
+						'22222222222222222222222222222222',
+						'Path result',
+						'Author',
+						'English [en] · EPUB · 1 MB · 2024 · zlib'
+					),
+					{ status: 200 }
+				);
+			}
+		});
+
+		const result = await provider.search({ query: 'Path' }, {});
+
+		assert.equal(result.ok, true);
+		if (!result.ok) return;
+		assert.equal(result.value[0]?.sourceUrl, 'https://mirror.example/anna/md5/22222222222222222222222222222222');
+		assert.equal(result.value[0]?.cover, 'https://mirror.example/anna/covers/22222222222222222222222222222222.jpg');
+	});
 });
