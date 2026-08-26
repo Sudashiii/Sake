@@ -62,11 +62,7 @@
 	let isLibraryActive = $derived($page.url.pathname === '/library');
 	let visibleMenuItems = $derived(getMenuItems($page.data.searchEnabled));
 	let showZLibraryLogin = $derived($page.data.activeSearchProviders.includes('zlibrary'));
-	let settingsSections = $derived(getSidebarSettingsSections(showZLibraryLogin));
-
-	$effect(() => {
-		settingsController.syncActiveSection(showZLibraryLogin);
-	});
+	let settingsSections = $derived(getSidebarSettingsSections());
 
 	function isActive(item: MenuItem): boolean {
 		return $page.url.pathname === item.href || $page.url.pathname.startsWith(item.href + '/');

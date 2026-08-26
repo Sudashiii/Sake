@@ -320,10 +320,10 @@ describe('ManagedBookCoverService', () => {
 		} as StoragePort;
 
 		const service = new ManagedBookCoverService(storage, async (input, init) => {
-			assert.equal(input, 'https://1lib.sk/covers/books/123.webp');
+			assert.equal(input, 'https://z-lib.gl/covers/books/123.webp');
 			requestHeaders = init?.headers as Headers;
 			return createResponse({
-				url: 'https://1lib.sk/covers/books/123.webp',
+				url: 'https://z-lib.gl/covers/books/123.webp',
 				headers: {
 					'content-type': 'image/webp'
 				},
@@ -346,7 +346,7 @@ describe('ManagedBookCoverService', () => {
 				'example.epub.webp',
 				buildManagedBookCoverVersionToken(coverBuffer)
 			),
-			sourceUrl: 'https://1lib.sk/covers/books/123.webp'
+			sourceUrl: 'https://z-lib.gl/covers/books/123.webp'
 		});
 		if (requestHeaders === null) {
 			throw new Error('Expected Z-Library cover request headers');
@@ -354,6 +354,49 @@ describe('ManagedBookCoverService', () => {
 		const headers = requestHeaders as Headers;
 		assert.match(headers.get('Cookie') ?? '', /remix_userid=user-1/);
 		assert.match(headers.get('Cookie') ?? '', /remix_userkey=key-1/);
+	});
+
+	test('uses the runtime mirror resolver for relative Z-Library covers', async () => {
+		let requestHeaders: Headers | null = null;
+		const coverBuffer = createImageBuffer('image/webp', 8);
+
+		const storage = {
+			async put(): Promise<void> {},
+			async get(): Promise<Buffer> {
+				throw new Error('not implemented');
+			},
+			async delete(): Promise<void> {},
+			async list(): Promise<[]> {
+				return [];
+			}
+		} as StoragePort;
+
+		const service = new ManagedBookCoverService(
+			storage,
+			async (input, init) => {
+				assert.equal(input, 'https://mirror.example/zlib/covers/books/123.webp');
+				requestHeaders = init?.headers as Headers;
+				return createResponse({
+					url: 'https://mirror.example/zlib/covers/books/123.webp',
+					headers: { 'content-type': 'image/webp' },
+					body: coverBuffer
+				});
+			},
+			async () => ['https://mirror.example/zlib']
+		);
+
+		const result = await service.storeFromSearchImport({
+			bookStorageKey: 'example.epub',
+			provider: 'zlibrary',
+			coverUrl: '/covers/books/123.webp',
+			zlibraryCredentials: { userId: 'user-1', userKey: 'key-1' }
+		});
+
+		assert.equal(result.sourceUrl, 'https://mirror.example/zlib/covers/books/123.webp');
+		if (requestHeaders === null) throw new Error('Expected Z-Library cover request headers');
+		const headers = requestHeaders as Headers;
+		assert.match(headers.get('Cookie') ?? '', /remix_userid=user-1/);
+
 	});
 
 	test('accepts protocol-relative Z-Library CDN cover URLs without leaking auth cookies', async () => {

@@ -19,11 +19,27 @@ import { HardcoverProgressSettingsRepository } from '$lib/server/infrastructure/
 import { HardcoverProgressSyncJobRepository } from '$lib/server/infrastructure/repositories/HardcoverProgressSyncJobRepository';
 import { HardcoverProgressSyncService } from '$lib/server/application/services/HardcoverProgressSyncService';
 import { createLazySingleton } from '$lib/server/utils/createLazySingleton';
+import { resolveZLibraryMirrorUrls } from '$lib/server/config/zlibrary';
 import { AnnotationRepository } from '$lib/server/infrastructure/repositories/AnnotationRepository';
 import { AnnotationIndexService } from '$lib/server/application/services/AnnotationIndexService';
 import { SidecarWriteCoordinator } from '$lib/server/application/services/SidecarWriteCoordinator';
+import { ZLibraryMirrorSettingsRepository } from '$lib/server/infrastructure/repositories/ZLibraryMirrorSettingsRepository';
+import {
+	GetZLibraryMirrorSettingsUseCase,
+	UpdateZLibraryMirrorSettingsUseCase
+} from '$lib/server/application/use-cases/ZLibraryMirrorSettingsUseCases';
 
-export const zlibraryClient = new ZLibraryClient('https://1lib.sk');
+export const zlibraryMirrorSettingsRepository = new ZLibraryMirrorSettingsRepository(
+	resolveZLibraryMirrorUrls(env.ZLIBRARY_BASE_URL)
+);
+export const getZLibraryMirrorUrls = () => zlibraryMirrorSettingsRepository.get();
+export const zlibraryClient = new ZLibraryClient(getZLibraryMirrorUrls);
+export const getZLibraryMirrorSettingsUseCase = new GetZLibraryMirrorSettingsUseCase(
+	zlibraryMirrorSettingsRepository
+);
+export const updateZLibraryMirrorSettingsUseCase = new UpdateZLibraryMirrorSettingsUseCase(
+	zlibraryMirrorSettingsRepository
+);
 export const storage = createLazySingleton(() => new S3Storage());
 export const koreaderPluginArtifactService = new KoreaderPluginArtifactService();
 export const pluginReleaseRepository = new PluginReleaseRepository();
@@ -40,7 +56,7 @@ export const bookProgressHistoryRepository = new BookProgressHistoryRepository()
 export const annotationRepository = new AnnotationRepository();
 export const annotationIndexService = new AnnotationIndexService(annotationRepository, storage);
 export const sidecarWriteCoordinator = new SidecarWriteCoordinator();
-export const managedBookCoverService = new ManagedBookCoverService(storage);
+export const managedBookCoverService = new ManagedBookCoverService(storage, fetch, getZLibraryMirrorUrls);
 
 export const hardcoverApiToken = env.HARDCOVER_API_TOKEN?.trim() || null;
 export const hardcoverClient = hardcoverApiToken ? new HardcoverClient(hardcoverApiToken) : null;

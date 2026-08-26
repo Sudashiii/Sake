@@ -23,18 +23,15 @@ const SETTINGS_BASE_SECTIONS = [
 	{ id: 'account', label: 'Account' },
 	{ id: 'devices', label: 'Devices' }
 ] as const;
-const LOGINS_SETTINGS_SECTION = { id: 'logins', label: 'Logins' } as const;
 const APP_SOURCE_URL = 'https://github.com/Sudashiii/Sake';
 const APP_SOURCE_LABEL = 'https://github.com/Sudashiii/Sake';
 const appEnvironment = dev ? 'Development' : 'Production';
 
 export type SettingsSectionId =
-	(typeof SETTINGS_BASE_SECTIONS)[number]['id'] | typeof LOGINS_SETTINGS_SECTION.id;
+	(typeof SETTINGS_BASE_SECTIONS)[number]['id'];
 
-export function getSidebarSettingsSections(showZLibraryLogin: boolean) {
-	return showZLibraryLogin
-		? [...SETTINGS_BASE_SECTIONS, LOGINS_SETTINGS_SECTION]
-		: SETTINGS_BASE_SECTIONS;
+export function getSidebarSettingsSections() {
+	return SETTINGS_BASE_SECTIONS;
 }
 
 export class SidebarSettingsController {
@@ -92,12 +89,6 @@ export class SidebarSettingsController {
 
 	get appSourceLabel(): string {
 		return APP_SOURCE_LABEL;
-	}
-
-	syncActiveSection(showZLibraryLogin: boolean): void {
-		if (!showZLibraryLogin && this.activeSection === 'logins') {
-			this.activeSection = 'app';
-		}
 	}
 
 	openModal = (): void => {

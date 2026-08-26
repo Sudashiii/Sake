@@ -77,7 +77,7 @@ export const ApiErrors = {
 		applyAuthResponseSignals(response);
 
 		const text = await response.text().catch(() => 'Unknown error');
-		let message = text || 'Unknown error';
+		let message = getFallbackMessage(response.status);
 
 		if (text) {
 			try {
@@ -88,7 +88,7 @@ export const ApiErrors = {
 					message = parsed.message;
 				}
 			} catch {
-				message = text;
+				// Gateway and proxy error pages are intentionally not shown to users.
 			}
 		}
 
@@ -107,3 +107,11 @@ export const ApiErrors = {
 		return ApiErrors.server(message || `Request failed with status ${response.status}`, response.status);
 	}
 } as const;
+
+function getFallbackMessage(status: number): string {
+	if (status >= 500) {
+		return 'The service is temporarily unavailable. Please try again shortly.';
+	}
+
+	return `Request failed with status ${status}`;
+}

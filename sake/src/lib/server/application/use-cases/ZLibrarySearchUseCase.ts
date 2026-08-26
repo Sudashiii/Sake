@@ -1,5 +1,5 @@
 import type { ZLibraryCredentials, ZLibraryPort, ZLibrarySearchRequest } from '$lib/server/application/ports/ZLibraryPort';
-import type { ApiResult } from '$lib/server/http/api';
+import { apiOk, type ApiResult } from '$lib/server/http/api';
 import type { ZSearchBookResponse } from '$lib/types/ZLibrary/Responses/ZSearchBookResponse';
 
 interface ZLibrarySearchInput {
@@ -19,6 +19,7 @@ export class ZLibrarySearchUseCase {
 			return loginResult;
 		}
 
-		return this.zlibrary.search(input.request);
+		const searchResult = await this.zlibrary.search(input.request);
+		return searchResult.ok ? apiOk(searchResult.value.response) : searchResult;
 	}
 }

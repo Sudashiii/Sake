@@ -17,10 +17,15 @@ export interface ZLibrarySearchRequest {
 	limit?: number;
 }
 
+export interface ZLibrarySearchResult {
+	response: ZSearchBookResponse;
+	mirrorUrl: string;
+}
+
 export interface ZLibraryPort {
 	signup(email: string, name: string, password: string): Promise<ApiResult<boolean>>;
 	passwordLogin(name: string, password: string): Promise<ApiResult<ZLoginResponse>>;
 	tokenLogin(id: string, token: string): Promise<ApiResult<void>>;
-	search(searchBookRequest: ZLibrarySearchRequest): Promise<ApiResult<ZSearchBookResponse>>;
+	search(searchBookRequest: ZLibrarySearchRequest): Promise<ApiResult<ZLibrarySearchResult>>;
 	download(bookId: string, hash: string, credentials: ZLibraryCredentials): Promise<ApiResult<Response>>;
 }

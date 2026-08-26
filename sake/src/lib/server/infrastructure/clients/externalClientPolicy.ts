@@ -23,6 +23,7 @@ export class ExternalClientError extends Error {
 
 export interface ExternalRequestOptions extends RequestInit {
 	timeoutMs: number;
+	allowManualRedirect?: boolean;
 }
 
 export async function requestExternal(
@@ -31,11 +32,13 @@ export async function requestExternal(
 	options: ExternalRequestOptions
 ): Promise<Response> {
 	const controller = new AbortController();
-	const { timeoutMs, ...requestInit } = options;
+	const { timeoutMs, allowManualRedirect = false, ...requestInit } = options;
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const response = await fetchFn(input, { ...requestInit, signal: controller.signal });
-		if (!response.ok) {
+		const isAllowedManualRedirect =
+			allowManualRedirect && requestInit.redirect === 'manual' && response.status >= 300 && response.status < 400;
+		if (!response.ok && !isAllowedManualRedirect) {
 			throw new ExternalClientError(
 				`External API returned HTTP ${response.status}`,
 				response.status,

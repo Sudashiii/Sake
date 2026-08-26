@@ -6,6 +6,7 @@ import type {
 	ZLibraryPort,
 	ZLibrarySearchRequest
 } from '$lib/server/application/ports/ZLibraryPort';
+import { buildZLibraryUrl } from '$lib/server/config/zlibrary';
 import { apiError, apiOk, type ApiResult } from '$lib/server/http/api';
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
@@ -19,15 +20,22 @@ const ZLIBRARY_BOOK_CAPABILITIES = {
 	metadataCompleteness: 'high'
 } as const;
 
-function normalizeBookUrl(href: string): string | null {
+function normalizeBookUrl(href: string, baseUrl: string): string | null {
 	const normalized = href.trim();
 	if (!normalized) {
 		return null;
 	}
-	if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-		return normalized;
+
+	try {
+		const url = normalized.startsWith('http://') || normalized.startsWith('https://')
+			? new URL(normalized)
+			: normalized.startsWith('//')
+				? new URL(`https:${normalized}`)
+				: new URL(buildZLibraryUrl(baseUrl, normalized));
+		return url.protocol === 'https:' ? url.toString() : null;
+	} catch {
+		return null;
 	}
-	return `https://1lib.sk${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 }
 
 function mapSort(sort: SearchBooksRequest['sort']): ZLibrarySearchRequest['order'] {
@@ -52,7 +60,7 @@ function toZLibraryRequest(input: SearchBooksRequest): ZSearchBookRequest {
 	};
 }
 
-function mapBook(book: ZBook): SearchResultBook {
+function mapBook(book: ZBook, zlibraryBaseUrl: string): SearchResultBook {
 	return {
 		provider: 'zlibrary',
 		providerBookId: String(book.id),
@@ -62,7 +70,7 @@ function mapBook(book: ZBook): SearchResultBook {
 		year: typeof book.year === 'number' ? book.year : null,
 		extension: book.extension?.trim() ? book.extension : null,
 		filesize: typeof book.filesize === 'number' ? book.filesize : null,
-		cover: book.cover?.trim() ? book.cover : null,
+		cover: book.cover?.trim() ? normalizeBookUrl(book.cover, zlibraryBaseUrl) : null,
 		description: book.description?.trim() ? book.description : null,
 		series: book.series?.trim() ? book.series : null,
 		volume: book.volume?.trim() ? book.volume : null,
@@ -73,14 +81,16 @@ function mapBook(book: ZBook): SearchResultBook {
 		capabilities: ZLIBRARY_BOOK_CAPABILITIES,
 		downloadRef: book.hash?.trim() ? book.hash : null,
 		queueRef: book.hash?.trim() ? book.hash : null,
-		sourceUrl: normalizeBookUrl(book.href)
+		sourceUrl: normalizeBookUrl(book.href, zlibraryBaseUrl)
 	};
 }
 
 export class ZLibrarySearchProvider implements SearchProviderPort {
 	readonly id = 'zlibrary' as const;
 
-	constructor(private readonly zlibrary: ZLibraryPort) {}
+	constructor(
+		private readonly zlibrary: ZLibraryPort
+	) {}
 
 	async search(
 		input: SearchBooksRequest,
@@ -101,6 +111,6 @@ export class ZLibrarySearchProvider implements SearchProviderPort {
 			return searchResult;
 		}
 
-		return apiOk(searchResult.value.books.map(mapBook));
+		return apiOk(searchResult.value.response.books.map((book) => mapBook(book, searchResult.value.mirrorUrl)));
 	}
 }

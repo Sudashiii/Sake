@@ -186,6 +186,7 @@ Copy `sake/.env.example` to `sake/.env` and fill in the values you need.
 
 - `VITE_ALLOWED_HOSTS` - comma-separated host overrides for Vite/dev setups
 - `ACTIVATED_PROVIDERS` - comma-separated search providers
+- `ZLIBRARY_BASE_URL` - optional Z-Library upstream URL; use this when the default upstream is unavailable
 - `ACTIVATED_METADATA_PROVIDERS` - comma-separated metadata providers, for example `googlebooks,openlibrary,hardcover`
 - `GOOGLE_BOOKS_API_KEY` - optional Google Books key for higher rate limits
 - `HARDCOVER_API_TOKEN` - optional server-wide token required for the Hardcover metadata provider
@@ -306,15 +307,18 @@ KOReader plugin releases are tracked in the database and the artifacts are serve
 Search is provider-based and routed through `POST /api/search`.
 
 - `anna`, `openlibrary`, and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
-- `zlibrary` also requires you to connect your Z-Library session in `Settings -> Logins`
+- `zlibrary` also requires you to connect your Z-Library session in `Settings -> Integrations`
 
 To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
 
 ```env
 ACTIVATED_PROVIDERS=zlib,anna,openlib,gutenberg
+ZLIBRARY_BASE_URL=
 ```
 
-In the app UI, open `Settings -> Logins`, then use `Connect Z-Library` and either:
+Z-Library mirror URLs must use HTTPS. Sake accepts up to five mirrors, with a maximum of 2,048 characters per URL.
+
+In the app UI, open `Settings -> Integrations`, then use `Connect Z-Library` and either:
 
 - log in with your email and password, or
 - copy `remix_userid` and `remix_userkey` from your Z-Library cookies

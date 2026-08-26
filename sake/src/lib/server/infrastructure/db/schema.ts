@@ -233,6 +233,13 @@ export const hardcoverProgressSettings = sqliteTable('HardcoverProgressSettings'
 	updatedAt: text('updated_at').notNull()
 });
 
+export const zlibraryMirrorSettings = sqliteTable('ZLibraryMirrorSettings', {
+	id: integer('id').primaryKey(),
+	urlsJson: text('urls_json').notNull(),
+	createdAt: text('created_at').notNull(),
+	updatedAt: text('updated_at').notNull()
+});
+
 export const hardcoverProgressSyncJobs = sqliteTable(
 	'HardcoverProgressSyncJobs',
 	{

@@ -24,6 +24,8 @@ Main groups:
 - Optional Vite dev host overrides (`VITE_ALLOWED_HOSTS`, comma-separated)
 - Optional search-provider activation (`ACTIVATED_PROVIDERS`, comma-separated; providers are opt-in, so leave unset/empty to disable search entirely)
 
+When the Z-Library provider is enabled, configure its ordered mirror list in **Settings → Integrations**. Sake tries each mirror in order when an upstream request fails transiently. `ZLIBRARY_BASE_URL` remains the comma-separated fallback used until a mirror list is saved.
+
 `LIBSQL_AUTH_TOKEN` is optional. For local self-hosting, `LIBSQL_URL=file:/data/sake.db` is supported.
 For Cloudflare R2, use `S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`, `S3_REGION=auto`, and `S3_FORCE_PATH_STYLE=false`.
 
