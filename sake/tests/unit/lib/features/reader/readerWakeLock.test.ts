@@ -10,10 +10,30 @@ import {
 class FakeSentinel implements ReaderWakeLockSentinel {
 	released = false;
 	releaseCalls = 0;
+	private readonly releaseListeners = new Set<EventListener>();
+
+	addEventListener(_type: 'release', listener: EventListener): void {
+		this.releaseListeners.add(listener);
+	}
+
+	removeEventListener(_type: 'release', listener: EventListener): void {
+		this.releaseListeners.delete(listener);
+	}
 
 	async release(): Promise<void> {
 		this.releaseCalls += 1;
 		this.released = true;
+	}
+
+	dispatchRelease(): void {
+		this.released = true;
+		for (const listener of this.releaseListeners) {
+			listener({ type: 'release' } as Event);
+		}
+	}
+
+	get releaseListenerCount(): number {
+		return this.releaseListeners.size;
 	}
 }
 
@@ -84,6 +104,7 @@ describe('reader wake lock', () => {
 		stop();
 		await settle();
 		assert.equal(sentinel.releaseCalls, 1);
+		assert.equal(sentinel.releaseListenerCount, 0);
 		assert.equal(visibility.listenerCount, 0);
 	});
 
@@ -108,7 +129,55 @@ describe('reader wake lock', () => {
 		stop();
 	});
 
-	test('reacquires a browser-released lock after returning to the reader', async () => {
+	test('reacquires when the release event follows the visible transition', async () => {
+		const visibility = new FakeVisibility('visible');
+		const sentinels = [new FakeSentinel(), new FakeSentinel()];
+		let requestCalls = 0;
+		const wakeLock: ReaderWakeLockSource = {
+			async request() {
+				return sentinels[requestCalls++];
+			}
+		};
+
+		const stop = startReaderWakeLock(wakeLock, visibility);
+		await settle();
+		visibility.setVisibility('hidden');
+		visibility.setVisibility('visible');
+		await settle();
+		assert.equal(requestCalls, 1);
+		sentinels[0].dispatchRelease();
+		await settle();
+
+		assert.equal(requestCalls, 2);
+		stop();
+		await settle();
+		assert.equal(sentinels[1].releaseCalls, 1);
+	});
+
+	test('waits for visibility when a lock is released while hidden', async () => {
+		const visibility = new FakeVisibility('visible');
+		const sentinels = [new FakeSentinel(), new FakeSentinel()];
+		let requestCalls = 0;
+		const wakeLock: ReaderWakeLockSource = {
+			async request() {
+				return sentinels[requestCalls++];
+			}
+		};
+
+		const stop = startReaderWakeLock(wakeLock, visibility);
+		await settle();
+		visibility.setVisibility('hidden');
+		sentinels[0].dispatchRelease();
+		await settle();
+		assert.equal(requestCalls, 1);
+
+		visibility.setVisibility('visible');
+		await settle();
+		assert.equal(requestCalls, 2);
+		stop();
+	});
+
+	test('ignores release events from a replaced sentinel', async () => {
 		const visibility = new FakeVisibility('visible');
 		const sentinels = [new FakeSentinel(), new FakeSentinel()];
 		let requestCalls = 0;
@@ -126,9 +195,11 @@ describe('reader wake lock', () => {
 		await settle();
 
 		assert.equal(requestCalls, 2);
-		stop();
+		assert.equal(sentinels[0].releaseListenerCount, 0);
+		sentinels[0].dispatchRelease();
 		await settle();
-		assert.equal(sentinels[1].releaseCalls, 1);
+		assert.equal(requestCalls, 2);
+		stop();
 	});
 
 	test('does not duplicate an in-flight request', async () => {
