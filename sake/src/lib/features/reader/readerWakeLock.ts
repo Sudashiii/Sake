@@ -1,6 +1,8 @@
 export interface ReaderWakeLockSentinel {
 	readonly released: boolean;
 	release(): Promise<void>;
+	addEventListener(type: 'release', listener: EventListener): void;
+	removeEventListener(type: 'release', listener: EventListener): void;
 }
 
 export interface ReaderWakeLockSource {
@@ -46,28 +48,60 @@ export function startReaderWakeLock(
 	}
 
 	let sentinel: ReaderWakeLockSentinel | null = null;
+	let sentinelReleaseListener: EventListener | null = null;
 	let requestInFlight: Promise<void> | null = null;
 	let isStopped = false;
 
+	const detachSentinel = (candidate: ReaderWakeLockSentinel): void => {
+		if (sentinel !== candidate) {
+			return;
+		}
+
+		const releaseListener = sentinelReleaseListener;
+		sentinel = null;
+		sentinelReleaseListener = null;
+		if (releaseListener) {
+			candidate.removeEventListener('release', releaseListener);
+		}
+	};
+
 	const acquire = async (): Promise<void> => {
-		if (
-			isStopped ||
-			visibility.visibilityState !== 'visible' ||
-			(sentinel !== null && !sentinel.released) ||
-			requestInFlight !== null
-		) {
+		if (isStopped || visibility.visibilityState !== 'visible') {
+			return;
+		}
+
+		if (sentinel !== null && sentinel.released) {
+			detachSentinel(sentinel);
+		}
+		if (sentinel !== null || requestInFlight !== null) {
 			return;
 		}
 
 		const request = (async (): Promise<void> => {
 			try {
 				const acquiredSentinel = await wakeLock.request('screen');
-				if (isStopped || visibility.visibilityState !== 'visible') {
+				if (isStopped || visibility.visibilityState !== 'visible' || acquiredSentinel.released) {
 					await releaseQuietly(acquiredSentinel);
 					return;
 				}
-				sentinel = acquiredSentinel;
-			} catch {
+
+				const handleSentinelRelease = (_event?: Event): void => {
+					if (sentinel !== acquiredSentinel) {
+						return;
+					}
+
+					detachSentinel(acquiredSentinel);
+					if (!isStopped && visibility.visibilityState === 'visible') {
+						if (requestInFlight === null) {
+							void acquire();
+						}
+					}
+				};
+
+					sentinel = acquiredSentinel;
+					sentinelReleaseListener = handleSentinelRelease;
+					acquiredSentinel.addEventListener('release', handleSentinelRelease);
+				} catch {
 				// Unsupported, denied, or interrupted requests should leave the reader usable.
 			}
 		})();
@@ -99,8 +133,8 @@ export function startReaderWakeLock(
 		isStopped = true;
 		visibility.removeEventListener('visibilitychange', handleVisibilityChange);
 		const activeSentinel = sentinel;
-		sentinel = null;
 		if (activeSentinel) {
+			detachSentinel(activeSentinel);
 			void releaseQuietly(activeSentinel);
 		}
 	};
