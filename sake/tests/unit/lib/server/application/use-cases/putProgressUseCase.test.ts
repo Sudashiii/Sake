@@ -5,6 +5,8 @@ import type { BookRepositoryPort } from '$lib/server/application/ports/BookRepos
 import type { DeviceProgressDownloadRepositoryPort } from '$lib/server/application/ports/DeviceProgressDownloadRepositoryPort';
 import type { StoragePort } from '$lib/server/application/ports/StoragePort';
 import { PutProgressUseCase } from '$lib/server/application/use-cases/PutProgressUseCase';
+import { ProgressBookResolver } from '$lib/server/application/services/ProgressBookResolver';
+import { ProgressPersistenceService } from '$lib/server/application/services/ProgressPersistenceService';
 import type { Book, CreateBookInput } from '$lib/server/domain/entities/Book';
 import type { BookProgressHistory } from '$lib/server/domain/entities/BookProgressHistory';
 
@@ -127,11 +129,15 @@ describe('PutProgressUseCase', () => {
 			async deleteByDeviceId(): Promise<void> {}
 		} satisfies DeviceProgressDownloadRepositoryPort;
 
-		const useCase = new PutProgressUseCase(
+		const persistenceService = new ProgressPersistenceService(
 			bookRepository,
 			progressHistoryRepository,
 			storage,
 			deviceProgressDownloadRepository
+		);
+		const useCase = new PutProgressUseCase(
+			new ProgressBookResolver(bookRepository),
+			persistenceService
 		);
 
 		for (const [readerSessionId, percentFinished] of [

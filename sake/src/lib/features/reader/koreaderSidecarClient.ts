@@ -1,8 +1,6 @@
 import {
-	mergeKoreaderSidecar,
 	parseKoreaderSidecar,
 	koreaderDateTime,
-	koreaderLocalDate,
 	type SidecarChanges,
 	type SidecarSnapshot
 } from '$lib/koreader/koreaderSidecar';
@@ -38,27 +36,34 @@ export async function fetchKoreaderSidecar(fileName: string): Promise<SidecarSna
 export async function saveKoreaderSidecar(
 	fileName: string,
 	changes: SidecarChanges,
-	readerSessionId?: string
+	readerSessionId: string
 ): Promise<SidecarSnapshot> {
-	const latest = await fetchKoreaderSidecar(fileName);
-	const merged = mergeKoreaderSidecar(latest?.source ?? null, changes, koreaderLocalDate());
-	const formData = new FormData();
-	formData.set('fileName', fileName);
-	formData.set(
-		'file',
-		new File([merged.source], 'metadata.epub.lua', { type: 'application/x-lua' })
-	);
-	formData.set('percentFinished', String(merged.percentFinished));
-	if (readerSessionId) {
-		formData.set('readerSessionId', readerSessionId);
-	}
-
-	const response = await fetch('/api/library/progress', {
+	const response = await fetch('/api/library/progress/web', {
 		method: 'PUT',
-		body: formData
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fileName, readerSessionId, ...changes })
 	});
 	if (!response.ok) {
 		throw await responseError(response, 'Failed to save KOReader reading state');
 	}
-	return merged;
+
+	let body: unknown;
+	try {
+		body = await response.json();
+	} catch {
+		throw new Error('Web reader returned an invalid progress response');
+	}
+	if (
+		typeof body !== 'object' ||
+		body === null ||
+		!('sidecar' in body) ||
+		typeof body.sidecar !== 'object' ||
+		body.sidecar === null ||
+		!('source' in body.sidecar) ||
+		typeof body.sidecar.source !== 'string'
+	) {
+		throw new Error('Web reader returned an invalid progress response');
+	}
+
+	return parseKoreaderSidecar(body.sidecar.source);
 }

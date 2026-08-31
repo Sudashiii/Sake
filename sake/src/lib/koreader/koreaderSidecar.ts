@@ -63,7 +63,7 @@ export interface SidecarSnapshot {
 }
 
 export interface SidecarChanges {
-	percentFinished: number;
+	percentFinished?: number;
 	lastXPointer?: string;
 	upsertedAnnotations: ReaderAnnotation[];
 	deletedAnnotationIds: string[];
@@ -160,6 +160,10 @@ function compareModified(left: ReaderAnnotation, right: ReaderAnnotation): numbe
 	);
 }
 
+function clampPercent(value: number): number {
+	return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+}
+
 export function parseKoreaderSidecar(source: string): SidecarSnapshot {
 	const document = LuaDataDocument.parse(source);
 	const percentValue = document.get(['percent_finished']);
@@ -207,10 +211,15 @@ export function mergeKoreaderSidecar(
 	const latest = parseKoreaderSidecar(source);
 	const rawAnnotations = asLuaTable(LuaDataDocument.parse(source).get(['annotations']));
 	const rawAnnotationsById = new Map<string, LuaTable>();
+	const rawAnnotationEntriesToPreserve: LuaTable['entries'] = [];
 	for (const entry of rawAnnotations?.entries ?? []) {
 		const rawAnnotation = asLuaTable(entry.value);
 		const parsed = parseAnnotation(entry.value);
-		if (rawAnnotation && parsed) rawAnnotationsById.set(parsed.id, rawAnnotation);
+		if (typeof entry.key === 'number' && rawAnnotation && parsed) {
+			rawAnnotationsById.set(parsed.id, rawAnnotation);
+		} else {
+			rawAnnotationEntriesToPreserve.push(entry);
+		}
 	}
 	const deleted = new Set(changes.deletedAnnotationIds);
 	const annotations = new Map(
@@ -231,12 +240,18 @@ export function mergeKoreaderSidecar(
 		return pageOrder !== 0 ? pageOrder : left.datetime.localeCompare(right.datetime);
 	});
 	const annotationTable = luaTable(
-		mergedAnnotations.map((annotation, index) => ({
-			key: index + 1,
-			value: annotationToLua(annotation, rawAnnotationsById.get(annotation.id))
-		}))
+		[
+			...mergedAnnotations.map((annotation, index) => ({
+				key: index + 1,
+				value: annotationToLua(annotation, rawAnnotationsById.get(annotation.id))
+			})),
+			...rawAnnotationEntriesToPreserve.map((entry, index) => ({
+				key: typeof entry.key === 'number' ? mergedAnnotations.length + index + 1 : entry.key,
+				value: entry.value
+			}))
+		]
 	);
-	const percentFinished = Math.max(0, Math.min(1, changes.percentFinished));
+	const percentFinished = clampPercent(changes.percentFinished ?? latest.percentFinished);
 	const status = percentFinished >= 1 ? 'complete' : 'reading';
 	const lastXPointer = changes.lastXPointer ?? latest.lastXPointer;
 

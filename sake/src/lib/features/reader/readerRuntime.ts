@@ -114,19 +114,27 @@ export async function displayKoreaderXPointer(
 	rendition: Rendition,
 	xpointer: string,
 	spineCount: number
-): Promise<void> {
-	const index = xpointerSpineIndex(xpointer);
-	if (index < 0 || index >= spineCount) return;
-	await rendition.display(index);
-	const contents = renditionContents(rendition).find((item) => item.sectionIndex === index);
-	if (!contents) return;
-	const point = fromKoreaderXPointer(xpointer, contents.document.body, {
-		spineIndex: index,
-		spineCount
-	});
-	if (!point) return;
-	const range = contents.document.createRange();
-	range.setStart(point.node as Node, point.offset);
-	range.collapse(true);
-	await rendition.display(contents.cfiFromRange(range));
+): Promise<boolean> {
+	try {
+		if (!/^\/body\/DocFragment(?:\[(\d+)])?\/body\//.test(xpointer)) return false;
+		const index = xpointerSpineIndex(xpointer);
+		if (index < 0 || index >= spineCount) return false;
+		await rendition.display(index);
+		const contents = renditionContents(rendition).find((item) => item.sectionIndex === index);
+		if (!contents?.document.body) return false;
+		const point = fromKoreaderXPointer(xpointer, contents.document.body, {
+			spineIndex: index,
+			spineCount
+		});
+		if (!point) return false;
+		const range = contents.document.createRange();
+		range.setStart(point.node as Node, point.offset);
+		range.collapse(true);
+		const cfi = contents.cfiFromRange(range);
+		if (!cfi) return false;
+		await rendition.display(cfi);
+		return true;
+	} catch {
+		return false;
+	}
 }
