@@ -5,7 +5,10 @@ import {
 	toKoreaderXPointer,
 	type DomNodeLike
 } from '$lib/features/reader/koreaderXPointer';
-import { cfiToKoreaderXPointer } from '$lib/features/reader/readerRuntime';
+import {
+	cfiToKoreaderXPointer,
+	displayKoreaderXPointer
+} from '$lib/features/reader/readerRuntime';
 
 class TestNode implements DomNodeLike {
 	readonly childNodes: TestNode[] = [];
@@ -127,5 +130,75 @@ describe('KOReader normalized EPUB XPointers', () => {
 		};
 
 		assert.equal(cfiToKoreaderXPointer(rendition as never, 'epubcfi(/6/2)', 1), null);
+	});
+
+	test('reports successful exact XPointer restoration', async () => {
+		const content = text('chapter');
+		const body = element('body', element('p', content));
+		const document = {
+			body,
+			createRange: () => ({
+				setStart: () => undefined,
+				collapse: () => undefined
+			})
+		};
+		const displayed: Array<number | string> = [];
+		const rendition = {
+			display: async (target?: number | string) => {
+				if (target !== undefined) displayed.push(target);
+			},
+			getContents: () => [
+				{
+					document,
+					sectionIndex: 0,
+					cfiFromRange: () => 'epubcfi(/6/2)'
+				}
+			]
+		};
+
+		const restored = await displayKoreaderXPointer(
+			rendition as never,
+			'/body/DocFragment/body/p/text().3',
+			1
+		);
+
+		assert.equal(restored, true);
+		assert.deepEqual(displayed, [0, 'epubcfi(/6/2)']);
+	});
+
+	test('reports failed restoration when the XPointer is absent from the rendition', async () => {
+		const body = element('body', element('img'));
+		const document = { body };
+		const displayed: Array<number | string> = [];
+		const rendition = {
+			display: async (target?: number | string) => {
+				if (target !== undefined) displayed.push(target);
+			},
+			getContents: () => [{ document, sectionIndex: 0 }]
+		};
+
+		const restored = await displayKoreaderXPointer(
+			rendition as never,
+			'/body/DocFragment/body/p/text().3',
+			1
+		);
+
+		assert.equal(restored, false);
+		assert.deepEqual(displayed, [0]);
+	});
+
+	test('rejects malformed XPointers without navigating to a fallback chapter', async () => {
+		const displayed: Array<number | string> = [];
+		const rendition = {
+			display: async (target?: number | string) => {
+				if (target !== undefined) displayed.push(target);
+			},
+			getContents: () => []
+		};
+
+		const restored = await displayKoreaderXPointer(rendition as never, 'not-an-xpointer', 1);
+
+		assert.equal(restored, false);
+		assert.deepEqual(displayed, []);
 	});
 });

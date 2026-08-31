@@ -41,18 +41,20 @@ export class ReaderSaveQueue {
 		this.deletions.add(annotationId);
 	}
 
+	cancelScheduled(): void {
+		if (this.timer) clearTimeout(this.timer);
+		this.timer = null;
+	}
+
 	schedule(delay = 700): void {
 		if (this.isDestroyed) return;
-		if (this.timer) clearTimeout(this.timer);
+		this.cancelScheduled();
 		this.timer = setTimeout(() => void this.flush(), delay);
 	}
 
 	async flush(isFinalAttempt = false): Promise<void> {
 		if (this.isDestroyed && !isFinalAttempt) return;
-		if (this.timer) {
-			clearTimeout(this.timer);
-			this.timer = null;
-		}
+		this.cancelScheduled();
 		if (this.isSaving) {
 			this.saveAgain = true;
 			await new Promise<void>((resolve) => this.pendingFlushes.push(resolve));
@@ -60,15 +62,19 @@ export class ReaderSaveQueue {
 		}
 
 		const position = this.getPosition();
-		this.isSaving = true;
-		if (!this.isDestroyed) this.onStatus({ isSaving: true, error: null });
 		const capturedUpserts = [...this.upserts.values()];
 		const capturedDeletes = [...this.deletions];
+		if (!position.lastXPointer && capturedUpserts.length === 0 && capturedDeletes.length === 0) {
+			return;
+		}
+
+		this.isSaving = true;
+		if (!this.isDestroyed) this.onStatus({ isSaving: true, error: null });
 		try {
 			const merged = await this.saveSidecar(
 				this.fileName,
 				{
-					percentFinished: position.percentFinished,
+					percentFinished: position.lastXPointer ? position.percentFinished : undefined,
 					lastXPointer: position.lastXPointer ?? undefined,
 					upsertedAnnotations: capturedUpserts,
 					deletedAnnotationIds: capturedDeletes
@@ -104,8 +110,7 @@ export class ReaderSaveQueue {
 	}
 
 	destroy(): void {
-		if (this.timer) clearTimeout(this.timer);
-		this.timer = null;
+		this.cancelScheduled();
 		this.isDestroyed = true;
 		void this.flush(true);
 	}

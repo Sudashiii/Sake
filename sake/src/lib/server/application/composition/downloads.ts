@@ -11,6 +11,7 @@ import { RemoveDeviceDownloadUseCase } from '$lib/server/application/use-cases/R
 import { ResetDownloadStatusUseCase } from '$lib/server/application/use-cases/ResetDownloadStatusUseCase';
 import { GetProgressUseCase } from '$lib/server/application/use-cases/GetProgressUseCase';
 import { PutProgressUseCase } from '$lib/server/application/use-cases/PutProgressUseCase';
+import { PutWebReaderProgressUseCase } from '$lib/server/application/use-cases/PutWebReaderProgressUseCase';
 import { GetBookProgressHistoryUseCase } from '$lib/server/application/use-cases/GetBookProgressHistoryUseCase';
 import { GetNewProgressForDeviceUseCase } from '$lib/server/application/use-cases/GetNewProgressForDeviceUseCase';
 import { ConfirmProgressDownloadUseCase } from '$lib/server/application/use-cases/ConfirmProgressDownloadUseCase';
@@ -35,6 +36,8 @@ import {
 } from './foundation';
 import { externalBookMetadataService } from './providers';
 import { downloadSearchBookUseCase } from './search';
+import { ProgressBookResolver } from '$lib/server/application/services/ProgressBookResolver';
+import { ProgressPersistenceService } from '$lib/server/application/services/ProgressPersistenceService';
 
 export const downloadBookUseCase = new DownloadBookUseCase(
 	zlibraryClient,
@@ -50,13 +53,24 @@ export const confirmDownloadUseCase = new ConfirmDownloadUseCase(deviceDownloadR
 export const removeDeviceDownloadUseCase = new RemoveDeviceDownloadUseCase(deviceDownloadRepository);
 export const resetDownloadStatusUseCase = new ResetDownloadStatusUseCase(bookRepository);
 export const getProgressUseCase = new GetProgressUseCase(bookRepository, storage);
-export const putProgressUseCase = new PutProgressUseCase(
+const progressBookResolver = new ProgressBookResolver(bookRepository);
+const progressPersistenceService = new ProgressPersistenceService(
 	bookRepository,
 	bookProgressHistoryRepository,
 	storage,
 	deviceProgressDownloadRepository,
 	hardcoverProgressSyncService,
-	annotationIndexService,
+	annotationIndexService
+);
+export const putProgressUseCase = new PutProgressUseCase(
+	progressBookResolver,
+	progressPersistenceService,
+	sidecarWriteCoordinator
+);
+export const putWebReaderProgressUseCase = new PutWebReaderProgressUseCase(
+	progressBookResolver,
+	storage,
+	progressPersistenceService,
 	sidecarWriteCoordinator
 );
 export const getBookProgressHistoryUseCase = new GetBookProgressHistoryUseCase(

@@ -179,6 +179,33 @@ describe('KOReader sidecar data handling', () => {
 		);
 	});
 
+	test('preserves unsupported annotation records during a web merge', () => {
+		const source = `return {
+    ["annotations"] = {
+        [1] = { ["plugin_only"] = true },
+        [2] = {
+            ["datetime"] = "2026-06-01 09:00:00",
+            ["page"] = "/body/DocFragment/body/p/text().0",
+        },
+    },
+    ["percent_finished"] = 0.25,
+}
+`;
+		const merged = mergeKoreaderSidecar(
+			source,
+			{
+				upsertedAnnotations: [],
+				deletedAnnotationIds: []
+			},
+			'2026-06-06'
+		);
+
+		const document = LuaDataDocument.parse(merged.source);
+		const annotations = document.get(['annotations']);
+		assert.match(merged.source, /\["plugin_only"\] = true/);
+		assert.equal(annotations && typeof annotations === 'object', true);
+	});
+
 	test('creates stable versions that change with editable annotation content', () => {
 		const original = annotation();
 		assert.equal(createAnnotationVersion(original), createAnnotationVersion({ ...original }));

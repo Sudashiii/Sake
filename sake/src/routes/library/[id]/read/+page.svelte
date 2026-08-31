@@ -35,7 +35,8 @@
 	} from '$lib/features/reader/readerFooterStatus';
 	import {
 		createAnnotationId,
-		type ReaderAnnotation
+		type ReaderAnnotation,
+		type SidecarSnapshot
 	} from '$lib/koreader/koreaderSidecar';
 	import {
 		fetchKoreaderSidecar,
@@ -100,6 +101,7 @@
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let saveError = $state<string | null>(null);
+	let positionError = $state<string | null>(null);
 	let sidebarOpen = $state(false);
 	let sidebarTab = $state<'contents' | 'annotations' | 'settings'>('contents');
 	let theme = $state<ReaderTheme>('paper');
@@ -145,6 +147,8 @@
 		percentFinished: number;
 		spineIndex: number;
 	} | null = null;
+	let isRestoringPosition = false;
+	let positionSaveBlocked = false;
 	let selectionDraft = $state<SelectionDraft | null>(null);
 	let noteDraft = $state('');
 	let highlightColor = $state('yellow');
@@ -177,7 +181,10 @@
 	const saveQueue = new ReaderSaveQueue(
 		data.book.fileName,
 		readerSessionId,
-		() => ({ percentFinished, lastXPointer: currentXPointer }),
+		() => ({
+			percentFinished,
+			lastXPointer: positionSaveBlocked ? null : currentXPointer
+		}),
 		(snapshot) => (annotations = snapshot.annotations),
 		(status) => {
 			isSaving = status.isSaving;
@@ -212,9 +219,16 @@
 		rsvpError = null;
 	}
 
+	function enablePositionSaves(): void {
+		if (!currentXPointer) return;
+		positionSaveBlocked = false;
+		positionError = null;
+	}
+
 	function handleRsvpPlayingChange(isPlaying: boolean): void {
 		rsvpIsPlaying = isPlaying;
 		if (isPlaying) {
+			enablePositionSaves();
 			startRsvpCheckpointTimer();
 		} else {
 			stopRsvpCheckpointTimer();
@@ -225,6 +239,7 @@
 	function handleRsvpCompleted(): void {
 		rsvpIsCompleted = true;
 		percentFinished = 1;
+		enablePositionSaves();
 		stopRsvpCheckpointTimer();
 		void saveQueue.flush();
 	}
@@ -313,9 +328,12 @@
 		restoringRsvpPosition = target;
 		try {
 			if (target.xpointer) {
-				await restoreXPointer(target.xpointer);
+				const restored = await restoreXPointer(target.xpointer);
+				if (!restored && target.cfi && rendition) {
+					await withPositionRestore(() => rendition!.display(target.cfi!));
+				}
 			} else if (target.cfi && rendition) {
-				await rendition.display(target.cfi);
+				await withPositionRestore(() => rendition!.display(target.cfi!));
 			}
 			renderVisibleAnnotations();
 		} finally {
@@ -348,6 +366,7 @@
 		if (!rsvpPlayback) return;
 		rsvpIsCompleted = false;
 		await rsvpPlayback.moveWords(delta);
+		enablePositionSaves();
 		await saveQueue.flush();
 	}
 
@@ -355,6 +374,7 @@
 		if (!rsvpPlayback) return;
 		rsvpIsCompleted = false;
 		await rsvpPlayback.moveSentence(direction);
+		enablePositionSaves();
 		await saveQueue.flush();
 	}
 
@@ -447,6 +467,7 @@
 				return;
 			}
 			rsvpPlayback.setToken(token);
+			enablePositionSaves();
 			await saveQueue.flush();
 			return;
 		}
@@ -531,8 +552,49 @@
 		}
 	}
 
-	async function restoreXPointer(xpointer: string): Promise<void> {
-		if (rendition) await displayKoreaderXPointer(rendition, xpointer, spineCount);
+	async function withPositionRestore<T>(operation: () => Promise<T>): Promise<T> {
+		const wasRestoring = isRestoringPosition;
+		isRestoringPosition = true;
+		positionSaveBlocked = true;
+		saveQueue.cancelScheduled();
+		try {
+			return await operation();
+		} finally {
+			isRestoringPosition = wasRestoring;
+		}
+	}
+
+	async function restoreXPointer(xpointer: string): Promise<boolean> {
+		if (!rendition) return false;
+		const restored = await withPositionRestore(() =>
+			displayKoreaderXPointer(rendition!, xpointer, spineCount)
+		);
+		if (restored) positionError = null;
+		return restored;
+	}
+
+	async function displayPercentFallback(percent: number): Promise<void> {
+		if (!rendition) return;
+		const normalizedPercent = Number.isFinite(percent)
+			? Math.max(0, Math.min(1, percent))
+			: 0;
+		try {
+			if (book && normalizedPercent > 0) {
+				await rendition.display(book.locations.cfiFromPercentage(normalizedPercent));
+			} else {
+				await rendition.display();
+			}
+		} catch {
+			await rendition.display();
+		}
+	}
+
+	async function restoreSavedPosition(sidecar: SidecarSnapshot | null): Promise<boolean> {
+		if (sidecar?.lastXPointer && (await restoreXPointer(sidecar.lastXPointer))) {
+			return true;
+		}
+		await displayPercentFallback(sidecar?.percentFinished ?? 0);
+		return false;
 	}
 
 	function handleRelocated(location: Location): void {
@@ -542,7 +604,8 @@
 		if (readerMode === 'rsvp' && !restoringRsvpPosition) {
 			return;
 		}
-		currentXPointer = cfiToKoreaderXPointer(rendition, location.start.cfi, spineCount);
+		const convertedXPointer = cfiToKoreaderXPointer(rendition, location.start.cfi, spineCount);
+		currentXPointer = convertedXPointer;
 		currentCfi = location.start.cfi;
 		currentSpineIndex = location.start.index;
 		const calculated = book.locations.percentageFromCfi(location.start.cfi);
@@ -567,7 +630,19 @@
 			rsvpEntryOverride = null;
 		}
 		renderVisibleAnnotations();
-		if (!exactPosition) saveQueue.schedule();
+		if (!exactPosition && !isRestoringPosition) {
+			if (convertedXPointer) {
+				positionSaveBlocked = false;
+				positionError = null;
+				saveQueue.schedule();
+			} else {
+				positionError = 'Exact KOReader position unavailable for this page; the stored position was kept.';
+				console.warn('[Sake reader] Could not convert the current location to a KOReader XPointer', {
+					spineIndex: location.start.index,
+					cfi: location.start.cfi
+				});
+			}
+		}
 	}
 
 	function cycleFooterStatus(): void {
@@ -660,7 +735,17 @@
 			await saveQueue.flush();
 			return;
 		}
-		await restoreXPointer(annotation.pos0 ?? annotation.page);
+		const previousCfi = currentCfi;
+		const previousPercent = percentFinished;
+		const restored = await restoreXPointer(annotation.pos0 ?? annotation.page);
+		if (!restored) {
+			positionError = 'This annotation could not be opened in the web reader; your current position was kept.';
+			if (previousCfi && rendition) {
+				await withPositionRestore(() => rendition!.display(previousCfi!));
+			} else {
+				await withPositionRestore(() => displayPercentFallback(previousPercent));
+			}
+		}
 	}
 
 	onMount(() => {
@@ -754,15 +839,25 @@
 					getReaderRect: () => viewportShell?.getBoundingClientRect() ?? null
 				});
 				applyAppearance();
-				if (deepLinkedAnnotation) {
-					await restoreXPointer(deepLinkedAnnotation.pos0 ?? deepLinkedAnnotation.page);
-				} else if (sidecar?.lastXPointer) {
-					await restoreXPointer(sidecar.lastXPointer);
-				} else if (sidecar && percentFinished > 0) {
-					await rendition.display(book.locations.cfiFromPercentage(percentFinished));
-				} else {
-					await rendition.display();
-				}
+				await withPositionRestore(async () => {
+					if (deepLinkedAnnotation) {
+						const restored = await restoreXPointer(
+							deepLinkedAnnotation.pos0 ?? deepLinkedAnnotation.page
+						);
+						if (!restored) {
+							await restoreSavedPosition(sidecar);
+							positionError = 'The linked position could not be opened; the stored reading position was used.';
+						}
+					} else if (sidecar?.lastXPointer) {
+						const restored = await restoreXPointer(sidecar.lastXPointer);
+						if (!restored) {
+							await displayPercentFallback(percentFinished);
+							positionError = 'The stored KOReader position could not be opened; progress was not overwritten.';
+						}
+					} else {
+						await displayPercentFallback(percentFinished);
+					}
+				});
 			} catch (error: unknown) {
 				saveError = error instanceof Error ? error.message : 'Failed to open this EPUB';
 			} finally {
@@ -956,6 +1051,7 @@
 	{/if}
 
 	{#if saveError}<div class={styles.error} role="alert">{saveError}</div>{/if}
+	{#if positionError}<div class={styles.warning} role="status">{positionError}</div>{/if}
 	{#if deepLinkWarning}<div class={styles.warning} role="status">{deepLinkWarning}</div>{/if}
 	{#if readerMode === 'paged' && rsvpError}<div class={styles.error} role="alert" aria-live="polite">{rsvpError}</div>{/if}
 </div>
