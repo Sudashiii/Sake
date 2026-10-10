@@ -1,18 +1,52 @@
 import assert from 'node:assert/strict';
-import { afterEach, beforeEach, describe, test } from 'node:test';
+import { afterEach, describe, test } from 'node:test';
 import { AnnaArchiveSearchProvider } from '$lib/server/infrastructure/search-providers/AnnaArchiveSearchProvider';
-import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 
-function buildSearchHtml(hash: string, title: string, author: string, metadata: string): string {
-	return `
-		<a href="/md5/${hash}" class="custom-a block mr-2 sm:mr-4 hover:opacity-80">
-			<img src="/covers/${hash}.jpg" />
-		</a>
-		<a href="/md5/${hash}" class="line-clamp-[3] overflow-hidden break-words js-vim-focus custom-a text-[#2563eb] inline-block outline-offset-[-2px] outline-2 rounded-[3px] focus:outline font-semibold text-lg leading-[1.2] hover:opacity-80 mt-1">${title}</a>
-		<a href="/search?q=${encodeURIComponent(author)}"><span class="icon-[mdi--user-edit]"></span>${author}</a>
-		<div class="text-gray-800">${metadata}</div>
-		<a href="/md5/${hash}ffffffffffffffffffffffffffffffff" class="custom-a block mr-2 sm:mr-4 hover:opacity-80"></a>
-	`;
+interface LibgenRowFixture {
+	md5: string;
+	title: string;
+	edition?: string;
+	series?: string;
+	author: string;
+	year: string;
+	language: string;
+	size: string;
+	extension: string;
+	isbns?: string;
+}
+
+function buildLibgenRow(row: LibgenRowFixture): string {
+	const tooltip = `Add/Edit : 2026-05-30/2026-05-30; ID: 1<br>${row.author} - ${row.title} (${row.extension})`;
+	return `<tr>
+		<td>${row.series ? `<b>${row.series}</b><br>` : ''}<a data-toggle="tooltip" data-html="true" title="${tooltip}" href="edition.php?id=1">${row.title} <i>${row.edition ?? ''}</i></a><br><a data-toggle="tooltip" title="${tooltip}" href="edition.php?id=1"><i><font color="green"> ${row.isbns ?? ''}</font></a></i> <nobr><span class="badge badge-secondary">f 1</span></nobr></td>
+		<td>${row.author}</td>
+		<td>Publisher</td>
+		<td><nobr>${row.year}</nobr></td>
+		<td>${row.language}</td>
+		<td>0 / 300 pages</td>
+		<td><nobr><a href="/file.php?id=1">${row.size}</a></nobr></td>
+		<td>${row.extension}</td>
+		<td><a title="libgen" href="/ads.php?md5=${row.md5}"><span class="badge badge-primary">1</span></a> <a title="anna's archive" href="https://en.annas-archive.gl/md5/${row.md5}"><span class="badge badge-primary">2</span></a></td>
+	</tr>`;
+}
+
+function buildLibgenPage(rows: string[]): string {
+	const table =
+		rows.length > 0
+			? `<table class="table  table-striped" id="tablelibgen"><thead><tr><th scope="col">Title</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+			: '';
+	return `<html><head><title>Library Genesis</title></head><body>
+		<ul class="nav nav-tabs"><li class="nav-item"><a class="nav-link active" href="/index.php?req=x&curtab=f">Files <span class="badge badge-primary">${rows.length}</span></a></li></ul>
+		${table}
+	</body></html>`;
+}
+
+function htmlResponse(html: string, status = 200): Response {
+	return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8' } });
+}
+
+function hexHash(character: string): string {
+	return character.repeat(32);
 }
 
 describe('AnnaArchiveSearchProvider', () => {
@@ -22,96 +56,134 @@ describe('AnnaArchiveSearchProvider', () => {
 		globalThis.fetch = originalFetch;
 	});
 
-	test('passes supported filters upstream and still matches localized language aliases', async () => {
+	test('searches Libgen and maps rows to normalized Anna results', async () => {
+		const requestedUrls: URL[] = [];
 		globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
 			const requestUrl = new URL(String(input));
-
-			assert.equal(requestUrl.origin, 'https://annas-archive.gl');
-			assert.equal(requestUrl.pathname, '/search');
-			assert.equal(requestUrl.searchParams.get('q'), 'Harry Potter');
-			assert.equal(requestUrl.searchParams.get('content'), 'book_any');
-			assert.equal(requestUrl.searchParams.get('lang'), 'de');
-			assert.equal(requestUrl.searchParams.get('ext'), 'epub');
-
-			return new Response(
-				buildSearchHtml(
-					'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-					'Harry Potter und der Stein der Weisen',
-					'J.K. Rowling',
-					'de [de] · EPUB · 2 MB · 1998 · zlib'
-				),
-				{
-					status: 200,
-					headers: {
-						'content-type': 'text/html'
-					}
-				}
+			requestedUrls.push(requestUrl);
+			return htmlResponse(
+				buildLibgenPage([
+					buildLibgenRow({
+						md5: hexHash('a'),
+						title: 'Hunters Of Dune',
+						edition: '1st ed',
+						series: 'Chronicles of Dune 7; Dune Universe',
+						author: 'Herbert, Brian(aut); Anderson, Kevin J.(aut)',
+						year: '2006;2007',
+						language: 'English',
+						size: '877 kB',
+						extension: 'epub',
+						isbns: '076535148X; 9780765351487'
+					}),
+					buildLibgenRow({
+						md5: hexHash('a'),
+						title: 'Hunters Of Dune duplicate edition',
+						author: 'Herbert, Brian',
+						year: '2006',
+						language: 'English',
+						size: '877 kB',
+						extension: 'epub'
+					})
+				])
 			);
 		};
 
 		const provider = new AnnaArchiveSearchProvider();
-		const request: SearchBooksRequest = {
-			query: 'Harry Potter',
-			filters: {
-				language: ['german'],
-				extension: ['epub'],
-				limitPerProvider: 20
+		const result = await provider.search({ query: '  Hunters of Dune  ' }, {});
+
+		assert.equal(result.ok, true);
+		if (!result.ok) {
+			return;
+		}
+
+		assert.equal(requestedUrls.length, 1);
+		const requestUrl = requestedUrls[0];
+		assert.equal(requestUrl?.origin, 'https://libgen.li');
+		assert.equal(requestUrl?.pathname, '/index.php');
+		assert.equal(requestUrl?.searchParams.get('req'), 'Hunters of Dune');
+		assert.equal(requestUrl?.searchParams.get('res'), '25');
+		assert.deepEqual(requestUrl?.searchParams.getAll('objects[]'), ['f']);
+		assert.deepEqual(requestUrl?.searchParams.getAll('topics[]'), ['l', 'f']);
+
+		assert.deepEqual(result.value, [
+			{
+				provider: 'anna',
+				providerBookId: hexHash('a'),
+				title: 'Hunters Of Dune',
+				author: 'Herbert, Brian; Anderson, Kevin J.',
+				language: 'English',
+				year: 2006,
+				extension: 'epub',
+				filesize: 898048,
+				cover: null,
+				description: null,
+				series: 'Chronicles of Dune 7',
+				volume: null,
+				seriesIndex: null,
+				identifier: null,
+				isbn: '9780765351487',
+				pages: null,
+				capabilities: { filesAvailable: true, metadataCompleteness: 'medium' },
+				downloadRef: hexHash('a'),
+				queueRef: null,
+				sourceUrl: `https://annas-archive.gl/md5/${hexHash('a')}`
 			}
-		};
-
-		const result = await provider.search(request, {});
-
-		assert.equal(result.ok, true);
-		if (!result.ok) {
-			return;
-		}
-
-		assert.equal(result.value.length, 1);
-		assert.equal(result.value[0]?.title, 'Harry Potter und der Stein der Weisen');
-		assert.equal(result.value[0]?.language, 'de');
-		assert.equal(result.value[0]?.extension, 'epub');
+		]);
 	});
 
-	test('checks additional pages when the first filtered page has no local matches', async () => {
+	test('filters locally and checks further pages for filtered searches', async () => {
 		const requestedPages: string[] = [];
+		const englishRows = Array.from({ length: 50 }, (_, index) =>
+			buildLibgenRow({
+				md5: index.toString(16).padStart(32, '0'),
+				title: `Harry Potter and the Goblet of Fire ${index}`,
+				author: 'Rowling, J. K.',
+				year: '2000',
+				language: 'English',
+				size: '2 MB',
+				extension: 'epub'
+			})
+		);
 
 		globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
 			const requestUrl = new URL(String(input));
-			requestedPages.push(requestUrl.searchParams.get('page') ?? '1');
-
 			const page = requestUrl.searchParams.get('page') ?? '1';
-			const html =
-				page === '1'
-					? buildSearchHtml(
-							'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-							'Harry Potter and the Goblet of Fire',
-							'J.K. Rowling',
-							'English [en] · EPUB · 2 MB · 2000 · zlib'
-						)
-					: buildSearchHtml(
-							'cccccccccccccccccccccccccccccccc',
-							'Harry Potter und der Stein der Weisen',
-							'J.K. Rowling',
-							'German [de] · English [en] · EPUB · 2 MB · 1998 · zlib'
-						);
+			requestedPages.push(page);
+			assert.equal(requestUrl.searchParams.get('res'), '50');
 
-			return new Response(html, {
-				status: 200,
-				headers: {
-					'content-type': 'text/html'
-				}
-			});
+			return htmlResponse(
+				buildLibgenPage(
+					page === '1'
+						? englishRows
+						: [
+								buildLibgenRow({
+									md5: hexHash('b'),
+									title: 'Harry Potter und der Stein der Weisen',
+									author: 'Rowling, Joanne K.',
+									year: '1998',
+									language: 'German;English',
+									size: '1 MB',
+									extension: 'epub'
+								}),
+								buildLibgenRow({
+									md5: hexHash('c'),
+									title: 'Harry Potter und der Stein der Weisen',
+									author: 'Rowling, Joanne K.',
+									year: '1998',
+									language: 'German',
+									size: '4 MB',
+									extension: 'pdf'
+								})
+							]
+				)
+			);
 		};
 
 		const provider = new AnnaArchiveSearchProvider();
 		const result = await provider.search(
 			{
 				query: 'Harry Potter',
-				filters: {
-					language: ['german'],
-					extension: ['epub'],
-					limitPerProvider: 20
-				}
+				filters: { language: ['de'], extension: ['epub'], limitPerProvider: 20 }
 			},
 			{}
 		);
@@ -121,62 +193,118 @@ describe('AnnaArchiveSearchProvider', () => {
 			return;
 		}
 
-		assert.deepEqual(requestedPages, ['1', '2', '3', '4', '5']);
-		assert.equal(result.value.length, 1);
-		assert.equal(result.value[0]?.title, 'Harry Potter und der Stein der Weisen');
-		assert.equal(result.value[0]?.language, 'German');
+		assert.deepEqual(requestedPages, ['1', '2']);
+		assert.deepEqual(
+			result.value.map((book) => book.providerBookId),
+			[hexHash('b')]
+		);
 	});
 
-	test('falls back to a language-augmented query when the native filtered query stays empty', async () => {
-		const requestedQueries: string[] = [];
-
+	test('fails over to the next Libgen mirror and returns empty results for zero hits', async () => {
+		const requestedHosts: string[] = [];
 		globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
 			const requestUrl = new URL(String(input));
-			requestedQueries.push(requestUrl.searchParams.get('q') ?? '');
+			requestedHosts.push(requestUrl.host);
+			if (requestUrl.host === 'libgen.li') {
+				throw new TypeError('connection refused');
+			}
+			if (requestUrl.host === 'libgen.gl') {
+				return htmlResponse('<html><title>Maintenance</title></html>');
+			}
+			return htmlResponse(buildLibgenPage([]));
+		};
 
-			const query = requestUrl.searchParams.get('q') ?? '';
-			const html = query.toLowerCase().includes('deutsch')
-				? buildSearchHtml(
-						'dddddddddddddddddddddddddddddddd',
-						'Harry Potter und der Feuerkelch',
-						'J.K. Rowling',
-						'German [de] · EPUB · 2 MB · 2000 · zlib'
-					)
-				: buildSearchHtml(
-						'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-						'Harry Potter and the Goblet of Fire',
-						'J.K. Rowling',
-						'English [en] · EPUB · 2 MB · 2000 · zlib'
-					);
+		const provider = new AnnaArchiveSearchProvider();
+		const result = await provider.search({ query: 'no such book' }, {});
 
-			return new Response(html, {
+		assert.deepEqual(result, { ok: true, value: [] });
+		assert.deepEqual(requestedHosts, ['libgen.li', 'libgen.gl', 'libgen.bz']);
+	});
+
+	test('reports the last mirror failure when every Libgen mirror fails', async () => {
+		globalThis.fetch = async (): Promise<Response> => htmlResponse('Bad gateway', 502);
+
+		const provider = new AnnaArchiveSearchProvider();
+		const result = await provider.search({ query: 'dune' }, {});
+
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			return;
+		}
+
+		assert.equal(result.error.status, 502);
+		assert.equal(result.error.message, 'Anna search failed: libgen.la answered with status 502');
+	});
+
+	test('retries downloads on another Libgen mirror when the file CDN fails', async () => {
+		const requestedUrls: string[] = [];
+		const fileBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+		globalThis.fetch = async (input: RequestInfo | URL): Promise<Response> => {
+			const requestUrl = new URL(String(input));
+			requestedUrls.push(`${requestUrl.host}${requestUrl.pathname}`);
+
+			if (requestUrl.pathname === '/ads.php') {
+				return htmlResponse(
+					`<a href="get.php?md5=${requestUrl.searchParams.get('md5')}&amp;key=ABC"><h2>GET</h2></a>`
+				);
+			}
+			if (requestUrl.host === 'libgen.li') {
+				return htmlResponse('Service unavailable', 503);
+			}
+
+			assert.equal(requestUrl.searchParams.get('key'), 'ABC');
+			return new Response(fileBytes, {
 				status: 200,
 				headers: {
-					'content-type': 'text/html'
+					'content-type': 'application/epub+zip',
+					'content-disposition': 'attachment; filename="Dune.epub"'
 				}
 			});
 		};
 
 		const provider = new AnnaArchiveSearchProvider();
-		const result = await provider.search(
-			{
-				query: 'Harry Potter',
-				filters: {
-					language: ['german'],
-					extension: ['epub'],
-					limitPerProvider: 20
-				}
-			},
-			{}
-		);
+		const result = await provider.download({
+			downloadRef: hexHash('d').toUpperCase(),
+			title: 'Dune',
+			extension: 'epub'
+		});
 
 		assert.equal(result.ok, true);
 		if (!result.ok) {
 			return;
 		}
 
-		assert.equal(result.value.length, 1);
-		assert.equal(result.value[0]?.title, 'Harry Potter und der Feuerkelch');
-		assert.deepEqual([...new Set(requestedQueries)], ['Harry Potter', 'Harry Potter deutsch']);
+		assert.deepEqual(requestedUrls, [
+			'libgen.li/ads.php',
+			'libgen.li/get.php',
+			'libgen.gl/ads.php',
+			'libgen.gl/get.php'
+		]);
+		assert.equal(result.value.fileName, 'Dune.epub');
+		assert.equal(result.value.contentType, 'application/epub+zip');
+		assert.deepEqual(result.value.fileData, fileBytes);
+	});
+
+	test('returns not found without retrying when no mirror has a download link', async () => {
+		let requestCount = 0;
+		globalThis.fetch = async (): Promise<Response> => {
+			requestCount += 1;
+			return htmlResponse('<p>File not found</p>');
+		};
+
+		const provider = new AnnaArchiveSearchProvider();
+		const result = await provider.download({
+			downloadRef: hexHash('e'),
+			title: 'Missing',
+			extension: 'epub'
+		});
+
+		assert.equal(result.ok, false);
+		if (result.ok) {
+			return;
+		}
+
+		assert.equal(result.error.status, 404);
+		assert.equal(requestCount, 4);
 	});
 });
