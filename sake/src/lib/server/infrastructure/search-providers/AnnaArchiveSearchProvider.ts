@@ -16,46 +16,36 @@ import {
 import type { SearchBooksRequest } from '$lib/types/Search/SearchBooksRequest';
 import type { SearchResultBook } from '$lib/types/Search/SearchResultBook';
 
+// Anna's Archive puts anonymous /search and /md5 requests behind a DDoS-Guard JS challenge that
+// server-side fetch cannot pass. Search and downloads therefore go through Libgen, which serves the
+// same md5 file identifiers; Anna's Archive is only linked as the result source page.
 const ANNA_ARCHIVE_BASE_URL = 'https://annas-archive.gl';
 const ANNA_ARCHIVE_BROWSER_USER_AGENT =
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const ANNA_LIBGEN_ADS_BASE_URL = 'https://libgen.li/ads.php';
 const ANNA_MAX_FILTERED_SEARCH_PAGES = 5;
 
-const annaLibgenGetLinkRegex = /href="(get\.php\?md5=[^"]+)"/i;
+const LIBGEN_HOSTS = ['libgen.li', 'libgen.gl', 'libgen.bz', 'libgen.la'] as const;
+const LIBGEN_REQUEST_TIMEOUT_MS = 20_000;
+const LIBGEN_DOWNLOAD_ROUNDS = 2;
+const LIBGEN_SEARCH_COLUMNS = ['t', 'a', 's', 'y', 'p', 'i'] as const;
+const LIBGEN_SEARCH_TOPICS = ['l', 'f'] as const;
+const LIBGEN_RESULTS_TABLE_MARKER = 'id="tablelibgen"';
+// Every search response (including zero hits, which render no table) has the "Files <count>" tab.
+const libgenFileCountRegex = />Files\s*<span class="badge[^"]*">\s*\d+\s*<\/span>/i;
+const LIBGEN_MIN_RESULT_CELLS = 9;
+
+const libgenGetLinkRegex = /href="(get\.php\?md5=[^"]+)"/i;
+const libgenMd5Regex = /ads\.php\?md5=([a-f0-9]{32})/i;
+const libgenSeriesRegex = /^\s*<b>([\s\S]*?)<\/b>/i;
+const libgenTitleRegex = /href="edition\.php\?id=\d+"[^>]*>([\s\S]*?)<\/a>/i;
+const libgenIsbnRegex = /<font color="green">([\s\S]*?)<\/font>/i;
+const libgenAuthorRoleRegex = /\s*\([a-z]{2,4}\.?\)/g;
+const yearRegex = /\b(1[5-9]\d{2}|20\d{2}|2100)\b/;
 
 const ANNA_BOOK_CAPABILITIES = {
 	filesAvailable: true,
 	metadataCompleteness: 'medium'
 } as const;
-
-const resultAnchorRegex =
-	/<a href="\/md5\/([a-f0-9]{32})" class="custom-a block mr-2 sm:mr-4 hover:opacity-80">/g;
-const titleRegex =
-	/<a href="\/md5\/[^"]+"[^>]*font-semibold text-lg[^"]*"[^>]*>([\s\S]*?)<\/a>/i;
-const authorsRegex =
-	/<a href="\/search\?q=[^"]*"[^>]*><span class="icon-\[mdi--user-edit\][^"]*"><\/span>\s*([\s\S]*?)<\/a>/i;
-const metadataRegex = /<div class="text-gray-800[^"]*"[^>]*>([\s\S]*?)<\/div>/i;
-const coverRegex = /<img [^>]*src="([^"]+)"/i;
-
-interface AnnaMetaInformation {
-	language: string | null;
-	format: string | null;
-	sizeBytes: number | null;
-	year: number | null;
-	sourceFamily: string | null;
-}
-
-const ANNA_LANGUAGE_FILTER_CODES: Record<string, string> = {
-	english: 'en',
-	german: 'de',
-	french: 'fr',
-	spanish: 'es',
-	en: 'en',
-	de: 'de',
-	fr: 'fr',
-	es: 'es'
-};
 
 const ANNA_LANGUAGE_ALIASES: Record<string, string[]> = {
 	english: ['english', 'en', 'eng'],
@@ -64,12 +54,26 @@ const ANNA_LANGUAGE_ALIASES: Record<string, string[]> = {
 	spanish: ['spanish', 'es', 'spa']
 };
 
-const ANNA_LANGUAGE_QUERY_HINTS: Record<string, string[]> = {
-	english: ['english'],
-	german: ['deutsch'],
-	french: ['francais', 'french'],
-	spanish: ['espanol', 'spanish']
-};
+interface LibgenSearchPage {
+	host: string;
+	html: string;
+}
+
+interface LibgenResultRow {
+	md5: string;
+	title: string;
+	series: string | null;
+	author: string | null;
+	year: number | null;
+	language: string | null;
+	filesize: number | null;
+	extension: string | null;
+	isbn: string | null;
+}
+
+type LibgenFileAttempt =
+	| { ok: true; response: Response; fileData: Uint8Array }
+	| { ok: false; notFound: boolean; reason: string; cause?: unknown };
 
 function isValidCodePoint(codePoint: number): boolean {
 	return (
@@ -100,25 +104,14 @@ function decodeHtml(value: string): string {
 }
 
 function stripTags(html: string): string {
-	return decodeHtml(html)
-		.replace(/<script[\s\S]*?<\/script>/gi, ' ')
-		.replace(/<style[\s\S]*?<\/style>/gi, ' ')
-		.replace(/<[^>]+>/g, ' ')
+	return decodeHtml(
+		html
+			.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+			.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+			.replace(/<[^>]+>/g, ' ')
+	)
 		.replace(/\s+/g, ' ')
 		.trim();
-}
-
-function parseAbsoluteUrl(href: string | null | undefined): string | null {
-	const normalized = href?.trim();
-	if (!normalized) {
-		return null;
-	}
-
-	try {
-		return new URL(normalized, ANNA_ARCHIVE_BASE_URL).toString();
-	} catch {
-		return null;
-	}
 }
 
 function parseSizeToBytes(value: string): number | null {
@@ -145,11 +138,207 @@ function parseSizeToBytes(value: string): number | null {
 	return Math.round(size * multiplier);
 }
 
-function normalizeLanguageToken(value: string): string {
-	return value.trim().toLowerCase();
+function parseYear(value: string): number | null {
+	const match = value.match(yearRegex);
+	return match ? Number(match[1]) : null;
 }
 
-function normalizeExtensionToken(value: string): string {
+function parseIsbn(value: string): string | null {
+	const candidates = value
+		.split(/[;,\s]+/)
+		.map((candidate) => candidate.trim().toUpperCase())
+		.filter((candidate) => /^(?:\d{13}|\d{9}[\dX])$/.test(candidate));
+	return candidates.find((candidate) => candidate.length === 13) ?? candidates[0] ?? null;
+}
+
+function parseAuthor(value: string): string | null {
+	const author = value
+		.replace(libgenAuthorRoleRegex, '')
+		.split(';')
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.join('; ');
+	return author.length > 0 ? author : null;
+}
+
+function parseSeries(value: string): string | null {
+	const series = value.split(';')[0]?.trim() ?? '';
+	return series.length > 0 ? series : null;
+}
+
+function parseLibgenRow(rowHtml: string): LibgenResultRow | null {
+	const md5 = rowHtml.match(libgenMd5Regex)?.[1]?.toLowerCase();
+	if (!md5) {
+		return null;
+	}
+
+	const cells = rowHtml
+		.split(/<td(?=[\s>])/i)
+		.slice(1)
+		.map((cell) => cell.slice(cell.indexOf('>') + 1));
+	if (cells.length < LIBGEN_MIN_RESULT_CELLS) {
+		return null;
+	}
+
+	const [titleCell, authorCell, , yearCell, languageCell, , sizeCell, extensionCell] = cells;
+	// The title anchor appends edition details in <i>; keep only the title itself.
+	const title = stripTags(
+		(titleCell.match(libgenTitleRegex)?.[1] ?? '').replace(/<i>[\s\S]*?<\/i>/gi, ' ')
+	);
+	if (!title) {
+		return null;
+	}
+
+	const language = stripTags(languageCell);
+	const extension = stripTags(extensionCell).toLowerCase();
+
+	return {
+		md5,
+		title,
+		series: parseSeries(stripTags(titleCell.match(libgenSeriesRegex)?.[1] ?? '')),
+		author: parseAuthor(stripTags(authorCell)),
+		year: parseYear(stripTags(yearCell)),
+		language: language.length > 0 ? language : null,
+		filesize: parseSizeToBytes(stripTags(sizeCell)),
+		extension: extension.length > 0 ? extension : null,
+		isbn: parseIsbn(stripTags(titleCell.match(libgenIsbnRegex)?.[1] ?? ''))
+	};
+}
+
+function parseLibgenResults(html: string): LibgenResultRow[] {
+	const tableStart = html.indexOf(LIBGEN_RESULTS_TABLE_MARKER);
+	if (tableStart < 0) {
+		return [];
+	}
+
+	const tableEnd = html.indexOf('</table>', tableStart);
+	const table = html.slice(tableStart, tableEnd < 0 ? html.length : tableEnd);
+	return table
+		.split(/<tr(?=[\s>])/i)
+		.slice(1)
+		.map(parseLibgenRow)
+		.filter((row): row is LibgenResultRow => row !== null);
+}
+
+function buildLibgenSearchUrl(host: string, query: string, page: number, pageSize: number): string {
+	const url = new URL('/index.php', `https://${host}`);
+	url.searchParams.set('req', query);
+	url.searchParams.set('res', String(pageSize));
+	for (const column of LIBGEN_SEARCH_COLUMNS) {
+		url.searchParams.append('columns[]', column);
+	}
+	url.searchParams.append('objects[]', 'f');
+	for (const topic of LIBGEN_SEARCH_TOPICS) {
+		url.searchParams.append('topics[]', topic);
+	}
+	if (page > 1) {
+		url.searchParams.set('page', String(page));
+	}
+
+	return url.toString();
+}
+
+function orderedLibgenHosts(preferredHost: string | null): string[] {
+	if (preferredHost === null) {
+		return [...LIBGEN_HOSTS];
+	}
+
+	return [preferredHost, ...LIBGEN_HOSTS.filter((host) => host !== preferredHost)];
+}
+
+async function fetchLibgenSearchPage(
+	query: string,
+	page: number,
+	pageSize: number,
+	preferredHost: string | null
+): Promise<ApiResult<LibgenSearchPage>> {
+	let lastFailure = 'no Libgen mirror answered';
+	let lastCause: unknown;
+
+	for (const host of orderedLibgenHosts(preferredHost)) {
+		try {
+			const response = await fetch(buildLibgenSearchUrl(host, query, page, pageSize), {
+				headers: {
+					Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
+				},
+				signal: AbortSignal.timeout(LIBGEN_REQUEST_TIMEOUT_MS)
+			});
+			if (!response.ok) {
+				lastFailure = `${host} answered with status ${response.status}`;
+				continue;
+			}
+
+			const html = await response.text();
+			if (!libgenFileCountRegex.test(html)) {
+				lastFailure = `${host} returned an unexpected page`;
+				continue;
+			}
+
+			return apiOk({ host, html });
+		} catch (cause: unknown) {
+			lastFailure = `${host} could not be reached`;
+			lastCause = cause;
+		}
+	}
+
+	return apiError(`Anna search failed: ${lastFailure}`, 502, lastCause);
+}
+
+async function fetchLibgenFile(host: string, md5: string): Promise<LibgenFileAttempt> {
+	try {
+		const adsUrl = `https://${host}/ads.php?md5=${encodeURIComponent(md5)}`;
+		const adsResponse = await fetch(adsUrl, {
+			headers: {
+				Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+				'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
+			},
+			signal: AbortSignal.timeout(LIBGEN_REQUEST_TIMEOUT_MS)
+		});
+		if (!adsResponse.ok) {
+			return {
+				ok: false,
+				notFound: false,
+				reason: `${host} mirror lookup answered with status ${adsResponse.status}`
+			};
+		}
+
+		const relativeGetLink = (await adsResponse.text()).match(libgenGetLinkRegex)?.[1];
+		if (!hasText(relativeGetLink)) {
+			return { ok: false, notFound: true, reason: `${host} has no download link for this book` };
+		}
+
+		const response = await fetch(new URL(decodeHtml(relativeGetLink), adsUrl), {
+			headers: {
+				'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
+			}
+		});
+		if (!response.ok) {
+			await response.body?.cancel();
+			return {
+				ok: false,
+				notFound: false,
+				reason: `${host} download answered with status ${response.status}`
+			};
+		}
+
+		const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+		if (contentType.includes('text/html')) {
+			await response.body?.cancel();
+			return {
+				ok: false,
+				notFound: false,
+				reason: `${host} download resolved to an HTML page instead of a file`
+			};
+		}
+
+		return { ok: true, response, fileData: new Uint8Array(await response.arrayBuffer()) };
+	} catch (cause: unknown) {
+		return { ok: false, notFound: false, reason: `${host} download failed`, cause };
+	}
+}
+
+function normalizeLanguageToken(value: string): string {
 	return value.trim().toLowerCase();
 }
 
@@ -161,81 +350,6 @@ function languageFilterTokens(input: SearchBooksRequest): Set<string> {
 	);
 }
 
-function annaLanguageFilterCode(input: SearchBooksRequest): string | null {
-	const requestedLanguages = [...languageFilterTokens(input)];
-	if (requestedLanguages.length !== 1) {
-		return null;
-	}
-
-	return ANNA_LANGUAGE_FILTER_CODES[requestedLanguages[0]] ?? null;
-}
-
-function annaExtensionFilter(input: SearchBooksRequest): string | null {
-	const requestedExtensions = [...new Set((input.filters?.extension ?? []).map(normalizeExtensionToken))]
-		.filter((value) => value.length > 0);
-	if (requestedExtensions.length !== 1) {
-		return null;
-	}
-
-	return requestedExtensions[0];
-}
-
-function annaQueryVariants(input: SearchBooksRequest): string[] {
-	const baseQuery = input.query.trim();
-	if (!baseQuery) {
-		return [];
-	}
-
-	const variants = [baseQuery];
-	const requestedLanguages = [...languageFilterTokens(input)];
-	if (requestedLanguages.length !== 1) {
-		return variants;
-	}
-
-	const matchingHints = new Set<string>();
-	for (const requestedLanguage of requestedLanguages) {
-		for (const [canonicalLanguage, aliases] of Object.entries(ANNA_LANGUAGE_ALIASES)) {
-			if (canonicalLanguage === requestedLanguage || aliases.includes(requestedLanguage)) {
-				for (const hint of ANNA_LANGUAGE_QUERY_HINTS[canonicalLanguage] ?? []) {
-					matchingHints.add(hint);
-				}
-			}
-		}
-	}
-
-	for (const hint of matchingHints) {
-		if (baseQuery.toLowerCase().includes(hint.toLowerCase())) {
-			continue;
-		}
-
-		variants.push(`${baseQuery} ${hint}`);
-	}
-
-	return variants;
-}
-
-function buildAnnaSearchUrl(input: SearchBooksRequest, page = 1): string {
-	const url = new URL('/search', ANNA_ARCHIVE_BASE_URL);
-	url.searchParams.set('q', input.query);
-	url.searchParams.set('content', 'book_any');
-
-	const languageCode = annaLanguageFilterCode(input);
-	if (languageCode) {
-		url.searchParams.set('lang', languageCode);
-	}
-
-	const extension = annaExtensionFilter(input);
-	if (extension) {
-		url.searchParams.set('ext', extension);
-	}
-
-	if (page > 1) {
-		url.searchParams.set('page', String(page));
-	}
-
-	return url.toString();
-}
-
 function shouldPaginateFilteredSearch(input: SearchBooksRequest): boolean {
 	return Boolean(
 		(input.filters?.language?.length ?? 0) > 0 ||
@@ -243,71 +357,6 @@ function shouldPaginateFilteredSearch(input: SearchBooksRequest): boolean {
 			typeof input.filters?.yearFrom === 'number' ||
 			typeof input.filters?.yearTo === 'number'
 	);
-}
-
-function extractMetaInformation(meta: string): AnnaMetaInformation {
-	const parts = meta
-		.split(' · ')
-		.map((part) => part.trim())
-		.filter(Boolean);
-
-	if (parts.length < 2) {
-		return { language: null, format: null, sizeBytes: null, year: null, sourceFamily: null };
-	}
-
-	let language: string | null = null;
-	let format: string | null = null;
-	let sizeBytes: number | null = null;
-	let year: number | null = null;
-	let sourceFamily: string | null = null;
-
-	const firstPart = parts[0];
-	const bracketIndex = firstPart.indexOf('[');
-	if (bracketIndex > 0) {
-		const normalizedLanguage = firstPart.slice(0, bracketIndex).replace(/^✅\s*/, '').trim();
-		language = normalizedLanguage.length > 0 ? normalizedLanguage : null;
-	}
-
-	for (const part of parts.slice(1)) {
-		if (format === null) {
-			const formatMatch = part.match(/\b(EPUB|PDF|MOBI|AZW3|AZW|DJVU|CBZ|CBR|FB2|DOCX?|TXT|LIT)\b/i);
-			if (formatMatch) {
-				format = formatMatch[1].toLowerCase();
-			}
-		}
-
-		if (sizeBytes === null) {
-			sizeBytes = parseSizeToBytes(part);
-		}
-
-		if (year === null) {
-			const yearMatch = part.match(/\b(1[5-9]\d{2}|20\d{2}|2100)\b/);
-			if (yearMatch) {
-				const parsedYear = Number(yearMatch[1]);
-				year = Number.isFinite(parsedYear) ? parsedYear : null;
-			}
-		}
-
-		if (sourceFamily === null) {
-			const normalizedPart = part.replace(/^🚀\s*/, '').trim();
-			const looksLikeSourcePath =
-				normalizedPart.includes('/') ||
-				normalizedPart.toLowerCase() === 'ia' ||
-				normalizedPart.toLowerCase() === 'zlib';
-			if (looksLikeSourcePath && /^(?:\/)?[a-z0-9][a-z0-9/_-]*$/i.test(normalizedPart)) {
-				const family = normalizedPart.replace(/^\/+/, '').split('/')[0]?.toLowerCase() ?? null;
-				sourceFamily = family && family.length > 0 ? family : null;
-			}
-		}
-	}
-
-	return { language, format, sizeBytes, year, sourceFamily };
-}
-
-function supportsAnnaDownload(sourceFamily: string | null): boolean {
-	// The current server-side Anna downloader resolves files through the Libgen mirror fallback.
-	// IA-backed records are a known false positive and should not expose file actions.
-	return sourceFamily !== 'ia';
 }
 
 function matchesLanguageFilter(language: string | null, tokens: Set<string>): boolean {
@@ -318,14 +367,21 @@ function matchesLanguageFilter(language: string | null, tokens: Set<string>): bo
 		return false;
 	}
 
-	const normalized = normalizeLanguageToken(language);
-	const candidates = new Set([normalized]);
+	// Libgen lists multi-language files as "German;English".
+	const candidates = new Set(
+		language
+			.split(/[;,]/)
+			.map((value) => normalizeLanguageToken(value))
+			.filter((value) => value.length > 0)
+	);
 
-	for (const [canonicalLanguage, aliases] of Object.entries(ANNA_LANGUAGE_ALIASES)) {
-		if (canonicalLanguage === normalized || aliases.includes(normalized)) {
-			candidates.add(canonicalLanguage);
-			for (const alias of aliases) {
-				candidates.add(alias);
+	for (const candidate of [...candidates]) {
+		for (const [canonicalLanguage, aliases] of Object.entries(ANNA_LANGUAGE_ALIASES)) {
+			if (canonicalLanguage === candidate || aliases.includes(candidate)) {
+				candidates.add(canonicalLanguage);
+				for (const alias of aliases) {
+					candidates.add(alias);
+				}
 			}
 		}
 	}
@@ -364,57 +420,28 @@ function matchesYearFilter(year: number | null, input: SearchBooksRequest): bool
 	return true;
 }
 
-function mapBook(
-	segment: string,
-	hash: string,
-	input: SearchBooksRequest,
-	languageTokens: Set<string>
-): SearchResultBook | null {
-	const title = stripTags(segment.match(titleRegex)?.[1] ?? '');
-	if (!title) {
-		return null;
-	}
-
-	const author = stripTags(segment.match(authorsRegex)?.[1] ?? '') || null;
-	const meta = stripTags(segment.match(metadataRegex)?.[1] ?? '');
-	const cover = parseAbsoluteUrl(segment.match(coverRegex)?.[1] ?? null);
-	const { language, format, sizeBytes, year, sourceFamily } = extractMetaInformation(meta);
-	const filesAvailable = supportsAnnaDownload(sourceFamily);
-
-	if (!matchesLanguageFilter(language, languageTokens)) {
-		return null;
-	}
-	if (!matchesExtensionFilter(format, input)) {
-		return null;
-	}
-	if (!matchesYearFilter(year, input)) {
-		return null;
-	}
-
+function mapBook(row: LibgenResultRow): SearchResultBook {
 	return {
 		provider: 'anna',
-		providerBookId: hash,
-		title,
-		author,
-		language,
-		year,
-		extension: format,
-		filesize: sizeBytes,
-		cover,
+		providerBookId: row.md5,
+		title: row.title,
+		author: row.author,
+		language: row.language,
+		year: row.year,
+		extension: row.extension,
+		filesize: row.filesize,
+		cover: null,
 		description: null,
-		series: null,
+		series: row.series,
 		volume: null,
 		seriesIndex: null,
 		identifier: null,
-		isbn: null,
+		isbn: row.isbn,
 		pages: null,
-		capabilities: {
-			...ANNA_BOOK_CAPABILITIES,
-			filesAvailable
-		},
-		downloadRef: filesAvailable ? hash : null,
+		capabilities: { ...ANNA_BOOK_CAPABILITIES },
+		downloadRef: row.md5,
 		queueRef: null,
-		sourceUrl: `${ANNA_ARCHIVE_BASE_URL}/md5/${hash}`
+		sourceUrl: `${ANNA_ARCHIVE_BASE_URL}/md5/${row.md5}`
 	};
 }
 
@@ -425,98 +452,54 @@ export class AnnaArchiveSearchProvider implements SearchProviderPort, SearchProv
 		input: SearchBooksRequest,
 		_context: SearchProviderContext
 	): Promise<ApiResult<SearchResultBook[]>> {
-		const limit = Math.max(1, Math.min(input.filters?.limitPerProvider ?? 20, 50));
-		const languageTokens = languageFilterTokens(input);
-		const maxPages = shouldPaginateFilteredSearch(input) ? ANNA_MAX_FILTERED_SEARCH_PAGES : 1;
-		const queryVariants = annaQueryVariants(input);
-		let firstPageError: ApiResult<SearchResultBook[]> | null = null;
-
-		try {
-			for (const query of queryVariants) {
-				const books: SearchResultBook[] = [];
-				const seenHashes = new Set<string>();
-
-				for (let page = 1; page <= maxPages && books.length < limit; page += 1) {
-					const searchUrl = buildAnnaSearchUrl({ ...input, query }, page);
-
-					try {
-						const response = await fetch(searchUrl, {
-							headers: {
-								Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-								'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
-							}
-						});
-
-						if (!response.ok) {
-							const errorResult = apiError(
-								`Anna search failed with status ${response.status}`,
-								response.status
-							);
-							if (page === 1 && query === queryVariants[0]) {
-								return errorResult;
-							}
-							continue;
-						}
-
-						const html = await response.text();
-						if (html.includes('DDoS-Guard')) {
-							const errorResult = apiError('Anna search was blocked by browser verification', 502);
-							if (page === 1 && query === queryVariants[0]) {
-								return errorResult;
-							}
-							continue;
-						}
-
-						const matches = [...html.matchAll(resultAnchorRegex)];
-						if (matches.length === 0) {
-							if (page === 1) {
-								break;
-							}
-							continue;
-						}
-
-						for (let index = 0; index < matches.length; index += 1) {
-							if (books.length >= limit) {
-								break;
-							}
-
-							const match = matches[index];
-							const nextMatch = matches[index + 1];
-							const hash = match[1];
-							if (seenHashes.has(hash)) {
-								continue;
-							}
-
-							const start = match.index ?? 0;
-							const end = nextMatch?.index ?? html.length;
-							const segment = html.slice(start, end);
-							const book = mapBook(segment, hash, input, languageTokens);
-							if (book) {
-								seenHashes.add(hash);
-								books.push(book);
-							}
-						}
-					} catch (cause: unknown) {
-						if (page === 1 && query === queryVariants[0]) {
-							firstPageError = apiError('Anna search failed', 502, cause);
-							break;
-						}
-					}
-				}
-
-				if (books.length > 0) {
-					return apiOk(books);
-				}
-			}
-
-			if (firstPageError) {
-				return firstPageError;
-			}
-
+		const query = input.query.trim();
+		if (!query) {
 			return apiOk([]);
-		} catch (cause: unknown) {
-			return apiError('Anna search failed', 502, cause);
 		}
+
+		const limit = Math.max(1, Math.min(input.filters?.limitPerProvider ?? 20, 50));
+		const paginate = shouldPaginateFilteredSearch(input);
+		const maxPages = paginate ? ANNA_MAX_FILTERED_SEARCH_PAGES : 1;
+		const pageSize = !paginate && limit <= 25 ? 25 : 50;
+		const languageTokens = languageFilterTokens(input);
+		const books: SearchResultBook[] = [];
+		const seenHashes = new Set<string>();
+		let host: string | null = null;
+
+		for (let page = 1; page <= maxPages && books.length < limit; page += 1) {
+			const pageResult = await fetchLibgenSearchPage(query, page, pageSize, host);
+			if (!pageResult.ok) {
+				if (page === 1) {
+					return pageResult;
+				}
+				break;
+			}
+
+			host = pageResult.value.host;
+			const rows = parseLibgenResults(pageResult.value.html);
+			for (const row of rows) {
+				if (books.length >= limit) {
+					break;
+				}
+				if (
+					seenHashes.has(row.md5) ||
+					!matchesLanguageFilter(row.language, languageTokens) ||
+					!matchesExtensionFilter(row.extension, input) ||
+					!matchesYearFilter(row.year, input)
+				) {
+					continue;
+				}
+
+				seenHashes.add(row.md5);
+				books.push(mapBook(row));
+			}
+
+			if (rows.length < pageSize) {
+				break;
+			}
+		}
+
+		return apiOk(books);
 	}
 
 	async download(
@@ -534,62 +517,52 @@ export class AnnaArchiveSearchProvider implements SearchProviderPort, SearchProv
 			return apiError('Invalid Anna download reference', 400);
 		}
 
-		try {
-			const libgenAdsUrl = `${ANNA_LIBGEN_ADS_BASE_URL}?md5=${encodeURIComponent(md5)}`;
-			const adsResponse = await fetch(libgenAdsUrl, {
-				headers: {
-					Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-					'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
+		// The Libgen file CDN intermittently answers 503/522, so retry across mirrors before failing.
+		let lastFailure: Extract<LibgenFileAttempt, { ok: false }> | null = null;
+		for (let round = 0; round < LIBGEN_DOWNLOAD_ROUNDS; round += 1) {
+			let everyMirrorLacksLink = true;
+			for (const host of LIBGEN_HOSTS) {
+				const attempt = await fetchLibgenFile(host, md5);
+				if (!attempt.ok) {
+					everyMirrorLacksLink &&= attempt.notFound;
+					lastFailure = attempt;
+					continue;
 				}
-			});
-			if (!adsResponse.ok) {
-				return apiError(`Anna mirror lookup failed with status ${adsResponse.status}`, 502);
+
+				const { response, fileData } = attempt;
+				const contentType = (
+					response.headers.get('content-type') ?? 'application/octet-stream'
+				).toLowerCase();
+				const fallbackExtension = sanitizeDownloadExtension(input.extension);
+				const headerFileName = parseContentDispositionFileName(response.headers)?.trim();
+				const headerExtension = headerFileName ? fileExtensionFromName(headerFileName) : null;
+				const useHeaderFileName =
+					headerFileName !== null &&
+					headerExtension !== null &&
+					sanitizeDownloadExtension(headerExtension) === headerExtension;
+				const resolvedExtension = useHeaderFileName ? headerExtension : fallbackExtension;
+				const fileName =
+					useHeaderFileName && headerFileName
+						? headerFileName
+						: buildDownloadFileName(input.title, resolvedExtension);
+
+				return apiOk({
+					success: true,
+					fileName,
+					fileData,
+					contentType: contentType || contentTypeForExtension(resolvedExtension)
+				});
 			}
 
-			const adsHtml = await adsResponse.text();
-			const relativeGetLink = adsHtml.match(annaLibgenGetLinkRegex)?.[1];
-			if (!hasText(relativeGetLink)) {
+			if (everyMirrorLacksLink) {
 				return apiError('No supported Anna download mirror was found for this book', 404);
 			}
-
-			const getUrl = new URL(relativeGetLink, libgenAdsUrl).toString();
-			const response = await fetch(getUrl, {
-				headers: {
-					'User-Agent': ANNA_ARCHIVE_BROWSER_USER_AGENT
-				}
-			});
-			if (!response.ok) {
-				return apiError(`Anna download failed with status ${response.status}`, 502);
-			}
-
-			const contentType =
-				(response.headers.get('content-type') ?? 'application/octet-stream').toLowerCase();
-			if (contentType.includes('text/html')) {
-				return apiError('Anna download resolved to an HTML page instead of a file', 502);
-			}
-
-			const fileData = new Uint8Array(await response.arrayBuffer());
-			const fallbackExtension = sanitizeDownloadExtension(input.extension);
-			const headerFileName = parseContentDispositionFileName(response.headers)?.trim();
-			const headerExtension = headerFileName ? fileExtensionFromName(headerFileName) : null;
-			const useHeaderFileName =
-				headerFileName !== null &&
-				headerExtension !== null &&
-				sanitizeDownloadExtension(headerExtension) === headerExtension;
-			const resolvedExtension = useHeaderFileName ? headerExtension : fallbackExtension;
-			const fileName =
-				useHeaderFileName && headerFileName
-					? headerFileName
-					: buildDownloadFileName(input.title, resolvedExtension);
-
-			return apiOk({
-				success: true,
-				fileName,
-				fileData,
-				contentType: contentType || contentTypeForExtension(resolvedExtension)
-			});
-		} catch (cause: unknown) {
-			return apiError('Anna download failed', 502, cause);
 		}
+
+		return apiError(
+			`Anna download failed: ${lastFailure?.reason ?? 'no Libgen mirror answered'}`,
+			502,
+			lastFailure?.cause
+		);
 	}
 }

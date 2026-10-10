@@ -307,6 +307,7 @@ KOReader plugin releases are tracked in the database and the artifacts are serve
 Search is provider-based and routed through `POST /api/search`.
 
 - `anna`, `openlibrary`, and `gutenberg` work as normal providers once enabled in `ACTIVATED_PROVIDERS`
+- `anna` searches and downloads through Libgen mirrors (`libgen.li`, `libgen.gl`, `libgen.bz`, `libgen.la`), because Anna's Archive blocks server-side searches with a browser check; results still link to their Anna's Archive page
 - `zlibrary` also requires you to connect your Z-Library session in `Settings -> Integrations`
 
 To enable Z-Library support, add it to `ACTIVATED_PROVIDERS`:
