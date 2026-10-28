@@ -12,7 +12,7 @@ if [[ "$(uname -s)" == "Darwin" && "${SAKE_KOREADER_CONTAINER:-}" != "1" ]]; the
         --volume "$ROOT_DIR:/workspace" \
         --workdir /workspace \
         --env SAKE_KOREADER_CONTAINER=1 \
-        oven/bun:1.3.8 \
+        oven/bun:1.4.4 \
         bash -lc 'apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates curl xz-utils coreutils >/dev/null && bun install --frozen-lockfile && bun run test:reader:interop'
 fi
 

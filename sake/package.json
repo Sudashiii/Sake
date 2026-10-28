@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.0-dev",
 	"type": "module",
-	"packageManager": "bun@1.3.8",
+	"packageManager": "bun@1.4.4",
 	"scripts": {
 		"dev": "vite dev",
 		"dev:selfhosted": "bun --no-env-file --env-file=.env --env-file=.env.docker.selfhosted run dev",
